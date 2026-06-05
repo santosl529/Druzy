@@ -1,0 +1,28 @@
+# [Project Name]
+
+## What this is
+[One paragraph: what it does, who uses it, current stage]
+
+## Stack
+[Fill in as you decide]
+
+## Commands
+[Fill in once package.json scripts exist]
+
+## Project structure
+[Fill in once folders exist]
+
+## Conventions
+- Match existing code style
+- Server actions for all mutations (if applicable)
+- Ask before adding dependencies
+
+## Secrets
+- Never read .env.local or any .env.* file with real values.
+- Refer to .env.example for required environment variables.
+- If you need an env var's value, ask me.
+
+## Definition of done
+- Typecheck passes
+- Tests pass
+- Lint passes

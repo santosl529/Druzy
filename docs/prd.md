@@ -1,0 +1,287 @@
+# Druzy — Product Requirements Document
+
+**Version:** 2.0 (MVP)
+**Status:** Draft — keep current as decisions change during the build
+**Audience:** AI coding agent (Claude Code) + the builder
+
+---
+
+## 1. Overview
+
+**Druzy** is a self-hostable web app for logging and visualizing arbitrary aspects of personal life — experiences, skills practiced, health metrics, scores, gratitude, anything. The defining idea is that the user describes a tracker in plain language and an AI assistant turns it into a structured, chartable "module." Two specialized AI capture features round it out: food-photo calorie estimation and handwritten-journal transcription.
+
+(The name refers to *druzy* — a surface of many tiny crystals that accumulate over time. It's the visual/aesthetic identity; the crystal theme informs the icon and palette, not the feature set. Note: an unrelated product at druzy.app exists; acceptable because this is a personal tool, not a public launch.)
+
+**Core thesis / differentiator:** One consistent data shape underlies every tracker, so the user (or their non-technical friends) can spin up a brand-new tracker by *describing* it — no developer, no hardcoding — and get forms, storage, and analytics for free. The AI's job is **unstructured intent → structure**, not picking from menus. Existing tools either have rigid predefined trackers (most habit apps) or are flexible but generic and manual (Notion/Airtable). Druzy is flexible *and* conversational *and* analytics-first.
+
+**Scale:** Designed for the builder plus a handful of friends — **tens of users, not thousands.** Optimize for clarity, iterability, and correctness over scalability. Prefer simple, verifiable approaches over clever infrastructure.
+
+**What this PRD covers:** the full MVP. Deferred ambitions (runtime chart code-generation, richer charting, mobile app, social/comparison features) are listed in Out of Scope.
+
+---
+
+## 2. Tech Stack
+
+- **Framework:** Next.js 15 (App Router), React, TypeScript (strict).
+- **Language/validation:** TypeScript end to end; **Zod** schemas shared between AI tool outputs and DB-facing types.
+- **Database / auth / storage:** Supabase — Postgres with Row Level Security, Supabase Auth, Supabase Storage (for photos).
+- **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons. **Function over form for the MVP** — use shadcn defaults; no custom design system yet.
+- **Charts:** Recharts for v1. (D3/visx is the escape hatch if a specific chart proves limiting — not a v1 dependency.)
+- **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here.
+- **Food vision:** a cloud vision model (e.g. Claude or GPT vision) via API.
+- **Journal vision:** a **local** model via Ollama (or equivalent) — runs on the user's machine.
+- **Hosting:** Vercel + Supabase cloud (journal transcription stays local regardless).
+
+**Libraries / approaches to avoid:**
+- No `localStorage`/`sessionStorage` for source-of-truth data — Postgres is the store.
+- Don't reach for LangChain or heavy agent frameworks; the AI SDK covers what's needed.
+- Don't let the LLM do arithmetic over datasets (see §6) — compute in app code.
+
+**Design philosophy:** Build the parts that work *without* AI first, then layer AI on top. If the data model is wrong, everything above it is wrong.
+
+---
+
+## 3. User Roles
+
+Two roles; flat and simple for this scale.
+
+- **User** — the default. Can create/edit/delete their own modules and entries, use the assistant, view their own analytics, upload photos for food/journal capture. Sees only their own data.
+- **Admin** (the builder) — everything a User can do. No special in-app powers required for MVP; admin status (if needed for debugging/maintenance) is set directly in the DB, not via a signup flow.
+
+No team/shared-ownership relationships in MVP. Each user's data is fully siloed. (Friend-to-friend *comparison/sharing* is explicitly out of scope — see §10.)
+
+---
+
+## 4. Authentication & Onboarding
+
+- **Signup:** open email/password (or magic link) via Supabase Auth. Low volume, so no invite gating required — but keep it simple to add later.
+- **Post-login landing:** the user's dashboard (list of their modules + recent activity). Empty state for new users: a prompt to create their first tracker, with both the "describe it to the assistant" path and a "build it manually" path visible.
+- **Session handling:** Supabase session; **server-side route protection** on all authenticated routes and all API/route handlers. No client-only gating.
+- **No linking flows** between users in MVP.
+
+---
+
+## 5. Page / Screen Specifications
+
+Behavioral specs — visual/component choices are the agent's. Core unless marked.
+
+### 5.1 Dashboard `/`
+- **Purpose:** home; overview of the user's trackers and recent activity.
+- **Elements/actions:** list of the user's modules; entry point to create a new module (assistant or manual); recent entries across modules; quick link into each module.
+- **Empty state:** new-user prompt to create a first tracker.
+
+### 5.2 Assistant `/assistant` (core)
+- **Purpose:** the conversational interface — create modules, ask analytics questions, change theme.
+- **Elements/actions:** chat (AI SDK `useChat`); when a tool runs, render its result inline via generative UI (e.g. a proposed module schema shown as an editable card; an analytics answer shown with its chart).
+- **Module creation flow:** assistant proposes a schema → user reviews/edits → confirms → saved. **Never save a module without explicit confirmation.**
+
+### 5.3 Module detail `/modules/[id]` (core)
+- **Purpose:** view/log/analyze one tracker.
+- **Elements/actions:** auto-generated entry form built from the module's field schema; list/table of past entries; the module's chart(s); edit-module affordance (add/rename/remove fields).
+- **Edge cases:** module with no entries yet (empty chart + prompt to log); field added after entries exist (older entries simply lack that key).
+
+### 5.4 Manual module builder `/modules/new` (core)
+- **Purpose:** create/edit a module's field schema without the assistant (fallback + editing).
+- **Elements/actions:** add fields (key, label, type, required, options for selects), pick a default chart config.
+
+### 5.5 Food / nutrition `/food` (core, specialized)
+- **Purpose:** daily macro tracking via photo or manual entry.
+- **Elements/actions:** photo upload/capture → cloud vision estimates calories/protein/fat/carbs → **editable** result → save; manual entry of macros; daily totals view (calories, protein, fat, carbs); history by day.
+- **Non-negotiable UX:** estimates are framed as approximate and are editable before saving. Never save AI estimates silently.
+
+### 5.6 Journal `/journal` (core, specialized)
+- **Purpose:** transcribe handwritten entries locally and extract structured fields.
+- **Elements/actions:** upload journal photo(s) → **local** model transcribes + extracts (weight, calories, protein, gratitude) → review/edit → save into the relevant modules.
+- **Edge case / fallback:** if local transcription quality is poor, fall back to manual entry with the photo attached (see §11).
+
+### 5.7 Settings `/settings` (nice-to-have)
+- **Purpose:** account, theme, data/privacy info.
+- **Elements/actions:** theme selection (also changeable via assistant); a clear statement of what data goes where (see §8).
+
+---
+
+## 6. Core Logic / Algorithms
+
+### 6.1 The module abstraction (the heart of the product)
+Every tracker is a module with a consistent shape; every logged row is an entry keyed to that module's fields. Because the shape is uniform, the entry form, storage, and charts are all **generic** — written once, working for any module.
+
+Field types (fixed enum): `text`, `number`, `date`, `rating`, `boolean`, `select`, `photo`.
+
+### 6.2 AI module creation (intent → schema)
+```
+on user description:
+  call LLM tool `createModule` with the description
+  LLM returns a candidate module schema (name, fields[], chartConfig)
+  validate candidate against Zod ModuleSchema
+    if invalid -> ask LLM to repair, retry (cap retries, e.g. 2)
+  present candidate to user for review/edit
+  on explicit confirm -> persist module (server-side, owner = current user)
+```
+The LLM only ever emits the ModuleSchema shape; Zod is the gate. No free-form code generation.
+
+### 6.3 Cross-module analytics (compute in code, AI narrates)
+```
+on analytics question:
+  LLM (tool `queryAnalytics`) maps the question to:
+    - which module(s)/field(s)
+    - which operation (trend, average, correlation, count, ...)
+  APP CODE fetches the relevant rows (server-side) and computes the statistic
+    (correlation coefficient, moving average, totals, etc.) in TypeScript
+  the computed numeric result (NOT the raw rows) is passed back to the LLM
+  LLM narrates the result into a readable insight
+  render insight + an appropriate chart of the computed data
+```
+**Why:** LLMs are unreliable at arithmetic over many data points, and sending raw rows is needless data exposure. Computing in code is more accurate, cheaper, and more private. Charts are chosen from the fixed library, not invented.
+
+### 6.4 Food estimation
+```
+on food photo:
+  send image to cloud vision model with a structured-output prompt
+  receive {calories, protein, fat, carbs} (+ confidence/notes if available)
+  present as an EDITABLE form, never auto-save
+  on save -> write a food entry for the current day
+```
+
+### 6.5 Journal transcription
+```
+on journal photo (LOCAL ONLY):
+  run local model to transcribe text
+  extract structured fields (weight, calories, protein, gratitude) from the text
+  present transcription + extracted fields for review/edit
+  on save -> write to the relevant modules
+  image and text are processed locally; nothing sent to any third party
+```
+
+Where logic must run: module persistence, analytics computation, and all ownership checks are **server-side**. Journal transcription runs **locally** by requirement.
+
+---
+
+## 7. Data Model
+
+Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/variable shapes; **RLS enabled on every table, default-deny, owner-scoped.**
+
+### `profiles`
+- `id` uuid PK (matches Supabase auth user id)
+- `display_name` text
+- `theme` text — current theme id (default `'druzy-default'`)
+- `is_admin` boolean default false
+- `created_at` timestamptz
+
+### `modules`
+- `id` uuid PK
+- `user_id` uuid FK → profiles.id (indexed)
+- `name` text
+- `fields` jsonb — array of `{ key, label, type, required, options? }`; `type` ∈ the field-type enum (§9)
+- `chart_config` jsonb — `{ chartType, xField, yField, ... }`; `chartType` ∈ the chart-type enum (§9)
+- `is_builtin` boolean default false — true for the food module (bespoke handling)
+- `created_at` timestamptz
+- Index on `user_id`.
+
+### `entries`
+- `id` uuid PK
+- `module_id` uuid FK → modules.id (indexed)
+- `user_id` uuid FK → profiles.id (indexed; denormalized for clean RLS)
+- `values` jsonb — `{ [field_key]: value }`
+- `entry_date` date — the day the entry is *for* (distinct from created_at; needed for daily food totals)
+- `created_at` timestamptz
+- Indexes on `module_id`, `user_id`, `entry_date`.
+
+### `food_entries` (or a built-in module instance — implementer's choice; if a table, spec below)
+- `id` uuid PK
+- `user_id` uuid FK → profiles.id (indexed)
+- `entry_date` date (indexed)
+- `calories` numeric, `protein_g` numeric, `fat_g` numeric, `carbs_g` numeric
+- `source` text — `'photo'` | `'manual'`
+- `photo_path` text nullable — Supabase Storage path
+- `created_at` timestamptz
+
+*(If food is modeled as a built-in module + entries instead of its own table, keep the same fields inside `values` and set `modules.is_builtin = true`. Either is acceptable; pick one and be consistent.)*
+
+### `assets`
+- `id` uuid PK
+- `user_id` uuid FK → profiles.id
+- `path` text — Supabase Storage path
+- `kind` text — `'food_photo'` | `'journal_photo'` | `'entry_photo'`
+- `created_at` timestamptz
+
+**Schema-ready, present-but-unused (for clearly-anticipated needs only):**
+- `modules.shared` boolean default false — reserved for a future sharing feature; **not used in MVP** (do not build sharing logic now).
+
+**RLS:** every table — a row is readable/writable only when `user_id = auth.uid()` (for `profiles`, `id = auth.uid()`). Default-deny; no public read.
+
+---
+
+## 8. Security / Non-Negotiables
+
+- **RLS on every table from day one**, owner-scoped, default-deny. This is the primary protection for a multi-user app — get it right before building features on top.
+- **Journal content never leaves the device** — transcription is local-only. Hard requirement.
+- **Analytics sends computed aggregates to the LLM, not raw rows** wherever feasible (§6.3).
+- **Module creation and theming send only intent/schema** — no personal logged values.
+- **Food data** is sent to a cloud vision provider; this is the one accepted third-party data flow, justified by low sensitivity and disclosed to the user.
+- **Provider terms:** use API-tier providers that do not train on inputs; verify current terms before sending real data; prefer zero-retention if offered.
+- **Server-side ownership checks** on every mutating route — never trust the client for `user_id`.
+- **Transparency:** a plain-language "what data goes where" statement in Settings. The trust-killer is users discovering data flows later; disclose up front.
+
+---
+
+## 9. Domain Data / Taxonomies
+
+**Field types** (for `modules.fields[].type`):
+`text`, `number`, `date`, `rating`, `boolean`, `select`, `photo`
+
+**Chart types** (for `modules.chart_config.chartType`) — fixed library for MVP:
+`line`, `bar`, `area`, `scatter`, `pie`, `heatmap`, `calendar-heatmap`, `histogram`, `stacked-bar`, `number-stat`, `table`
+
+**Food macros** (fixed fields): `calories`, `protein_g`, `fat_g`, `carbs_g`
+
+**Journal extraction fields** (fixed for MVP): `weight`, `calories`, `protein`, `gratitude`
+
+**Asset kinds:** `food_photo`, `journal_photo`, `entry_photo`
+
+**Theme ids:** `druzy-default` (others may be added; assistant's `updateTheme` must validate against the known set).
+
+---
+
+## 10. Out of Scope (deliberately NOT built in MVP)
+
+If a task drifts into any of these, **stop and confirm** before proceeding.
+
+- **Runtime code-generation of novel chart types.** Charts come only from the fixed enum in §9. No executing AI-generated component code (and therefore no sandboxing work).
+- **Social / sharing / comparison between friends.** Each user is siloed. (`modules.shared` column exists but stays unused.)
+- **Polished/custom UI design.** shadcn defaults only.
+- **Mobile/native app.** Responsive web is enough.
+- **Offline support.**
+- **Richer charting via D3/visx.** Recharts only unless explicitly revisited.
+- **Auto-generating modules without user confirmation.** Always review-then-confirm.
+- **LLM-side arithmetic over datasets.** Compute in app code.
+- **Hardcoding bespoke trackers beyond food.** Everything else goes through the generic module path.
+
+---
+
+## 11. Open Questions (decided during the build)
+
+- **Local transcription accuracy** — the biggest unknown. Test against the builder's real handwriting early; if quality is too low, ship the manual-entry-with-photo fallback instead of leaning on transcription. Decide which local model after a quick bake-off.
+- **Food modeling** — own `food_entries` table vs. built-in module + entries. Pick during build; keep consistent.
+- **Exact cloud vision provider** for food, and exact theme palette(s) — deferred.
+- **Whether the AI assistant is worth its complexity for any given surface** — validate as you go; for chart-picking specifically, a plain UI may beat the assistant. Don't over-invest in AI where a menu is better.
+
+---
+
+## 12. Build Order
+
+Each step shippable and testable before the next. **Resist building schema/features for out-of-scope or future-phase items.**
+
+1. **Foundation** — Next.js + TypeScript + Supabase; auth; **RLS on every table from the start**; authenticated app shell (login → empty dashboard).
+2. **Module abstraction, no AI** — `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD. *This proves the core data model — don't proceed until it feels right.*
+3. **Charts** — fixed chart library; per-module chart selection from the §9 enum; render from the consistent data shape.
+4. **AI assistant layer** — Vercel AI SDK; `createModule` (Zod-validated, review-then-confirm); `queryAnalytics` (compute-in-code, AI-narrates); `updateTheme`. AI now enhances things that already work manually.
+5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
+6. **Journal transcription** — local model; photo → transcribe + extract → review → save; **test on real handwriting early**, with manual fallback ready.
+
+After step 2 especially: stop and actually use the manual version before adding AI on top.
+
+---
+
+## Keeping this PRD current
+
+Treat this document as the source of truth. When a decision changes mid-build (e.g. the food modeling choice, or dropping transcription for the fallback), **update the relevant section before the next coding task touches it** — a stale spec actively pulls the coding agent toward the old design. Consider a short companion "decisions log" capturing the *why* behind non-obvious choices (compute-in-code analytics, local-only journals, fixed chart library) so they aren't re-litigated later.

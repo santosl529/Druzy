@@ -1,0 +1,16 @@
+# .gitignore
+node_modules/
+.next/
+dist/
+build/
+.DS_Store
+
+# env files
+.env
+.env*.local
+
+# personal Claude notes
+CLAUDE.local.md
+
+# Cursor
+.cursor/rules/*.local.mdc
