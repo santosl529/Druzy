@@ -1,0 +1,40 @@
+import { notFound, redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { Nav } from '@/components/nav'
+import { ModuleBuilder } from '@/components/module-builder'
+import type { Module } from '@/lib/types'
+
+export default async function EditModulePage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: module } = await supabase
+    .from('modules')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!module) notFound()
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Nav email={user.email ?? ''} />
+      <main className="max-w-2xl mx-auto w-full px-4 py-10">
+        <h1 className="text-2xl font-semibold mb-1">Edit tracker</h1>
+        <p className="text-muted-foreground mb-8">
+          Fields added here will appear on new entries; existing entries are unaffected.
+        </p>
+        <ModuleBuilder initial={module as Module} />
+      </main>
+    </div>
+  )
+}

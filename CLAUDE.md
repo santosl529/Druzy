@@ -15,10 +15,32 @@ Druzy is a self-hostable web app for logging and visualizing arbitrary aspects o
 - **Hosting:** Vercel + Supabase cloud
 
 ## Commands
-_No package.json yet — fill in once scripts exist._
+```
+npm run dev    # start dev server
+npm run build  # production build
+npm run lint   # ESLint
+npx tsc --noEmit  # typecheck
+```
 
 ## Project structure
-_No source tree yet — fill in once folders exist._
+```
+app/
+  actions/       # server actions (auth.ts, …)
+  login/         # login/signup page
+  page.tsx       # dashboard (protected)
+  layout.tsx     # root layout
+components/
+  nav.tsx        # top nav
+  ui/            # shadcn components
+lib/
+  supabase/
+    client.ts    # browser client
+    server.ts    # server client (SSR)
+  utils.ts       # cn() helper
+middleware.ts    # session refresh + route protection
+supabase/
+  migrations/    # SQL migrations (run in Supabase dashboard or CLI)
+```
 
 ## Conventions
 - Match existing code style

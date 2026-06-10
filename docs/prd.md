@@ -1,6 +1,6 @@
 # Druzy — Product Requirements Document
 
-**Version:** 2.0 (MVP)
+**Version:** 2.1 (MVP)
 **Status:** Draft — keep current as decisions change during the build
 **Audience:** AI coding agent (Claude Code) + the builder
 
@@ -65,10 +65,16 @@ No team/shared-ownership relationships in MVP. Each user's data is fully siloed.
 
 Behavioral specs — visual/component choices are the agent's. Core unless marked.
 
-### 5.1 Dashboard `/`
-- **Purpose:** home; overview of the user's trackers and recent activity.
-- **Elements/actions:** list of the user's modules; entry point to create a new module (assistant or manual); recent entries across modules; quick link into each module.
+### 5.1 Trackers `/`
+- **Purpose:** home; list of the user's trackers.
+- **Elements/actions:** grid of module cards; entry points to create a new module (assistant or manual); quick link into each module.
 - **Empty state:** new-user prompt to create a first tracker.
+
+### 5.2a Dashboard `/dashboard`
+- **Purpose:** all charts across all modules in one view.
+- **Elements/actions:** 2-column grid of every chart the user has created, across all modules; module name shown as context above each chart; no curation — shows everything.
+- **Empty state:** prompt to add a chart to a tracker.
+- **Note:** Per-dashboard chart curation/arrangement (a separate ordering independent of module ordering) is explicitly out of scope for now — see §10.
 
 ### 5.2 Assistant `/assistant` (core)
 - **Purpose:** the conversational interface — create modules, ask analytics questions, change theme.
@@ -77,12 +83,14 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 
 ### 5.3 Module detail `/modules/[id]` (core)
 - **Purpose:** view/log/analyze one tracker.
-- **Elements/actions:** auto-generated entry form built from the module's field schema; list/table of past entries; the module's chart(s); edit-module affordance (add/rename/remove fields).
-- **Edge cases:** module with no entries yet (empty chart + prompt to log); field added after entries exist (older entries simply lack that key).
+- **Elements/actions:** auto-generated entry form; entry history table; all of the module's charts rendered in `position` order; drag-to-reorder charts; add/edit/delete individual charts; edit-module affordance (add/rename/remove fields).
+- **Chart routes:** `/modules/[id]/charts/new` (add chart), `/modules/[id]/charts/[chartId]/edit` (edit chart).
+- **Default chart:** auto-created when a module is saved — `line` if numeric fields exist, `list` if text/select fields exist, `table` otherwise.
+- **Edge cases:** module with no entries yet (chart shows empty state); field added after entries exist (older entries simply lack that key).
 
 ### 5.4 Manual module builder `/modules/new` (core)
 - **Purpose:** create/edit a module's field schema without the assistant (fallback + editing).
-- **Elements/actions:** add fields (key, label, type, required, options for selects), pick a default chart config.
+- **Elements/actions:** add fields (key, label, type, required, options for selects). Chart config is managed separately via the charts UI, not here.
 
 ### 5.5 Food / nutrition `/food` (core, specialized)
 - **Purpose:** daily macro tracking via photo or manual entry.
@@ -172,10 +180,20 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - `user_id` uuid FK → profiles.id (indexed)
 - `name` text
 - `fields` jsonb — array of `{ key, label, type, required, options? }`; `type` ∈ the field-type enum (§9)
-- `chart_config` jsonb — `{ chartType, xField, yField, ... }`; `chartType` ∈ the chart-type enum (§9)
 - `is_builtin` boolean default false — true for the food module (bespoke handling)
 - `created_at` timestamptz
 - Index on `user_id`.
+- **Note:** `chart_config` was removed in v2.1; charts are now a separate `charts` table.
+
+### `charts`
+- `id` uuid PK
+- `module_id` uuid FK → modules.id (indexed; cascade delete)
+- `user_id` uuid FK → profiles.id (indexed; denormalized for clean RLS)
+- `config` jsonb — the chart config (see §9 for full field list)
+- `position` int — ordering within a module's chart list (0-indexed)
+- `created_at` timestamptz
+- Indexes on `module_id`, `user_id`.
+- RLS: owner-scoped, default-deny.
 
 ### `entries`
 - `id` uuid PK
@@ -229,8 +247,34 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 **Field types** (for `modules.fields[].type`):
 `text`, `number`, `date`, `rating`, `boolean`, `select`, `photo`
 
-**Chart types** (for `modules.chart_config.chartType`) — fixed library for MVP:
-`line`, `bar`, `area`, `scatter`, `pie`, `heatmap`, `calendar-heatmap`, `histogram`, `stacked-bar`, `number-stat`, `table`
+**Chart types** (for `charts.config.chartType`) — fixed library for MVP:
+`line`, `bar`, `area`, `scatter`, `pie`, `heatmap`, `calendar-heatmap`, `histogram`, `stacked-bar`, `number-stat`, `table`, `list`
+
+- `list` renders a formatted list of field values (e.g. "songs I've memorized"). Uses `displayField` + optional `secondaryField` instead of axis fields. Ignores time/axis config.
+
+**Chart config fields** (`charts.config` jsonb) — declarative; all computation runs in app code:
+
+| Field | Type | Notes |
+|---|---|---|
+| `chartType` | ChartType | required |
+| `title` | string? | optional display title |
+| `series` | `{moduleId, field, label?, color?}[]` | data sources; today always length 1, shaped for future multi-module |
+| `bucketBy` | `none\|day\|week\|month\|year` | group time axis; default `none` |
+| `aggregation` | `none\|sum\|avg\|count\|min\|max\|median` | combine values in a bucket; default `none` |
+| `dateRange` | `{type:'all'\|'last_n_days'\|'custom', n?, start?, end?}` | filter entries by date |
+| `filters` | `{field, op, value}[]` | row-level filters; op ∈ `eq\|neq\|gt\|gte\|lt\|lte\|contains` |
+| `sort` | `{field, direction:'asc'\|'desc'}` | used by `list` and `table` types |
+| `xLabel` / `yLabel` | string? | axis labels |
+| `stacked` | bool? | for stacked-bar |
+| `showPoints` | bool? | for line/area/scatter |
+| `showGrid` | bool? | default true |
+| `showLegend` | bool? | default false for single series |
+| `fillForward` | bool? | carry last value to days with no entry (line/bar/area) |
+| `referenceLines` | `{value, label?, color?}[]` | horizontal reference lines |
+| `displayField` | string? | `list` type: primary field to display |
+| `secondaryField` | string? | `list` type: optional secondary field |
+
+**Design invariant:** chart config is purely declarative. No SQL, no JS expressions. All transforms (bucketing, aggregation, fill-forward) are computed in app code (`lib/chart-data.ts`), not stored in config.
 
 **Food macros** (fixed fields): `calories`, `protein_g`, `fat_g`, `carbs_g`
 
@@ -247,6 +291,8 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 If a task drifts into any of these, **stop and confirm** before proceeding.
 
 - **Runtime code-generation of novel chart types.** Charts come only from the fixed enum in §9. No executing AI-generated component code (and therefore no sandboxing work).
+- **Multi-module charts.** The `series[]` config shape is ready for it, but all charts today reference a single module. Cross-module data combining is not built.
+- **Curated/saved custom dashboards.** `/dashboard` shows all charts in a flat grid. A "My Dashboard" with per-user curation, arrangement, or a separate ordering join table is future work.
 - **Social / sharing / comparison between friends.** Each user is siloed. (`modules.shared` column exists but stays unused.)
 - **Polished/custom UI design.** shadcn defaults only.
 - **Mobile/native app.** Responsive web is enough.
@@ -261,7 +307,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 ## 11. Open Questions (decided during the build)
 
 - **Local transcription accuracy** — the biggest unknown. Test against the builder's real handwriting early; if quality is too low, ship the manual-entry-with-photo fallback instead of leaning on transcription. Decide which local model after a quick bake-off.
-- **Food modeling** — own `food_entries` table vs. built-in module + entries. Pick during build; keep consistent.
+- **Food modeling** — ~~decided~~: dedicated `food_entries` table (not a built-in module). Fixed columns (calories, protein_g, fat_g, carbs_g) and dedicated daily-total queries.
 - **Exact cloud vision provider** for food, and exact theme palette(s) — deferred.
 - **Whether the AI assistant is worth its complexity for any given surface** — validate as you go; for chart-picking specifically, a plain UI may beat the assistant. Don't over-invest in AI where a menu is better.
 
@@ -273,7 +319,7 @@ Each step shippable and testable before the next. **Resist building schema/featu
 
 1. **Foundation** — Next.js + TypeScript + Supabase; auth; **RLS on every table from the start**; authenticated app shell (login → empty dashboard).
 2. **Module abstraction, no AI** — `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD. *This proves the core data model — don't proceed until it feels right.*
-3. **Charts** — fixed chart library; per-module chart selection from the §9 enum; render from the consistent data shape.
+3. **Charts** — `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, etc.).
 4. **AI assistant layer** — Vercel AI SDK; `createModule` (Zod-validated, review-then-confirm); `queryAnalytics` (compute-in-code, AI-narrates); `updateTheme`. AI now enhances things that already work manually.
 5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
 6. **Journal transcription** — local model; photo → transcribe + extract → review → save; **test on real handwriting early**, with manual fallback ready.
