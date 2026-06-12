@@ -83,14 +83,16 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 
 ### 5.3 Module detail `/modules/[id]` (core)
 - **Purpose:** view/log/analyze one tracker.
-- **Elements/actions:** auto-generated entry form; entry history table; all of the module's charts rendered in `position` order; drag-to-reorder charts; add/edit/delete individual charts; edit-module affordance (add/rename/remove fields).
+- **Elements/actions:** auto-generated entry form; entry history table with inline edit (pencil) and delete (confirm dialog) per row; all of the module's charts rendered in `position` order; drag-to-reorder charts; add/edit/delete individual charts; edit-module affordance (add/rename/remove fields); delete-module button (preflight warns about formula/chart dependents before confirming).
 - **Chart routes:** `/modules/[id]/charts/new` (add chart), `/modules/[id]/charts/[chartId]/edit` (edit chart).
+- **Edit routes:** `/modules/[id]/edit` (standard trackers), `/modules/[id]/edit/formula` (formula trackers). The standard route redirects formula modules to their dedicated route.
 - **Default chart:** auto-created when a module is saved — `line` if numeric fields exist, `list` if text/select fields exist, `table` otherwise.
 - **Edge cases:** module with no entries yet (chart shows empty state); field added after entries exist (older entries simply lack that key).
+- **Delete dependency warnings:** before deleting a module, the UI runs a preflight that identifies (a) formula trackers that reference the deleted module as an input and (b) charts in other modules whose series point at the deleted module. Both are surfaced in the confirm dialog. The deletes themselves cascade at the DB level (entries + this module's charts); the dangling cross-module references are not auto-cleaned (they degrade silently to empty series).
 
 ### 5.4 Manual module builder `/modules/new` (core)
 - **Purpose:** create/edit a module's field schema without the assistant (fallback + editing).
-- **Elements/actions:** add fields (key, label, type, required, options for selects). Chart config is managed separately via the charts UI, not here.
+- **Elements/actions:** add fields (key, label, type, required, options for selects, unit for number/rating fields). Chart config is managed separately via the charts UI, not here.
 
 ### 5.5 Food / nutrition `/food` (core, specialized)
 - **Purpose:** daily macro tracking via photo or manual entry.
@@ -102,9 +104,9 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 - **Elements/actions:** upload journal photo(s) → **local** model transcribes + extracts (weight, calories, protein, gratitude) → review/edit → save into the relevant modules.
 - **Edge case / fallback:** if local transcription quality is poor, fall back to manual entry with the photo attached (see §11).
 
-### 5.7 Settings `/settings` (nice-to-have)
-- **Purpose:** account, theme, data/privacy info.
-- **Elements/actions:** theme selection (also changeable via assistant); a clear statement of what data goes where (see §8).
+### 5.7 Settings `/settings`
+- **Purpose:** account, date/time config, data/privacy disclosure.
+- **Elements/actions:** theme selection (also changeable via assistant); day-boundary timezone selector (IANA timezone, saved to profile); a clear plain-language statement of what data goes where (see §8).
 
 ---
 
@@ -173,6 +175,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - `display_name` text
 - `theme` text — current theme id (default `'druzy-default'`)
 - `is_admin` boolean default false
+- `day_boundary_tz` text nullable — IANA timezone string (e.g. `'America/New_York'`). Null = unset; the UI defaults to the browser-detected timezone. Governs which calendar day a "now" entry is attributed to. **Per-tracker override:** a `day_boundary_tz` column on `modules` (same IANA string, null = inherit profile) can be added later without migrating this table.
 - `created_at` timestamptz
 
 ### `modules`
@@ -200,7 +203,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - `module_id` uuid FK → modules.id (indexed)
 - `user_id` uuid FK → profiles.id (indexed; denormalized for clean RLS)
 - `values` jsonb — `{ [field_key]: value }`
-- `entry_date` date — the day the entry is *for* (distinct from created_at; needed for daily food totals)
+- `entry_date` date — **the day the entry is *for*** (the day the thing happened, set by the client using the user's local date). `created_at` is never used for day attribution — it is only used as a tiebreaker for display sort order when two entries share the same `entry_date`. This ensures logging late (doing something on 5/16 but entering it on 5/17) correctly attributes the entry to 5/16. All chart bucketing, aggregation, daily totals, and streak computation read `entry_date` exclusively.
 - `created_at` timestamptz
 - Indexes on `module_id`, `user_id`, `entry_date`.
 
@@ -246,6 +249,9 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 **Field types** (for `modules.fields[].type`):
 `text`, `number`, `date`, `rating`, `boolean`, `select`, `photo`
+
+**Number/rating field extras** (optional per-field metadata):
+- `unit` — string, max 20 chars (e.g. `"lbs"`, `"kcal"`, `"min"`). Displayed alongside values in entry lists (`"154 lbs"`), as a suffix label in the entry form, and auto-appended to Y-axis labels on charts when `config.yLabel` is not explicitly set. Validated by Zod. Has no effect on non-numeric fields.
 
 **Chart types** (for `charts.config.chartType`) — fixed library for MVP:
 `line`, `bar`, `area`, `scatter`, `pie`, `heatmap`, `calendar-heatmap`, `histogram`, `stacked-bar`, `number-stat`, `table`, `list`
