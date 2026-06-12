@@ -169,7 +169,15 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     }
 
     case 'table': {
-      return <EntryList moduleId={chart.module_id} fields={fields} entries={entries} />
+      const homeModule = (sourceModules ?? []).find((m) => m.id === chart.module_id)
+      return (
+        <EntryList
+          moduleId={chart.module_id}
+          fields={fields}
+          entries={entries}
+          readOnly={homeModule?.kind === 'formula'}
+        />
+      )
     }
 
     default:

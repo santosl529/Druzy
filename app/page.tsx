@@ -31,6 +31,9 @@ export default async function DashboardPage() {
             <p className="text-muted-foreground">Log and visualize anything that matters to you.</p>
           </div>
           <div className="flex gap-2">
+            <Link href="/modules/new/formula" className={buttonVariants({ variant: 'outline' })}>
+              Formula tracker
+            </Link>
             <Link href="/modules/new" className={buttonVariants({ variant: 'outline' })}>
               Build manually
             </Link>
@@ -58,9 +61,18 @@ export default async function DashboardPage() {
               <Link key={mod.id} href={`/modules/${mod.id}`} className="group">
                 <Card className="h-full transition-colors group-hover:bg-muted/50">
                   <CardHeader>
-                    <CardTitle className="text-base">{mod.name}</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      {mod.name}
+                      {mod.kind === 'formula' && (
+                        <span className="text-[10px] font-medium uppercase tracking-wide rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                          Formula
+                        </span>
+                      )}
+                    </CardTitle>
                     <CardDescription>
-                      {mod.fields.length} {mod.fields.length === 1 ? 'field' : 'fields'}
+                      {mod.kind === 'formula'
+                        ? 'Computed from other trackers'
+                        : `${mod.fields.length} ${mod.fields.length === 1 ? 'field' : 'fields'}`}
                     </CardDescription>
                   </CardHeader>
                 </Card>

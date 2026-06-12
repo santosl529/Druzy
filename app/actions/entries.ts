@@ -14,6 +14,13 @@ export async function createEntry(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Formula modules are computed from other trackers — never logged directly.
+  const { data: mod } = await supabase
+    .from('modules').select('kind').eq('id', moduleId).eq('user_id', user.id).single()
+  if (mod?.kind === 'formula') {
+    return { error: 'Formula trackers are computed automatically and cannot be logged directly.' }
+  }
+
   const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
 
   const values: Record<string, unknown> = {}

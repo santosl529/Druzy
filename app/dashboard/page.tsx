@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { ModuleChart } from '@/components/module-chart'
+import { withFormulaEntries } from '@/lib/formula'
 import type { Chart, Entry, Module } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -17,7 +18,8 @@ export default async function DashboardPage() {
 
   const typedCharts = (charts ?? []) as Chart[]
   const typedModules = (modules ?? []) as Module[]
-  const typedEntries = (entries ?? []) as Entry[]
+  // Formula modules get computed (synthetic) entries appended on read.
+  const typedEntries = withFormulaEntries(typedModules, (entries ?? []) as Entry[])
 
   const moduleMap = new Map(typedModules.map((m) => [m.id, m]))
   const entriesByModule = new Map<string, Entry[]>()

@@ -119,11 +119,42 @@ export interface ModuleField {
   options?: string[]
 }
 
+// ----------------------------------------------------------------
+// Formula modules — daily value computed from other modules' data
+// ----------------------------------------------------------------
+
+export const MODULE_KINDS = ['standard', 'formula'] as const
+export type ModuleKind = (typeof MODULE_KINDS)[number]
+
+/** One named input a formula reads from another module. */
+export interface FormulaInput {
+  moduleId: string
+  /** Numeric field key on the source module. */
+  field: string
+  /** Name the expression uses to refer to this input. */
+  alias: string
+}
+
+/**
+ * Declarative formula definition. The expression is plain arithmetic
+ * over the input aliases (e.g. "sleep*0.4 + practiced*0.3"), parsed
+ * and evaluated by the sandboxed evaluator in lib/formula.ts.
+ * Values are computed on read from current source data — never stored.
+ */
+export interface FormulaConfig {
+  inputs: FormulaInput[]
+  expression: string
+}
+
 export interface Module {
   id: string
   user_id: string
   name: string
   fields: ModuleField[]
+  /** 'standard' logs entries directly; 'formula' computes a daily value. */
+  kind: ModuleKind
+  /** Present only when kind = 'formula'. */
+  formula_config: FormulaConfig | null
   is_builtin: boolean
   shared: boolean
   created_at: string

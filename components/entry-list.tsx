@@ -18,6 +18,8 @@ interface Props {
   moduleId: string
   fields: ModuleField[]
   entries: Entry[]
+  /** Hides delete actions — used for computed (formula) values. */
+  readOnly?: boolean
 }
 
 function formatValue(value: unknown, type: ModuleField['type']): string {
@@ -26,13 +28,15 @@ function formatValue(value: unknown, type: ModuleField['type']): string {
   return String(value)
 }
 
-export function EntryList({ moduleId, fields, entries }: Props) {
+export function EntryList({ moduleId, fields, entries, readOnly = false }: Props) {
   const [, startTransition] = useTransition()
 
   if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        No entries yet. Log your first one above.
+        {readOnly
+          ? 'No computed values yet — log data in the source trackers.'
+          : 'No entries yet. Log your first one above.'}
       </p>
     )
   }
@@ -46,7 +50,7 @@ export function EntryList({ moduleId, fields, entries }: Props) {
             {fields.map((f) => (
               <TableHead key={f.key}>{f.label}</TableHead>
             ))}
-            <TableHead className="w-10" />
+            {!readOnly && <TableHead className="w-10" />}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -58,18 +62,20 @@ export function EntryList({ moduleId, fields, entries }: Props) {
                   {formatValue((entry.values as Record<string, unknown>)[f.key], f.type)}
                 </TableCell>
               ))}
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground h-7 w-7"
-                  onClick={() =>
-                    startTransition(() => deleteEntry(entry.id, moduleId))
-                  }
-                >
-                  <Trash2Icon className="size-3.5" />
-                </Button>
-              </TableCell>
+              {!readOnly && (
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground h-7 w-7"
+                    onClick={() =>
+                      startTransition(() => deleteEntry(entry.id, moduleId))
+                    }
+                  >
+                    <Trash2Icon className="size-3.5" />
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
