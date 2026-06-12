@@ -47,6 +47,48 @@ export async function createEntry(
   revalidatePath(`/modules/${moduleId}`)
 }
 
+export async function updateEntry(
+  id: string,
+  moduleId: string,
+  fields: ModuleField[],
+  formData: FormData
+): Promise<{ error: string } | void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  // Guard: formula modules cannot be edited directly.
+  const { data: mod } = await supabase
+    .from('modules').select('kind').eq('id', moduleId).eq('user_id', user.id).single()
+  if (mod?.kind === 'formula') {
+    return { error: 'Formula tracker values are computed and cannot be edited directly.' }
+  }
+
+  const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
+
+  const values: Record<string, unknown> = {}
+  for (const field of fields) {
+    const raw = formData.get(field.key)
+    if (field.type === 'boolean') {
+      values[field.key] = raw === 'on'
+    } else if (field.type === 'number' || field.type === 'rating') {
+      values[field.key] = raw !== null && raw !== '' ? Number(raw) : null
+    } else {
+      values[field.key] = raw ?? null
+    }
+  }
+
+  const { error } = await supabase
+    .from('entries')
+    .update({ values, entry_date: entryDate })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/modules/${moduleId}`)
+}
+
 export async function deleteEntry(id: string, moduleId: string): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

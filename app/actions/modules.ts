@@ -60,6 +60,61 @@ export async function updateModule(id: string, formData: FormData): Promise<{ er
   redirect(`/modules/${id}`)
 }
 
+/**
+ * Preflight check before deleting a module.
+ * Returns human-readable warnings about dependents so the UI can surface them.
+ * Does NOT delete anything.
+ */
+export async function getModuleDeleteWarnings(id: string): Promise<{
+  formulaDependents: string[]
+  chartDependents: string[]
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { formulaDependents: [], chartDependents: [] }
+
+  // Formula modules that reference this module as an input.
+  const { data: allModules } = await supabase
+    .from('modules')
+    .select('id, name, kind, formula_config')
+    .eq('user_id', user.id)
+    .neq('id', id)
+
+  const formulaDependents: string[] = []
+  for (const m of allModules ?? []) {
+    if (m.kind === 'formula' && m.formula_config) {
+      const cfg = m.formula_config as { inputs?: { moduleId: string }[] }
+      if (cfg.inputs?.some((inp) => inp.moduleId === id)) {
+        formulaDependents.push(m.name)
+      }
+    }
+  }
+
+  // Charts on OTHER modules whose series reference this module.
+  const { data: allCharts } = await supabase
+    .from('charts')
+    .select('id, module_id, config')
+    .eq('user_id', user.id)
+    .neq('module_id', id) // charts on THIS module will be cascade-deleted anyway
+
+  const chartModuleIds = new Set<string>()
+  for (const c of allCharts ?? []) {
+    const cfg = c.config as { series?: { moduleId: string }[] }
+    if (cfg.series?.some((s) => s.moduleId === id)) {
+      chartModuleIds.add(c.module_id as string)
+    }
+  }
+
+  const chartDependents: string[] = []
+  if (chartModuleIds.size > 0) {
+    for (const m of allModules ?? []) {
+      if (chartModuleIds.has(m.id as string)) chartDependents.push(m.name)
+    }
+  }
+
+  return { formulaDependents, chartDependents }
+}
+
 export async function deleteModule(id: string): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

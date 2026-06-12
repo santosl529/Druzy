@@ -25,6 +25,11 @@ export default async function EditModulePage({
 
   if (!module) notFound()
 
+  // Formula modules have their own edit page.
+  if ((module as { kind?: string }).kind === 'formula') {
+    redirect(`/modules/${id}/edit/formula`)
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav email={user.email ?? ''} />
