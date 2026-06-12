@@ -91,6 +91,8 @@ export interface ChartConfig {
   // ── Display ────────────────────────────────────────────────
   xLabel?: string
   yLabel?: string
+  /** Label for the secondary (right) y-axis, when any series uses it. */
+  yRightLabel?: string
   stacked?: boolean
   showPoints?: boolean
   showGrid?: boolean

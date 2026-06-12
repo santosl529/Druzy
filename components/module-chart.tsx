@@ -81,6 +81,8 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
         showPoints={config.showPoints}
         showGrid={config.showGrid ?? true}
         showLegend={config.showLegend}
+        yLabel={config.yLabel}
+        yRightLabel={config.yRightLabel}
       />
     )
   }

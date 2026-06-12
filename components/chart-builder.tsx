@@ -94,6 +94,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
   const [showPoints, setShowPoints] = useState(initConfig.showPoints ?? false)
   const [xLabel, setXLabel] = useState(initConfig.xLabel ?? '')
   const [yLabel, setYLabel] = useState(initConfig.yLabel ?? '')
+  const [yRightLabel, setYRightLabel] = useState(initConfig.yRightLabel ?? '')
   const [refLines, setRefLines] = useState<ReferenceLine[]>(initConfig.referenceLines ?? [])
 
   const numericFields = fields.filter((f) => f.type === 'number' || f.type === 'rating')
@@ -104,6 +105,13 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
     const mod = modules.find((m) => m.id === modId)
     return (mod?.fields ?? []).filter((f) => f.type === 'number' || f.type === 'rating')
   }
+
+  // Base UI Select renders the raw value in the trigger unless given an
+  // items map; build value → label maps for selects where they differ.
+  const moduleItems = modules.map((m) => ({ value: m.id, label: m.name }))
+  const fieldItems = (fs: ModuleField[]) => fs.map((f) => ({ value: f.key, label: f.label }))
+
+  const hasRightAxisSeries = seriesRows.some((r) => r.yAxis === 'right')
 
   function updateSeriesRow(i: number, patch: Partial<SeriesRow>) {
     setSeriesRows((rows) => {
@@ -141,6 +149,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
       referenceLines: refLines.length > 0 ? refLines : undefined,
       xLabel: xLabel.trim() || undefined,
       yLabel: yLabel.trim() || undefined,
+      yRightLabel: hasRightAxisSeries ? yRightLabel.trim() || undefined : undefined,
       showGrid: showGrid || undefined,
       showLegend: showLegend || undefined,
     }
@@ -222,7 +231,11 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
                 <div className="flex-1 grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Tracker</Label>
-                    <Select value={row.moduleId} onValueChange={(v) => v && updateSeriesRow(i, { moduleId: v })}>
+                    <Select
+                      items={moduleItems}
+                      value={row.moduleId}
+                      onValueChange={(v) => v && updateSeriesRow(i, { moduleId: v })}
+                    >
                       <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                       <SelectContent>
                         {modules.map((m) => (
@@ -233,7 +246,11 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Field</Label>
-                    <Select value={row.field} onValueChange={(v) => v && updateSeriesRow(i, { field: v })}>
+                    <Select
+                      items={fieldItems(numericFieldsFor(row.moduleId))}
+                      value={row.field}
+                      onValueChange={(v) => v && updateSeriesRow(i, { field: v })}
+                    >
                       <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                       <SelectContent>
                         {numericFieldsFor(row.moduleId).map((f) => (
@@ -290,7 +307,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
             <>
               <div className="space-y-1.5">
                 <Label>Display field</Label>
-                <Select value={displayField} onValueChange={(v) => setDisplayField(v ?? displayField)}>
+                <Select items={fieldItems(textFields)} value={displayField} onValueChange={(v) => setDisplayField(v ?? displayField)}>
                   <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {textFields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
@@ -299,7 +316,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label>Secondary field <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <Select value={secondaryField} onValueChange={(v) => setSecondaryField(v ?? '')}>
+                <Select items={fieldItems(allFields)} value={secondaryField} onValueChange={(v) => setSecondaryField(v ?? '')}>
                   <SelectTrigger className="w-48"><SelectValue placeholder="(none)" /></SelectTrigger>
                   <SelectContent>
                     {allFields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
@@ -321,7 +338,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
             <div className="flex gap-4 flex-wrap">
               <div className="space-y-1.5">
                 <Label>X field</Label>
-                <Select value={field} onValueChange={(v) => setField(v ?? field)}>
+                <Select items={fieldItems(numericFields)} value={field} onValueChange={(v) => setField(v ?? field)}>
                   <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {numericFields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
@@ -330,7 +347,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label>Y field</Label>
-                <Select value={scatterYField} onValueChange={(v) => setScatterYField(v ?? scatterYField)}>
+                <Select items={fieldItems(numericFields)} value={scatterYField} onValueChange={(v) => setScatterYField(v ?? scatterYField)}>
                   <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {numericFields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
@@ -341,7 +358,11 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
           ) : (
             <div className="space-y-1.5">
               <Label>Field</Label>
-              <Select value={field} onValueChange={(v) => setField(v ?? field)}>
+              <Select
+                items={fieldItems(chartType === 'pie' ? allFields : numericFields)}
+                value={field}
+                onValueChange={(v) => setField(v ?? field)}
+              >
                 <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(chartType === 'pie' ? allFields : numericFields).map((f) => (
@@ -415,6 +436,12 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
             <Label>Y label</Label>
             <Input value={yLabel} onChange={(e) => setYLabel(e.target.value)} className="w-40" placeholder="(auto)" />
           </div>
+          {MULTI_SERIES_TYPES.includes(chartType) && hasRightAxisSeries && (
+            <div className="space-y-1.5">
+              <Label>Right Y label</Label>
+              <Input value={yRightLabel} onChange={(e) => setYRightLabel(e.target.value)} className="w-40" placeholder="(auto)" />
+            </div>
+          )}
         </div>
       )}
 

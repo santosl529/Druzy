@@ -189,6 +189,8 @@ export function MultiSeriesChartView({
   showPoints,
   showGrid = true,
   showLegend,
+  yLabel,
+  yRightLabel,
 }: {
   rows: MultiSeriesRow[]
   series: SeriesMeta[]
@@ -197,6 +199,8 @@ export function MultiSeriesChartView({
   showPoints?: boolean
   showGrid?: boolean
   showLegend?: boolean
+  yLabel?: string
+  yRightLabel?: string
 }) {
   const hasRightAxis = series.some((s) => s.yAxis === 'right')
   const legend = showLegend ?? series.length > 1
@@ -206,8 +210,19 @@ export function MultiSeriesChartView({
     <>
       {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-border" />}
       <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-      <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-      {hasRightAxis && <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />}
+      <YAxis
+        yAxisId="left"
+        tick={{ fontSize: 11 }}
+        label={yLabel ? { value: yLabel, angle: -90, position: 'insideLeft', style: { fontSize: 11 } } : undefined}
+      />
+      {hasRightAxis && (
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          tick={{ fontSize: 11 }}
+          label={yRightLabel ? { value: yRightLabel, angle: 90, position: 'insideRight', style: { fontSize: 11 } } : undefined}
+        />
+      )}
       <Tooltip />
       {legend && <Legend />}
     </>

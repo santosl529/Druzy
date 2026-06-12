@@ -59,6 +59,7 @@ export const chartConfigSchema = z.object({
   sort: z.object({ field: z.string(), direction: z.enum(['asc', 'desc']) }).optional(),
   xLabel: z.string().optional(),
   yLabel: z.string().optional(),
+  yRightLabel: z.string().optional(),
   stacked: z.boolean().optional(),
   showPoints: z.boolean().optional(),
   showGrid: z.boolean().optional(),
