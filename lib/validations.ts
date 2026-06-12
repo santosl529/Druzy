@@ -8,6 +8,8 @@ export const moduleFieldSchema = z.object({
   type: z.enum(FIELD_TYPES),
   required: z.boolean(),
   options: z.array(z.string()).optional(),
+  /** Optional unit for number/rating fields (e.g. "lbs", "kcal", "min"). */
+  unit: z.string().max(20).optional(),
 })
 
 // chart_config removed from modules; charts are their own table now

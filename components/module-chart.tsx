@@ -56,6 +56,15 @@ function seriesLabel(chart: Chart, fields: ModuleField[]): string {
   return fields.find((f) => f.key === field)?.label ?? field
 }
 
+/** Auto-derive a y-axis label from the series field, including unit if set. */
+function autoYLabel(chart: Chart, fields: ModuleField[], explicitLabel: string | undefined): string | undefined {
+  if (explicitLabel) return explicitLabel
+  const fieldKey = chart.config.series[0]?.field
+  const f = fields.find((fd) => fd.key === fieldKey)
+  if (!f) return undefined
+  return f.unit ? `${f.label} (${f.unit})` : undefined
+}
+
 export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntries }: Props) {
   const { config } = chart
 
@@ -97,6 +106,7 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
   }
 
   const label = seriesLabel(chart, fields)
+  const yLabel = autoYLabel(chart, fields, config.yLabel)
   const fillForward = config.fillForward ?? false
   const numericFields = fields.filter((f) => f.type === 'number' || f.type === 'rating')
 
@@ -104,27 +114,29 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     case 'line': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <LineChartView data={data} label={label} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
+      return <LineChartView data={data} label={label} yLabel={yLabel} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'bar': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <BarChartView data={data} label={label} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
+      return <BarChartView data={data} label={label} yLabel={yLabel} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'area': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <AreaChartView data={data} label={label} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
+      return <AreaChartView data={data} label={label} yLabel={yLabel} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'scatter': {
       const data = getScatterData(entries, config)
       if (data.length === 0) return <NoData />
-      const xLabel = config.xLabel ?? fields.find((f) => f.key === config.series[0]?.field)?.label ?? ''
-      const yLabel = config.yLabel ?? fields.find((f) => f.key === config.series[1]?.field)?.label ?? ''
-      return <ScatterChartView data={data} xLabel={xLabel} yLabel={yLabel} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} />
+      const xField = fields.find((f) => f.key === config.series[0]?.field)
+      const yField = fields.find((f) => f.key === config.series[1]?.field)
+      const xLabel = config.xLabel ?? (xField ? (xField.unit ? `${xField.label} (${xField.unit})` : xField.label) : '')
+      const scatterYLabel = config.yLabel ?? (yField ? (yField.unit ? `${yField.label} (${yField.unit})` : yField.label) : '')
+      return <ScatterChartView data={data} xLabel={xLabel} yLabel={scatterYLabel} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} />
     }
 
     case 'pie': {

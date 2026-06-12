@@ -130,6 +130,12 @@ export interface ModuleField {
   type: FieldType
   required: boolean
   options?: string[]
+  /**
+   * Optional unit label for number/rating fields (e.g. "lbs", "kcal", "min").
+   * Displayed alongside values in entry lists, form placeholders, and axis labels.
+   * Has no effect on other field types.
+   */
+  unit?: string
 }
 
 // ----------------------------------------------------------------

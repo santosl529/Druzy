@@ -31,8 +31,11 @@ export function FormulaSummary({ config, modules }: Props) {
                 <span>
                   {mod?.name ?? 'Unknown tracker'}
                   <span className="text-muted-foreground"> · {field?.label ?? input.field}</span>
+                  {field?.unit && (
+                    <span className="text-muted-foreground"> ({field.unit})</span>
+                  )}
                   {input.defaultValue !== undefined && (
-                    <span className="text-muted-foreground"> · default {input.defaultValue}</span>
+                    <span className="text-muted-foreground"> · default {input.defaultValue}{field?.unit ? ` ${field.unit}` : ''}</span>
                   )}
                 </span>
               </li>

@@ -139,11 +139,15 @@ function valuesFromRows(rows: MultiSeriesRow[], key: string): number[] {
   })
 }
 
+const yAxisLabelProps = (label: string | undefined) =>
+  label ? { value: label, angle: -90, position: 'insideLeft' as const, style: { fontSize: 11 } } : undefined
+
 export function LineChartView({
-  data, label, stepAfter, yAxisMin, yAxisMax, zeroBaseline,
+  data, label, yLabel, stepAfter, yAxisMin, yAxisMax, zeroBaseline,
 }: {
   data: TimeSeriesPoint[]
   label: string
+  yLabel?: string
   stepAfter?: boolean
   yAxisMin?: number
   yAxisMax?: number
@@ -156,7 +160,7 @@ export function LineChartView({
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} domain={domain} />
+        <YAxis tick={{ fontSize: 11 }} domain={domain} label={yAxisLabelProps(yLabel)} />
         <Tooltip />
         <Line type={stepAfter ? 'stepAfter' : 'linear'} dataKey="value" name={label} dot={!stepAfter && data.length < 40} stroke={COLORS[0]} strokeWidth={2} />
       </LineChart>
@@ -165,10 +169,11 @@ export function LineChartView({
 }
 
 export function BarChartView({
-  data, label, yAxisMin, yAxisMax, zeroBaseline,
+  data, label, yLabel, yAxisMin, yAxisMax, zeroBaseline,
 }: {
   data: TimeSeriesPoint[]
   label: string
+  yLabel?: string
   yAxisMin?: number
   yAxisMax?: number
   zeroBaseline?: boolean
@@ -180,7 +185,7 @@ export function BarChartView({
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} domain={domain} />
+        <YAxis tick={{ fontSize: 11 }} domain={domain} label={yAxisLabelProps(yLabel)} />
         <Tooltip />
         <Bar dataKey="value" name={label} fill={COLORS[0]} radius={[3, 3, 0, 0]} />
       </BarChart>
@@ -189,10 +194,11 @@ export function BarChartView({
 }
 
 export function AreaChartView({
-  data, label, stepAfter, yAxisMin, yAxisMax, zeroBaseline,
+  data, label, yLabel, stepAfter, yAxisMin, yAxisMax, zeroBaseline,
 }: {
   data: TimeSeriesPoint[]
   label: string
+  yLabel?: string
   stepAfter?: boolean
   yAxisMin?: number
   yAxisMax?: number
@@ -205,7 +211,7 @@ export function AreaChartView({
       <AreaChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} domain={domain} />
+        <YAxis tick={{ fontSize: 11 }} domain={domain} label={yAxisLabelProps(yLabel)} />
         <Tooltip />
         <Area
           type={stepAfter ? 'stepAfter' : 'linear'}

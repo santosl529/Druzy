@@ -138,6 +138,17 @@ export function ModuleBuilder({ initial }: Props) {
               )}
             </div>
 
+            {(field.type === 'number' || field.type === 'rating') && (
+              <div className="space-y-1.5">
+                <Label>Unit <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  value={field.unit ?? ''}
+                  onChange={(e) => updateField(i, 'unit', e.target.value.trim() || undefined)}
+                  placeholder="e.g. lbs, kcal, min"
+                  className="w-36"
+                />
+              </div>
+            )}
             {field.type === 'select' && (
               <div className="space-y-1.5">
                 <Label>Options (comma-separated)</Label>

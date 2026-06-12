@@ -70,13 +70,19 @@ export function EntryForm({ moduleId, fields }: Props) {
             )}
 
             {field.type === 'number' && (
-              <Input
-                id={field.key}
-                name={field.key}
-                type="number"
-                step="any"
-                required={field.required}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id={field.key}
+                  name={field.key}
+                  type="number"
+                  step="any"
+                  placeholder={field.unit ? `0 ${field.unit}` : undefined}
+                  required={field.required}
+                />
+                {field.unit && (
+                  <span className="text-sm text-muted-foreground shrink-0">{field.unit}</span>
+                )}
+              </div>
             )}
 
             {field.type === 'rating' && (

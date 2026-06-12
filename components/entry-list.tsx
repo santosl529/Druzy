@@ -34,7 +34,11 @@ interface Props {
 function formatValue(value: unknown, field: ModuleField): string {
   if (value === null || value === undefined) return '—'
   if (field.type === 'boolean') return value ? 'Yes' : 'No'
-  return String(value)
+  const str = String(value)
+  if ((field.type === 'number' || field.type === 'rating') && field.unit) {
+    return `${str} ${field.unit}`
+  }
+  return str
 }
 
 // ----------------------------------------------------------------
