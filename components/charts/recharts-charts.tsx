@@ -56,7 +56,7 @@ export function LineChartView({ data, label, stepAfter }: { data: TimeSeriesPoin
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip />
-        <Line type={stepAfter ? 'stepAfter' : 'monotone'} dataKey="value" name={label} dot={!stepAfter && data.length < 40} stroke={COLORS[0]} strokeWidth={2} />
+        <Line type={stepAfter ? 'stepAfter' : 'linear'} dataKey="value" name={label} dot={!stepAfter && data.length < 40} stroke={COLORS[0]} strokeWidth={2} />
       </LineChart>
     </ChartWrapper>
   )
@@ -85,7 +85,7 @@ export function AreaChartView({ data, label, stepAfter }: { data: TimeSeriesPoin
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip />
         <Area
-          type={stepAfter ? 'stepAfter' : 'monotone'}
+          type={stepAfter ? 'stepAfter' : 'linear'}
           dataKey="value"
           name={label}
           stroke={COLORS[0]}
@@ -204,7 +204,7 @@ export function MultiSeriesChartView({
 }) {
   const hasRightAxis = series.some((s) => s.yAxis === 'right')
   const legend = showLegend ?? series.length > 1
-  const curveType = stepAfter ? 'stepAfter' : 'monotone'
+  const curveType = stepAfter ? 'stepAfter' : 'linear'
 
   const axes = (
     <>

@@ -35,6 +35,7 @@ export const formulaInputSchema = z.object({
     .max(30, 'Alias too long')
     .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Alias must be letters, numbers, or underscores (not starting with a number)')
     .refine((a) => !RESERVED_ALIASES.has(a), 'This alias name is reserved'),
+  defaultValue: z.number().finite().optional(),
 })
 
 export const formulaConfigSchema = z

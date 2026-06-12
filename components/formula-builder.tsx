@@ -29,6 +29,8 @@ interface InputRow {
   moduleId: string
   field: string
   alias: string
+  /** Empty string = no default. */
+  defaultValue: string
 }
 
 const PREVIEW_DAYS = 14
@@ -37,13 +39,46 @@ function defaultAlias(fieldKey: string): string {
   return /^\d/.test(fieldKey) ? `_${fieldKey}` : fieldKey
 }
 
+function parseDefaultValue(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const n = Number(trimmed)
+  return Number.isFinite(n) ? n : undefined
+}
+
+function toInputRows(inputs: FormulaConfig['inputs']): InputRow[] {
+  return inputs.map((i) => ({
+    moduleId: i.moduleId,
+    field: i.field,
+    alias: i.alias,
+    defaultValue: i.defaultValue !== undefined ? String(i.defaultValue) : '',
+  }))
+}
+
+function buildFormulaInputs(rows: InputRow[]) {
+  return rows
+    .filter((r) => r.moduleId && r.field && r.alias)
+    .map((r) => {
+      const input = {
+        moduleId: r.moduleId,
+        field: r.field,
+        alias: r.alias,
+      } as FormulaConfig['inputs'][number]
+      const dv = parseDefaultValue(r.defaultValue)
+      if (dv !== undefined) input.defaultValue = dv
+      return input
+    })
+}
+
 export function FormulaBuilder({ modules, entries, initial }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initial?.name ?? '')
   const [inputs, setInputs] = useState<InputRow[]>(
-    initial?.config.inputs ?? [{ moduleId: '', field: '', alias: '' }]
+    initial?.config.inputs
+      ? toInputRows(initial.config.inputs)
+      : [{ moduleId: '', field: '', alias: '', defaultValue: '' }]
   )
   const [expression, setExpression] = useState(initial?.config.expression ?? '')
 
@@ -63,14 +98,14 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
   }
 
   function addInput() {
-    setInputs((rows) => [...rows, { moduleId: '', field: '', alias: '' }])
+    setInputs((rows) => [...rows, { moduleId: '', field: '', alias: '', defaultValue: '' }])
   }
 
   function removeInput(i: number) {
     setInputs((rows) => rows.filter((_, idx) => idx !== i))
   }
 
-  const completeInputs = inputs.filter((r) => r.moduleId && r.field && r.alias)
+  const completeInputs = buildFormulaInputs(inputs)
   const aliases = completeInputs.map((r) => r.alias)
   const duplicateAliases = new Set(aliases).size !== aliases.length
 
@@ -104,7 +139,8 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
     completeInputs.length === inputs.length &&
     !duplicateAliases &&
     expression.trim().length > 0 &&
-    !expressionError
+    !expressionError &&
+    inputs.every((r) => !r.defaultValue.trim() || parseDefaultValue(r.defaultValue) !== undefined)
 
   function handleSubmit() {
     setError(null)
@@ -156,7 +192,7 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
                 <Select
                   items={moduleItems}
                   value={row.moduleId}
-                  onValueChange={(v) => v && updateInput(i, { moduleId: v, field: '', alias: '' })}
+                  onValueChange={(v) => v && updateInput(i, { moduleId: v, field: '', alias: '', defaultValue: '' })}
                 >
                   <SelectTrigger className="min-w-40"><SelectValue placeholder="Select…" /></SelectTrigger>
                   <SelectContent>
@@ -193,6 +229,19 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
                   className="w-32 font-mono text-sm"
                 />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">
+                  Default <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={row.defaultValue}
+                  onChange={(e) => updateInput(i, { defaultValue: e.target.value })}
+                  placeholder="—"
+                  className="w-24 font-mono text-sm"
+                />
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -208,6 +257,9 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
         })}
         {duplicateAliases && (
           <p className="text-sm text-destructive">Aliases must be unique.</p>
+        )}
+        {inputs.some((r) => r.defaultValue.trim() && parseDefaultValue(r.defaultValue) === undefined) && (
+          <p className="text-sm text-destructive">Default values must be valid numbers.</p>
         )}
       </div>
 
@@ -235,7 +287,7 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
         {preview.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {canSubmit || (expression.trim() && !expressionError)
-              ? 'No computed days yet — a day needs data in every input.'
+              ? 'No computed days yet — log data in at least one input, or set defaults for all inputs.'
               : 'Pick inputs and write a valid expression to preview recent values.'}
           </p>
         ) : (

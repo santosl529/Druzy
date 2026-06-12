@@ -31,6 +31,9 @@ export function FormulaSummary({ config, modules }: Props) {
                 <span>
                   {mod?.name ?? 'Unknown tracker'}
                   <span className="text-muted-foreground"> · {field?.label ?? input.field}</span>
+                  {input.defaultValue !== undefined && (
+                    <span className="text-muted-foreground"> · default {input.defaultValue}</span>
+                  )}
                 </span>
               </li>
             )
@@ -38,8 +41,8 @@ export function FormulaSummary({ config, modules }: Props) {
         </ul>
       </div>
       <p className="text-xs text-muted-foreground">
-        Computed per day from current source data. Days are only computed when every input has a
-        value; multiple entries on the same day are averaged.
+        Computed per day from current source data. A day is included when every input has a logged
+        value or a configured default; multiple entries on the same day are averaged.
       </p>
     </div>
   )

@@ -133,6 +133,8 @@ export interface FormulaInput {
   field: string
   /** Name the expression uses to refer to this input. */
   alias: string
+  /** Used when no entry is logged for this input on a given day. */
+  defaultValue?: number
 }
 
 /**

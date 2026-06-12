@@ -246,8 +246,9 @@ function round6(n: number): number {
 /**
  * Compute the formula's daily values from current source data.
  * For each input, multiple entries on the same day are averaged.
- * A day is only computed when EVERY input has a value that day —
- * values are never fabricated for missing data.
+ * A day is computed when every input has a logged value that day, or
+ * a configured defaultValue for inputs with no entry. Values are never
+ * fabricated beyond those explicit defaults.
  */
 export function computeFormulaSeries(
   config: FormulaConfig,
@@ -278,15 +279,27 @@ export function computeFormulaSeries(
   }
   if (perInput.length === 0) return []
 
-  // Only days where every input has data.
-  const candidateDates = [...perInput[0].byDate.keys()].filter((d) =>
-    perInput.every((inp) => inp.byDate.has(d))
-  )
+  const allDates = new Set<string>()
+  for (const inp of perInput) for (const d of inp.byDate.keys()) allDates.add(d)
 
   const points: FormulaPoint[] = []
-  for (const date of candidateDates.sort()) {
+  for (const date of [...allDates].sort()) {
     const scope: Record<string, number> = Object.create(null)
-    for (const inp of perInput) scope[inp.alias] = inp.byDate.get(date)!
+    let canCompute = true
+    for (let i = 0; i < config.inputs.length; i++) {
+      const input = config.inputs[i]
+      const inp = perInput[i]
+      const logged = inp.byDate.get(date)
+      if (logged !== undefined) {
+        scope[inp.alias] = logged
+      } else if (input.defaultValue !== undefined) {
+        scope[inp.alias] = input.defaultValue
+      } else {
+        canCompute = false
+        break
+      }
+    }
+    if (!canCompute) continue
     try {
       const value = evaluateAst(ast, scope)
       if (Number.isFinite(value)) points.push({ date, value: round6(value) })
