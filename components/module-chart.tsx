@@ -7,6 +7,7 @@ import {
   getHistogramData,
   getStackedBarData,
   getCalendarData,
+  getMultiSeriesData,
 } from '@/lib/chart-data'
 import {
   LineChartView,
@@ -17,16 +18,28 @@ import {
   HistogramView,
   StackedBarView,
   NumberStatView,
+  MultiSeriesChartView,
 } from '@/components/charts/recharts-charts'
 import { CalendarHeatmap } from '@/components/charts/calendar-heatmap'
 import { ListChart } from '@/components/charts/list-chart'
 import { EntryList } from '@/components/entry-list'
-import type { Chart, Entry, ModuleField } from '@/lib/types'
+import type { Chart, Entry, Module, ModuleField } from '@/lib/types'
 
 interface Props {
   chart: Chart
   entries: Entry[]
   fields: ModuleField[]
+  /** All modules referenced by multi-series charts (including the home module). */
+  sourceModules?: Module[]
+  /** Entries for all referenced modules (including the home module). */
+  sourceEntries?: Entry[]
+}
+
+const MULTI_SERIES_TYPES = ['line', 'bar', 'area'] as const
+type MultiSeriesType = (typeof MULTI_SERIES_TYPES)[number]
+
+function isMultiSeriesType(t: string): t is MultiSeriesType {
+  return (MULTI_SERIES_TYPES as readonly string[]).includes(t)
 }
 
 function NoData() {
@@ -43,8 +56,34 @@ function seriesLabel(chart: Chart, fields: ModuleField[]): string {
   return fields.find((f) => f.key === field)?.label ?? field
 }
 
-export function ModuleChart({ chart, entries, fields }: Props) {
+export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntries }: Props) {
   const { config } = chart
+
+  // Multi-series path: 2+ series joined by date, possibly across modules.
+  if (config.series.length > 1 && isMultiSeriesType(config.chartType)) {
+    const modulesById = new Map((sourceModules ?? []).map((m) => [m.id, m]))
+    const entriesByModule = new Map<string, Entry[]>()
+    for (const e of sourceEntries ?? []) {
+      const list = entriesByModule.get(e.module_id) ?? []
+      list.push(e)
+      entriesByModule.set(e.module_id, list)
+    }
+
+    const { rows, series } = getMultiSeriesData(config, entriesByModule, modulesById)
+    if (rows.length === 0) return <NoData />
+
+    return (
+      <MultiSeriesChartView
+        rows={rows}
+        series={series}
+        variant={config.chartType}
+        stepAfter={config.fillForward ?? false}
+        showPoints={config.showPoints}
+        showGrid={config.showGrid ?? true}
+        showLegend={config.showLegend}
+      />
+    )
+  }
 
   if (entries.length === 0 && config.chartType !== 'list' && config.chartType !== 'table') {
     return <NoData />

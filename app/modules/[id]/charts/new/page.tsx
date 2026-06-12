@@ -10,8 +10,10 @@ export default async function NewChartPage({ params }: { params: Promise<{ id: s
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: module } = await supabase
-    .from('modules').select('*').eq('id', id).eq('user_id', user.id).single()
+  const [{ data: module }, { data: allModules }] = await Promise.all([
+    supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),
+    supabase.from('modules').select('*').eq('user_id', user.id).order('name'),
+  ])
   if (!module) notFound()
 
   const m = module as Module
@@ -24,7 +26,7 @@ export default async function NewChartPage({ params }: { params: Promise<{ id: s
           <a href={`/modules/${id}`} className="hover:underline">{m.name}</a> / New chart
         </p>
         <h1 className="text-2xl font-semibold mb-8">Add chart</h1>
-        <ChartBuilder moduleId={id} fields={m.fields} />
+        <ChartBuilder moduleId={id} fields={m.fields} modules={(allModules ?? []) as Module[]} />
       </main>
     </div>
   )

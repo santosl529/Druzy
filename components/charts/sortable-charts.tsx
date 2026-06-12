@@ -21,7 +21,7 @@ import { GripVerticalIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { ModuleChart } from '@/components/module-chart'
 import { deleteChart, reorderCharts } from '@/app/actions/charts'
-import type { Chart, Entry, ModuleField } from '@/lib/types'
+import type { Chart, Entry, Module, ModuleField } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface ChartCardProps {
@@ -29,9 +29,11 @@ interface ChartCardProps {
   moduleId: string
   entries: Entry[]
   fields: ModuleField[]
+  sourceModules?: Module[]
+  sourceEntries?: Entry[]
 }
 
-function SortableChartCard({ chart, moduleId, entries, fields }: ChartCardProps) {
+function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, sourceEntries }: ChartCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: chart.id })
 
@@ -80,7 +82,13 @@ function SortableChartCard({ chart, moduleId, entries, fields }: ChartCardProps)
 
       {/* Chart body */}
       <div className="p-4">
-        <ModuleChart chart={chart} entries={entries} fields={fields} />
+        <ModuleChart
+          chart={chart}
+          entries={entries}
+          fields={fields}
+          sourceModules={sourceModules}
+          sourceEntries={sourceEntries}
+        />
       </div>
     </div>
   )
@@ -91,9 +99,13 @@ interface Props {
   moduleId: string
   entries: Entry[]
   fields: ModuleField[]
+  sourceModules?: Module[]
+  sourceEntries?: Entry[]
 }
 
-export function SortableChartsList({ charts: initialCharts, moduleId, entries, fields }: Props) {
+export function SortableChartsList({
+  charts: initialCharts, moduleId, entries, fields, sourceModules, sourceEntries,
+}: Props) {
   const [charts, setCharts] = useState(initialCharts)
   const [, startTransition] = useTransition()
 
@@ -127,6 +139,8 @@ export function SortableChartsList({ charts: initialCharts, moduleId, entries, f
               moduleId={moduleId}
               entries={entries}
               fields={fields}
+              sourceModules={sourceModules}
+              sourceEntries={sourceEntries}
             />
           ))}
         </div>

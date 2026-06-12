@@ -14,9 +14,10 @@ export default async function EditChartPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: module }, { data: chart }] = await Promise.all([
+  const [{ data: module }, { data: chart }, { data: allModules }] = await Promise.all([
     supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),
     supabase.from('charts').select('*').eq('id', chartId).eq('user_id', user.id).single(),
+    supabase.from('modules').select('*').eq('user_id', user.id).order('name'),
   ])
 
   if (!module || !chart) notFound()
@@ -32,7 +33,7 @@ export default async function EditChartPage({
           <a href={`/modules/${id}`} className="hover:underline">{m.name}</a> / Edit chart
         </p>
         <h1 className="text-2xl font-semibold mb-8">Edit chart</h1>
-        <ChartBuilder moduleId={id} fields={m.fields} initial={c} />
+        <ChartBuilder moduleId={id} fields={m.fields} modules={(allModules ?? []) as Module[]} initial={c} />
       </main>
     </div>
   )

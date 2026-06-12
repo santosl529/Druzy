@@ -30,6 +30,22 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
   const typedCharts = (charts ?? []) as Chart[]
   const typedEntries = (entries ?? []) as Entry[]
 
+  // Multi-series charts may reference other modules; fetch their data too.
+  const foreignModuleIds = [...new Set(
+    typedCharts.flatMap((c) => c.config.series.map((s) => s.moduleId))
+  )].filter((mid) => mid !== id)
+
+  let sourceModules: Module[] = [typedModule]
+  let sourceEntries: Entry[] = typedEntries
+  if (foreignModuleIds.length > 0) {
+    const [{ data: foreignModules }, { data: foreignEntries }] = await Promise.all([
+      supabase.from('modules').select('*').eq('user_id', user.id).in('id', foreignModuleIds),
+      supabase.from('entries').select('*').eq('user_id', user.id).in('module_id', foreignModuleIds),
+    ])
+    sourceModules = [typedModule, ...((foreignModules ?? []) as Module[])]
+    sourceEntries = [...typedEntries, ...((foreignEntries ?? []) as Entry[])]
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav email={user.email ?? ''} />
@@ -83,6 +99,8 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
               moduleId={id}
               entries={typedEntries}
               fields={typedModule.fields}
+              sourceModules={sourceModules}
+              sourceEntries={sourceEntries}
             />
           )}
         </section>

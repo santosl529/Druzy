@@ -26,6 +26,7 @@ const chartSeriesSchema = z.object({
   field: z.string(),
   label: z.string().optional(),
   color: z.string().optional(),
+  yAxis: z.enum(['left', 'right']).optional(),
 })
 
 const dateRangeSchema = z.object({

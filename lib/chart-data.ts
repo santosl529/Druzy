@@ -1,4 +1,4 @@
-import type { Entry, ModuleField, ChartConfig, ChartFilter, BucketBy, Aggregation } from './types'
+import type { Entry, Module, ModuleField, ChartConfig, ChartFilter, BucketBy, Aggregation } from './types'
 
 // ----------------------------------------------------------------
 // Output shapes
@@ -28,6 +28,19 @@ export interface HistogramBin {
 export interface StackedBarPoint {
   date: string
   [key: string]: string | number
+}
+
+/** One joined row for a multi-series chart; series keys are 's0', 's1', … */
+export interface MultiSeriesRow {
+  date: string
+  [seriesKey: string]: string | number | null
+}
+
+export interface SeriesMeta {
+  key: string
+  name: string
+  color: string
+  yAxis: 'left' | 'right'
 }
 
 // ----------------------------------------------------------------
@@ -181,6 +194,63 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeries
   return Object.entries(bucketMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, values]) => ({ date, value: applyAggregation(values, aggregation) }))
+}
+
+/** Default palette for series without an explicit color (matches recharts-charts COLORS). */
+export const SERIES_COLORS = [
+  '#6366f1', // indigo
+  '#22c55e', // green
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // violet
+]
+
+/**
+ * Build joined rows for a chart with 2+ series, possibly across modules.
+ * Each series is computed independently via getTimeSeries (so dateRange,
+ * bucketBy, aggregation, and fillForward apply per series), then full
+ * outer-joined by date. Dates where a series has no data stay null —
+ * values are never fabricated.
+ */
+export function getMultiSeriesData(
+  config: ChartConfig,
+  entriesByModule: Map<string, Entry[]>,
+  modulesById: Map<string, Module>
+): { rows: MultiSeriesRow[]; series: SeriesMeta[] } {
+  const seriesMeta: SeriesMeta[] = []
+  const perSeriesPoints: TimeSeriesPoint[][] = []
+
+  config.series.forEach((s, i) => {
+    const mod = modulesById.get(s.moduleId)
+    const field = mod?.fields.find((f) => f.key === s.field)
+    const entries = entriesByModule.get(s.moduleId) ?? []
+
+    const singleConfig: ChartConfig = { ...config, series: [s] }
+    // Missing module/entries (e.g. dangling reference) yields an empty series.
+    perSeriesPoints.push(mod ? getTimeSeries(entries, singleConfig) : [])
+
+    seriesMeta.push({
+      key: `s${i}`,
+      name: s.label ?? field?.label ?? s.field,
+      color: s.color ?? SERIES_COLORS[i % SERIES_COLORS.length],
+      yAxis: s.yAxis ?? 'left',
+    })
+  })
+
+  const valueMaps = perSeriesPoints.map(
+    (points) => new Map(points.map((p) => [p.date, p.value]))
+  )
+  const allDates = [...new Set(perSeriesPoints.flat().map((p) => p.date))].sort()
+
+  const rows: MultiSeriesRow[] = allDates.map((date) => {
+    const row: MultiSeriesRow = { date }
+    valueMaps.forEach((map, i) => {
+      row[`s${i}`] = map.get(date) ?? null
+    })
+    return row
+  })
+
+  return { rows, series: seriesMeta }
 }
 
 export function getScatterData(entries: Entry[], config: ChartConfig): ScatterPoint[] {

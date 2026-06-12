@@ -13,11 +13,13 @@ import {
 } from '@/components/ui/select'
 import { createChart, updateChart } from '@/app/actions/charts'
 import { CHART_TYPES } from '@/lib/types'
-import type { Chart, ChartConfig, ChartType, ModuleField, ReferenceLine } from '@/lib/types'
+import type { Chart, ChartConfig, ChartSeries, ChartType, Module, ModuleField, ReferenceLine } from '@/lib/types'
 
 const TIME_SERIES_TYPES: ChartType[] = ['line', 'bar', 'area', 'histogram', 'stacked-bar']
 const AXIS_TYPES: ChartType[] = ['line', 'bar', 'area', 'scatter', 'histogram', 'stacked-bar']
 const FILL_FORWARD_TYPES: ChartType[] = ['line', 'bar', 'area']
+/** Chart types that support 2+ series, possibly from different modules. */
+const MULTI_SERIES_TYPES: ChartType[] = ['line', 'bar', 'area']
 
 const DATE_RANGE_OPTIONS = [
   { value: 'all',         label: 'All time' },
@@ -30,7 +32,16 @@ const DATE_RANGE_OPTIONS = [
 interface Props {
   moduleId: string
   fields: ModuleField[]
+  /** All of the user's modules, for cross-module series. */
+  modules: Module[]
   initial?: Chart
+}
+
+interface SeriesRow {
+  moduleId: string
+  field: string
+  label: string
+  yAxis: 'left' | 'right'
 }
 
 function toDateRangeValue(config: ChartConfig): string {
@@ -47,7 +58,7 @@ function fromDateRangeValue(val: string): ChartConfig['dateRange'] {
   return { type: 'all' }
 }
 
-export function ChartBuilder({ moduleId, fields, initial }: Props) {
+export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +71,16 @@ export function ChartBuilder({ moduleId, fields, initial }: Props) {
   const [chartType, setChartType] = useState<ChartType>(initConfig.chartType)
   const [title, setTitle] = useState(initConfig.title ?? '')
   const [field, setField] = useState(initConfig.series[0]?.field ?? fields[0]?.key ?? '')
+  const [seriesRows, setSeriesRows] = useState<SeriesRow[]>(() =>
+    initConfig.series.length > 0
+      ? initConfig.series.map((s) => ({
+          moduleId: s.moduleId,
+          field: s.field,
+          label: s.label ?? '',
+          yAxis: s.yAxis ?? 'left',
+        }))
+      : [{ moduleId, field: fields[0]?.key ?? '', label: '', yAxis: 'left' }]
+  )
   const [scatterYField, setScatterYField] = useState(initConfig.series[1]?.field ?? '')
   const [displayField, setDisplayField] = useState(initConfig.displayField ?? fields[0]?.key ?? '')
   const [secondaryField, setSecondaryField] = useState(initConfig.secondaryField ?? '')
@@ -79,6 +100,32 @@ export function ChartBuilder({ moduleId, fields, initial }: Props) {
   const textFields = fields.filter((f) => f.type === 'text' || f.type === 'select' || f.type === 'boolean')
   const allFields = fields
 
+  function numericFieldsFor(modId: string): ModuleField[] {
+    const mod = modules.find((m) => m.id === modId)
+    return (mod?.fields ?? []).filter((f) => f.type === 'number' || f.type === 'rating')
+  }
+
+  function updateSeriesRow(i: number, patch: Partial<SeriesRow>) {
+    setSeriesRows((rows) => {
+      const next = [...rows]
+      next[i] = { ...next[i], ...patch }
+      // Switching module invalidates the field selection.
+      if (patch.moduleId !== undefined && patch.moduleId !== rows[i].moduleId) {
+        next[i].field = numericFieldsFor(patch.moduleId)[0]?.key ?? ''
+      }
+      return next
+    })
+  }
+
+  function buildSeries(): ChartSeries[] {
+    return seriesRows.map((row) => ({
+      moduleId: row.moduleId,
+      field: row.field,
+      label: row.label.trim() || undefined,
+      yAxis: row.yAxis === 'right' ? 'right' as const : undefined,
+    }))
+  }
+
   function buildConfig(): ChartConfig {
     const base: ChartConfig = {
       chartType,
@@ -87,6 +134,8 @@ export function ChartBuilder({ moduleId, fields, initial }: Props) {
         ? [{ moduleId, field }, { moduleId, field: scatterYField }]
         : chartType === 'stacked-bar'
         ? numericFields.map((f) => ({ moduleId, field: f.key }))
+        : MULTI_SERIES_TYPES.includes(chartType)
+        ? buildSeries()
         : [{ moduleId, field }],
       dateRange: fromDateRangeValue(dateRangeVal),
       referenceLines: refLines.length > 0 ? refLines : undefined,
@@ -149,8 +198,93 @@ export function ChartBuilder({ moduleId, fields, initial }: Props) {
         </Select>
       </div>
 
+      {/* Multi-series editor (line / bar / area) */}
+      {MULTI_SERIES_TYPES.includes(chartType) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Series</Label>
+            <Button
+              type="button" variant="outline" size="sm"
+              onClick={() =>
+                setSeriesRows((rows) => [
+                  ...rows,
+                  { moduleId, field: numericFields[0]?.key ?? '', label: '', yAxis: 'left' },
+                ])
+              }
+            >
+              <PlusIcon /> Add series
+            </Button>
+          </div>
+
+          {seriesRows.map((row, i) => (
+            <div key={i} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tracker</Label>
+                    <Select value={row.moduleId} onValueChange={(v) => v && updateSeriesRow(i, { moduleId: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                      <SelectContent>
+                        {modules.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Field</Label>
+                    <Select value={row.field} onValueChange={(v) => v && updateSeriesRow(i, { field: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                      <SelectContent>
+                        {numericFieldsFor(row.moduleId).map((f) => (
+                          <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  type="button" variant="ghost" size="icon"
+                  className="mt-5 shrink-0 text-muted-foreground"
+                  onClick={() => setSeriesRows((rows) => rows.filter((_, j) => j !== i))}
+                  disabled={seriesRows.length === 1}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Label <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    value={row.label}
+                    onChange={(e) => updateSeriesRow(i, { label: e.target.value })}
+                    placeholder="(auto)"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Y-axis</Label>
+                  <Select value={row.yAxis} onValueChange={(v) => v && updateSeriesRow(i, { yAxis: v as 'left' | 'right' })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          ))}
+          {seriesRows.length > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Series are joined by date; dates where a series has no entry show a gap.
+              Use the right y-axis for series with a very different scale.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Field selection */}
-      {chartType !== 'stacked-bar' && chartType !== 'table' && (
+      {chartType !== 'stacked-bar' && chartType !== 'table' && !MULTI_SERIES_TYPES.includes(chartType) && (
         <div className="space-y-4">
           {chartType === 'list' ? (
             <>

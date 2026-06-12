@@ -60,7 +60,13 @@ export default async function DashboardPage() {
                     <span className="text-xs text-muted-foreground">{chart.config.chartType}</span>
                   </div>
                   <div className="p-4">
-                    <ModuleChart chart={chart} entries={moduleEntries} fields={mod.fields} />
+                    <ModuleChart
+                      chart={chart}
+                      entries={moduleEntries}
+                      fields={mod.fields}
+                      sourceModules={typedModules}
+                      sourceEntries={typedEntries}
+                    />
                   </div>
                 </div>
               )

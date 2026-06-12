@@ -36,6 +36,8 @@ export interface ChartSeries {
   field: string
   label?: string
   color?: string
+  /** Which y-axis this series plots against. Default: 'left'. */
+  yAxis?: 'left' | 'right'
 }
 
 /** Date range for filtering entries. */

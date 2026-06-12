@@ -6,6 +6,26 @@ import { createClient } from '@/lib/supabase/server'
 import { chartConfigSchema } from '@/lib/validations'
 import type { ChartConfig, ModuleField } from '@/lib/types'
 
+/** Ensure every series moduleId belongs to the user. Returns an error message or null. */
+async function validateSeriesOwnership(
+  config: ChartConfig,
+  userId: string
+): Promise<string | null> {
+  const seriesModuleIds = [...new Set(config.series.map((s) => s.moduleId))]
+  if (seriesModuleIds.length === 0) return null
+
+  const supabase = await createClient()
+  const { data: owned } = await supabase
+    .from('modules')
+    .select('id')
+    .eq('user_id', userId)
+    .in('id', seriesModuleIds)
+
+  const ownedIds = new Set((owned ?? []).map((m) => m.id as string))
+  const unknown = seriesModuleIds.filter((id) => !ownedIds.has(id))
+  return unknown.length > 0 ? 'Chart references a tracker that does not exist.' : null
+}
+
 function defaultConfig(moduleId: string, fields: ModuleField[]): ChartConfig {
   const numeric = fields.find((f) => f.type === 'number' || f.type === 'rating')
   const textual = fields.find((f) => f.type === 'text' || f.type === 'select')
@@ -38,6 +58,9 @@ export async function createChart(formData: FormData): Promise<{ error: string }
   const parsed = chartConfigSchema.safeParse(JSON.parse(formData.get('config') as string))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
+  const ownershipError = await validateSeriesOwnership(parsed.data, user.id)
+  if (ownershipError) return { error: ownershipError }
+
   const { data: last } = await supabase
     .from('charts').select('position').eq('module_id', moduleId).eq('user_id', user.id)
     .order('position', { ascending: false }).limit(1).maybeSingle()
@@ -61,6 +84,9 @@ export async function updateChart(
 
   const parsed = chartConfigSchema.safeParse(JSON.parse(formData.get('config') as string))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const ownershipError = await validateSeriesOwnership(parsed.data, user.id)
+  if (ownershipError) return { error: ownershipError }
 
   const { error } = await supabase
     .from('charts').update({ config: parsed.data }).eq('id', chartId).eq('user_id', user.id)

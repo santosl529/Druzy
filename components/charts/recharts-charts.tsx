@@ -25,6 +25,8 @@ import type {
   PieSlice,
   HistogramBin,
   StackedBarPoint,
+  MultiSeriesRow,
+  SeriesMeta,
 } from '@/lib/chart-data'
 import type { ModuleField } from '@/lib/types'
 
@@ -175,6 +177,105 @@ export function StackedBarView({
           <Bar key={f.key} dataKey={f.key} name={f.label} stackId="a" fill={COLORS[i % COLORS.length]} />
         ))}
       </BarChart>
+    </ChartWrapper>
+  )
+}
+
+export function MultiSeriesChartView({
+  rows,
+  series,
+  variant,
+  stepAfter,
+  showPoints,
+  showGrid = true,
+  showLegend,
+}: {
+  rows: MultiSeriesRow[]
+  series: SeriesMeta[]
+  variant: 'line' | 'bar' | 'area'
+  stepAfter?: boolean
+  showPoints?: boolean
+  showGrid?: boolean
+  showLegend?: boolean
+}) {
+  const hasRightAxis = series.some((s) => s.yAxis === 'right')
+  const legend = showLegend ?? series.length > 1
+  const curveType = stepAfter ? 'stepAfter' : 'monotone'
+
+  const axes = (
+    <>
+      {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-border" />}
+      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+      <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+      {hasRightAxis && <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />}
+      <Tooltip />
+      {legend && <Legend />}
+    </>
+  )
+
+  if (variant === 'bar') {
+    return (
+      <ChartWrapper>
+        <BarChart data={rows}>
+          {axes}
+          {series.map((s) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              yAxisId={s.yAxis}
+              fill={s.color}
+              radius={[3, 3, 0, 0]}
+            />
+          ))}
+        </BarChart>
+      </ChartWrapper>
+    )
+  }
+
+  if (variant === 'area') {
+    return (
+      <ChartWrapper>
+        <AreaChart data={rows}>
+          {axes}
+          {series.map((s) => (
+            <Area
+              key={s.key}
+              type={curveType}
+              dataKey={s.key}
+              name={s.name}
+              yAxisId={s.yAxis}
+              stroke={s.color}
+              fill={s.color}
+              fillOpacity={0.2}
+              strokeWidth={2}
+              dot={showPoints ?? false}
+              connectNulls={false}
+            />
+          ))}
+        </AreaChart>
+      </ChartWrapper>
+    )
+  }
+
+  return (
+    <ChartWrapper>
+      <LineChart data={rows}>
+        {axes}
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type={curveType}
+            dataKey={s.key}
+            name={s.name}
+            yAxisId={s.yAxis}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={showPoints ?? rows.length < 40}
+            connectNulls={false}
+          />
+        ))}
+      </LineChart>
     </ChartWrapper>
   )
 }
