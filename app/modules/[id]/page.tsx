@@ -74,6 +74,11 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
             </p>
           </div>
           <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+            {!isFormula && (
+              <Link href={`/modules/${id}/import`} className={buttonVariants({ variant: 'outline' })}>
+                Import
+              </Link>
+            )}
             <Link
               href={isFormula ? `/modules/${id}/edit/formula` : `/modules/${id}/edit`}
               className={buttonVariants({ variant: 'outline' })}

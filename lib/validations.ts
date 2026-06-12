@@ -120,3 +120,30 @@ export const chartSchema = z.object({
 })
 
 export type ChartFormValues = z.infer<typeof chartSchema>
+
+// ----------------------------------------------------------------
+// Bulk import schemas (matches ImportMapping in lib/import.ts)
+// ----------------------------------------------------------------
+
+export const importFieldMappingSchema = z.object({
+  column: z.string().min(1),
+  fieldKey: z.string().min(1),
+})
+
+export const importMappingSchema = z.object({
+  dateColumn: z.string().min(1, 'Date column is required'),
+  fieldMappings: z.array(importFieldMappingSchema).min(1, 'Map at least one field'),
+})
+
+export const importRowSchema = z.object({
+  entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  values: z.record(z.string(), z.unknown()),
+})
+
+export const bulkImportPayloadSchema = z.object({
+  moduleId: z.string().uuid(),
+  rows: z.array(importRowSchema).min(1).max(5000),
+  includeDuplicates: z.boolean().optional(),
+})
+
+export type BulkImportPayload = z.infer<typeof bulkImportPayloadSchema>
