@@ -95,6 +95,11 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
   const [xLabel, setXLabel] = useState(initConfig.xLabel ?? '')
   const [yLabel, setYLabel] = useState(initConfig.yLabel ?? '')
   const [yRightLabel, setYRightLabel] = useState(initConfig.yRightLabel ?? '')
+  const [yAxisMin, setYAxisMin] = useState(initConfig.yAxisMin !== undefined ? String(initConfig.yAxisMin) : '')
+  const [yAxisMax, setYAxisMax] = useState(initConfig.yAxisMax !== undefined ? String(initConfig.yAxisMax) : '')
+  const [yRightAxisMin, setYRightAxisMin] = useState(initConfig.yRightAxisMin !== undefined ? String(initConfig.yRightAxisMin) : '')
+  const [yRightAxisMax, setYRightAxisMax] = useState(initConfig.yRightAxisMax !== undefined ? String(initConfig.yRightAxisMax) : '')
+  const [zeroBaseline, setZeroBaseline] = useState<boolean | undefined>(initConfig.zeroBaseline)
   const [refLines, setRefLines] = useState<ReferenceLine[]>(initConfig.referenceLines ?? [])
 
   const numericFields = fields.filter((f) => f.type === 'number' || f.type === 'rating')
@@ -150,6 +155,11 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
       xLabel: xLabel.trim() || undefined,
       yLabel: yLabel.trim() || undefined,
       yRightLabel: hasRightAxisSeries ? yRightLabel.trim() || undefined : undefined,
+      yAxisMin: yAxisMin.trim() !== '' && !isNaN(Number(yAxisMin)) ? Number(yAxisMin) : undefined,
+      yAxisMax: yAxisMax.trim() !== '' && !isNaN(Number(yAxisMax)) ? Number(yAxisMax) : undefined,
+      yRightAxisMin: hasRightAxisSeries && yRightAxisMin.trim() !== '' && !isNaN(Number(yRightAxisMin)) ? Number(yRightAxisMin) : undefined,
+      yRightAxisMax: hasRightAxisSeries && yRightAxisMax.trim() !== '' && !isNaN(Number(yRightAxisMax)) ? Number(yRightAxisMax) : undefined,
+      zeroBaseline: zeroBaseline !== undefined ? zeroBaseline : undefined,
       showGrid: showGrid || undefined,
       showLegend: showLegend || undefined,
     }
@@ -442,6 +452,62 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
               <Input value={yRightLabel} onChange={(e) => setYRightLabel(e.target.value)} className="w-40" placeholder="(auto)" />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Y-axis scaling */}
+      {AXIS_TYPES.includes(chartType) && (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Y-axis scaling</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {chartType === 'bar' || chartType === 'area'
+                ? 'Default: zero-baseline (bar/area always start at 0).'
+                : 'Default: fit-to-data with 10% headroom (line/scatter).'}
+              {' '}Leave min/max empty to keep auto.
+            </p>
+          </div>
+
+          {/* zeroBaseline override — only relevant for line/scatter or to suppress on bar/area */}
+          {(chartType === 'line' || chartType === 'area' || chartType === 'bar') && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <Checkbox
+                checked={zeroBaseline === true}
+                onCheckedChange={(v) => setZeroBaseline(v === true ? true : v === false ? false : undefined)}
+              />
+              <div>
+                <span className="text-sm">Force zero baseline</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {chartType === 'line'
+                    ? 'Override: start Y-axis at 0 instead of fitting to data.'
+                    : 'On by default for this chart type. Uncheck to fit to data instead.'}
+                </p>
+              </div>
+            </label>
+          )}
+
+          <div className="flex gap-4 flex-wrap">
+            <div className="space-y-1.5">
+              <Label>Min</Label>
+              <Input type="number" step="any" value={yAxisMin} onChange={(e) => setYAxisMin(e.target.value)} className="w-28" placeholder="(auto)" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Max</Label>
+              <Input type="number" step="any" value={yAxisMax} onChange={(e) => setYAxisMax(e.target.value)} className="w-28" placeholder="(auto)" />
+            </div>
+            {MULTI_SERIES_TYPES.includes(chartType) && hasRightAxisSeries && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Right min</Label>
+                  <Input type="number" step="any" value={yRightAxisMin} onChange={(e) => setYRightAxisMin(e.target.value)} className="w-28" placeholder="(auto)" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Right max</Label>
+                  <Input type="number" step="any" value={yRightAxisMax} onChange={(e) => setYRightAxisMax(e.target.value)} className="w-28" placeholder="(auto)" />
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

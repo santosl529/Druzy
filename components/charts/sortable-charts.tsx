@@ -31,13 +31,12 @@ interface ChartCardProps {
   fields: ModuleField[]
   sourceModules?: Module[]
   sourceEntries?: Entry[]
+  onDelete: (chartId: string) => void
 }
 
-function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, sourceEntries }: ChartCardProps) {
+function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, sourceEntries, onDelete }: ChartCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: chart.id })
-
-  const [, startTransition] = useTransition()
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -71,10 +70,7 @@ function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, so
         </Link>
         <button
           className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'size-7 text-muted-foreground hover:text-destructive')}
-          onClick={() => {
-            if (!confirm('Remove this chart?')) return
-            startTransition(() => deleteChart(chart.id, moduleId))
-          }}
+          onClick={() => onDelete(chart.id)}
         >
           <Trash2Icon className="size-3.5" />
         </button>
@@ -128,6 +124,12 @@ export function SortableChartsList({
     })
   }
 
+  function handleDelete(chartId: string) {
+    if (!confirm('Remove this chart?')) return
+    setCharts((prev) => prev.filter((c) => c.id !== chartId))
+    startTransition(() => deleteChart(chartId, moduleId))
+  }
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={charts.map((c) => c.id)} strategy={verticalListSortingStrategy}>
@@ -141,6 +143,7 @@ export function SortableChartsList({
               fields={fields}
               sourceModules={sourceModules}
               sourceEntries={sourceEntries}
+              onDelete={handleDelete}
             />
           ))}
         </div>

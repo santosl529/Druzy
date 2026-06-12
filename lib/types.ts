@@ -93,6 +93,19 @@ export interface ChartConfig {
   yLabel?: string
   /** Label for the secondary (right) y-axis, when any series uses it. */
   yRightLabel?: string
+  /**
+   * Y-axis scaling overrides.
+   * Omit all three to use type-driven auto-scaling:
+   *   line/scatter — fit-to-data with ~10% headroom
+   *   bar/area — zero-baseline (always starts at 0)
+   * Set zeroBaseline=false on a bar/area to opt into fit-to-data instead.
+   */
+  yAxisMin?: number
+  yAxisMax?: number
+  yRightAxisMin?: number
+  yRightAxisMax?: number
+  /** Force (true) or suppress (false) zero baseline; omit to use chart-type default. */
+  zeroBaseline?: boolean
   stacked?: boolean
   showPoints?: boolean
   showGrid?: boolean

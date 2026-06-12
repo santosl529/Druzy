@@ -258,13 +258,19 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 |---|---|---|
 | `chartType` | ChartType | required |
 | `title` | string? | optional display title |
-| `series` | `{moduleId, field, label?, color?}[]` | data sources; today always length 1, shaped for future multi-module |
+| `series` | `{moduleId, field, label?, color?, yAxis?}[]` | data sources; supports multiple series across modules; `yAxis:'right'` enables dual-axis |
 | `bucketBy` | `none\|day\|week\|month\|year` | group time axis; default `none` |
 | `aggregation` | `none\|sum\|avg\|count\|min\|max\|median` | combine values in a bucket; default `none` |
 | `dateRange` | `{type:'all'\|'last_n_days'\|'custom', n?, start?, end?}` | filter entries by date |
 | `filters` | `{field, op, value}[]` | row-level filters; op ∈ `eq\|neq\|gt\|gte\|lt\|lte\|contains` |
 | `sort` | `{field, direction:'asc'\|'desc'}` | used by `list` and `table` types |
 | `xLabel` / `yLabel` | string? | axis labels |
+| `yRightLabel` | string? | label for the right Y-axis (dual-axis charts) |
+| `yAxisMin` | number? | override: left Y-axis lower bound |
+| `yAxisMax` | number? | override: left Y-axis upper bound |
+| `yRightAxisMin` | number? | override: right Y-axis lower bound (dual-axis) |
+| `yRightAxisMax` | number? | override: right Y-axis upper bound (dual-axis) |
+| `zeroBaseline` | bool? | override default baseline behavior (see below) |
 | `stacked` | bool? | for stacked-bar |
 | `showPoints` | bool? | for line/area/scatter |
 | `showGrid` | bool? | default true |
@@ -273,6 +279,14 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 | `referenceLines` | `{value, label?, color?}[]` | horizontal reference lines |
 | `displayField` | string? | `list` type: primary field to display |
 | `secondaryField` | string? | `list` type: optional secondary field |
+
+**Y-axis auto-scaling (type-driven defaults):**
+- `bar` / `area` → zero-baseline: lower bound fixed at 0, upper bound auto. The filled area / bar height encodes magnitude; a non-zero lower bound is misleading.
+- `line` / `scatter` → fit-to-data: bounds computed from the data's actual min/max with ~10 % headroom, then snapped outward to nice round tick values. Preserves readability for narrow-range data (e.g. body weight 150–160).
+- Edge cases (no data, single point, all-identical values) fall back to a ±1 range around the value so the axis is never degenerate.
+- Empty / null buckets in aggregated data remain `null` — they are rendered as gaps, not zeros, so they don't distort the scale or the line.
+- For dual-axis charts, auto-scaling is applied **independently** to the left and right axes.
+- **Manual overrides** (`yAxisMin`, `yAxisMax`, `zeroBaseline`) always take precedence over the automatic behavior. `zeroBaseline=true` forces zero-baseline on any chart type; `zeroBaseline=false` suppresses it on bar/area (use fit-to-data instead). Omit all three for the type-driven default.
 
 **Design invariant:** chart config is purely declarative. No SQL, no JS expressions. All transforms (bucketing, aggregation, fill-forward) are computed in app code (`lib/chart-data.ts`), not stored in config.
 
@@ -291,7 +305,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 If a task drifts into any of these, **stop and confirm** before proceeding.
 
 - **Runtime code-generation of novel chart types.** Charts come only from the fixed enum in §9. No executing AI-generated component code (and therefore no sandboxing work).
-- **Multi-module charts.** The `series[]` config shape is ready for it, but all charts today reference a single module. Cross-module data combining is not built.
+- ~~**Multi-module charts.**~~ **Built.** Multi-series charts across modules are active. Line, bar, and area charts support 2+ series from different modules, joined by date, with optional dual Y-axes.
 - **Curated/saved custom dashboards.** `/dashboard` shows all charts in a flat grid. A "My Dashboard" with per-user curation, arrangement, or a separate ordering join table is future work.
 - **Social / sharing / comparison between friends.** Each user is siloed. (`modules.shared` column exists but stays unused.)
 - **Polished/custom UI design.** shadcn defaults only.

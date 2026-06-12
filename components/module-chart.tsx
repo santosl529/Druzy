@@ -83,6 +83,11 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
         showLegend={config.showLegend}
         yLabel={config.yLabel}
         yRightLabel={config.yRightLabel}
+        yAxisMin={config.yAxisMin}
+        yAxisMax={config.yAxisMax}
+        yRightAxisMin={config.yRightAxisMin}
+        yRightAxisMax={config.yRightAxisMax}
+        zeroBaseline={config.zeroBaseline}
       />
     )
   }
@@ -99,19 +104,19 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     case 'line': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <LineChartView data={data} label={label} stepAfter={fillForward} />
+      return <LineChartView data={data} label={label} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'bar': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <BarChartView data={data} label={label} />
+      return <BarChartView data={data} label={label} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'area': {
       const data = getTimeSeries(entries, config)
       if (data.length === 0) return <NoData />
-      return <AreaChartView data={data} label={label} stepAfter={fillForward} />
+      return <AreaChartView data={data} label={label} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'scatter': {
@@ -119,7 +124,7 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
       if (data.length === 0) return <NoData />
       const xLabel = config.xLabel ?? fields.find((f) => f.key === config.series[0]?.field)?.label ?? ''
       const yLabel = config.yLabel ?? fields.find((f) => f.key === config.series[1]?.field)?.label ?? ''
-      return <ScatterChartView data={data} xLabel={xLabel} yLabel={yLabel} />
+      return <ScatterChartView data={data} xLabel={xLabel} yLabel={yLabel} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} />
     }
 
     case 'pie': {
