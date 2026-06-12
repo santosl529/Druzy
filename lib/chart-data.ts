@@ -148,6 +148,10 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeries
   const aggregation = config.aggregation ?? 'none'
   const fillForward = config.fillForward ?? false
 
+  // All date-based grouping reads entry_date exclusively.
+  // created_at is never used for day attribution — entries belong to the day
+  // they were *for*, not the day they were logged. This also ensures per-day
+  // series are streak-computation-ready: each key is a distinct YYYY-MM-DD string.
   if (bucketBy === 'none') {
     const sorted = [...filtered].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
 

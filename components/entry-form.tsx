@@ -20,6 +20,16 @@ interface Props {
   fields: ModuleField[]
 }
 
+/** Returns today's date as YYYY-MM-DD in the browser's local timezone. */
+function localDateString(): string {
+  const d = new Date()
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
 export function EntryForm({ moduleId, fields }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +64,7 @@ export function EntryForm({ moduleId, fields }: Props) {
             id="entry_date"
             name="entry_date"
             type="date"
-            defaultValue={new Date().toISOString().split('T')[0]}
+            defaultValue={localDateString()}
           />
         </div>
 

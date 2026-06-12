@@ -167,6 +167,27 @@ export interface FormulaConfig {
   expression: string
 }
 
+// ----------------------------------------------------------------
+// User profile
+// ----------------------------------------------------------------
+
+export interface Profile {
+  id: string
+  display_name: string | null
+  theme: string
+  is_admin: boolean
+  /**
+   * IANA timezone string (e.g. 'America/New_York', 'Europe/Rome').
+   * Null = unset; the UI defaults to the browser-detected timezone.
+   * Governs which calendar day a "now" entry belongs to.
+   *
+   * Per-tracker override: modules.day_boundary_tz (same IANA string, null =
+   * inherit from profile) can be added later without migrating this table.
+   */
+  day_boundary_tz: string | null
+  created_at: string
+}
+
 export interface Module {
   id: string
   user_id: string

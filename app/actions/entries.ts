@@ -21,6 +21,8 @@ export async function createEntry(
     return { error: 'Formula trackers are computed automatically and cannot be logged directly.' }
   }
 
+  // entry_date is the day the thing happened (browser local date, always sent by the form).
+  // The fallback uses UTC — acceptable as a safety net since the form always supplies the value.
   const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
 
   const values: Record<string, unknown> = {}
@@ -64,6 +66,7 @@ export async function updateEntry(
     return { error: 'Formula tracker values are computed and cannot be edited directly.' }
   }
 
+  // entry_date governs day attribution. Always use the value supplied by the form.
   const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
 
   const values: Record<string, unknown> = {}
