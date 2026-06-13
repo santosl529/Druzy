@@ -76,10 +76,19 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 - **Empty state:** prompt to add a chart to a tracker.
 - **Note:** Per-dashboard chart curation/arrangement (a separate ordering independent of module ordering) is explicitly out of scope for now — see §10.
 
-### 5.2 Assistant `/assistant` (core)
+### 5.2 Assistant `/assistant` (core) — **`createModule` tool built**
 - **Purpose:** the conversational interface — create modules, ask analytics questions, change theme.
-- **Elements/actions:** chat (AI SDK `useChat`); when a tool runs, render its result inline via generative UI (e.g. a proposed module schema shown as an editable card; an analytics answer shown with its chart).
-- **Module creation flow:** assistant proposes a schema → user reviews/edits → confirms → saved. **Never save a module without explicit confirmation.**
+- **Elements/actions:** chat UI (AI SDK v6 `useChat`); message list with part-based rendering; when a `createModule` tool call finishes, a `ModuleProposalCard` is rendered inline with editable fields; confirm button calls `createModuleFromProposal` server action and redirects to the new module.
+- **Module creation flow:**
+  1. User types a natural-language description (e.g. "track my saxophone practice").
+  2. `/api/chat` receives `UIMessage[]`, converts via `convertToModelMessages`, and calls `streamText` with the `createModule` tool.
+  3. Tool `execute` runs strict `moduleSchema.safeParse`; returns `{ success: true, proposal }` or `{ success: false, error }`.
+  4. `maxSteps: 3` lets the model read a validation error and retry (capped at 2 retries).
+  5. On success, `ModuleProposalCard` renders with the proposed name and fields — all editable (label, key, type, unit, required, select options).
+  6. "Create tracker" calls `createModuleFromProposal(name, fields)` → re-validates server-side → inserts + `createDefaultChart` → returns `{ id }` → client redirects to `/modules/[id]`.
+  7. "Discard" button sets a discarded state on the card; the user types a new description.
+- **Never save a module without explicit confirmation.**
+- **Not yet built:** `queryAnalytics`, `updateTheme`.
 
 ### 5.3 Module detail `/modules/[id]` (core)
 - **Purpose:** view/log/analyze one tracker.
@@ -117,17 +126,27 @@ Every tracker is a module with a consistent shape; every logged row is an entry 
 
 Field types (fixed enum): `text`, `number`, `date`, `rating`, `boolean`, `select`, `photo`.
 
-### 6.2 AI module creation (intent → schema)
+### 6.2 AI module creation (intent → schema) — **built**
 ```
 on user description:
-  call LLM tool `createModule` with the description
-  LLM returns a candidate module schema (name, fields[], chartConfig)
-  validate candidate against Zod ModuleSchema
-    if invalid -> ask LLM to repair, retry (cap retries, e.g. 2)
-  present candidate to user for review/edit
-  on explicit confirm -> persist module (server-side, owner = current user)
+  POST /api/chat  ← UIMessage[] (AI SDK v6 wire format)
+  convertToModelMessages(messages) → streamText + createModule tool
+  tool execute:
+    run moduleSchema.safeParse({ name, fields })
+    if invalid → return { success: false, error }
+      → LLM reads error, retries (maxSteps: 3; cap 2 retries)
+    if valid   → return { success: true, proposal: { name, fields } }
+  stream toUIMessageStreamResponse()
+  client renders ModuleProposalCard (editable)
+  on explicit confirm:
+    createModuleFromProposal(name, fields)  ← server action
+    re-validates server-side (never trust client)
+    insert module + createDefaultChart
+    return { id } → client redirect to /modules/[id]
 ```
-The LLM only ever emits the ModuleSchema shape; Zod is the gate. No free-form code generation.
+The LLM only ever emits the ModuleSchema shape; Zod is the gate on both the API route (tool execute) and the server action (createModuleFromProposal). No free-form code generation.
+
+**Model config:** `lib/ai/config.ts` — defaults to `anthropic('claude-sonnet-4-5')`. Swap provider by editing one line. Env var: `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` if swapped).
 
 ### 6.3 Cross-module analytics (compute in code, AI narrates)
 ```
@@ -340,7 +359,7 @@ Each step shippable and testable before the next. **Resist building schema/featu
 1. **Foundation** — Next.js + TypeScript + Supabase; auth; **RLS on every table from the start**; authenticated app shell (login → empty dashboard).
 2. **Module abstraction, no AI** — `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD. *This proves the core data model — don't proceed until it feels right.*
 3. **Charts** — `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, etc.).
-4. **AI assistant layer** — Vercel AI SDK; `createModule` (Zod-validated, review-then-confirm); `queryAnalytics` (compute-in-code, AI-narrates); `updateTheme`. AI now enhances things that already work manually.
+4. **AI assistant layer** — Vercel AI SDK 6; `createModule` tool **built** (Zod-validated, review-then-confirm, editable proposal card); `queryAnalytics` (compute-in-code, AI-narrates) and `updateTheme` **not yet built**.
 5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
 6. **Journal transcription** — local model; photo → transcribe + extract → review → save; **test on real handwriting early**, with manual fallback ready.
 

@@ -115,6 +115,37 @@ export async function getModuleDeleteWarnings(id: string): Promise<{
   return { formulaDependents, chartDependents }
 }
 
+/**
+ * Create a module from an AI-proposed schema.
+ * Accepts plain objects (not FormData) — the AI path calls this after
+ * the user reviews and confirms the proposal card.
+ * Re-validates server-side; never trusts a client-supplied user_id.
+ */
+export async function createModuleFromProposal(
+  name: string,
+  fields: ModuleField[]
+): Promise<{ error: string } | { id: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated. Please sign in and try again.' }
+
+  const parsed = moduleSchema.safeParse({ name, fields })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const { data, error } = await supabase
+    .from('modules')
+    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  await createDefaultChart(data.id, parsed.data.fields, user.id)
+
+  revalidatePath('/')
+  return { id: data.id }
+}
+
 export async function deleteModule(id: string): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
