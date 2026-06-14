@@ -107,6 +107,47 @@ export async function deleteChart(chartId: string, moduleId: string): Promise<vo
   revalidatePath('/dashboard')
 }
 
+/**
+ * Save a chart proposed by the AI assistant.
+ * Returns { id } so the client can show a link; does NOT redirect.
+ */
+export async function addChartFromProposal(
+  config: ChartConfig,
+  moduleId: string
+): Promise<{ error: string } | { id: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const parsed = chartConfigSchema.safeParse(config)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const ownershipError = await validateSeriesOwnership(parsed.data, user.id)
+  if (ownershipError) return { error: ownershipError }
+
+  // Verify the target module belongs to the user.
+  const { data: mod } = await supabase
+    .from('modules').select('id').eq('id', moduleId).eq('user_id', user.id).maybeSingle()
+  if (!mod) return { error: 'Target tracker not found.' }
+
+  const { data: last } = await supabase
+    .from('charts').select('position').eq('module_id', moduleId).eq('user_id', user.id)
+    .order('position', { ascending: false }).limit(1).maybeSingle()
+
+  const { data: chart, error } = await supabase.from('charts').insert({
+    module_id: moduleId,
+    user_id: user.id,
+    config: parsed.data,
+    position: last ? last.position + 1 : 0,
+  }).select('id').single()
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/modules/${moduleId}`)
+  revalidatePath('/dashboard')
+  return { id: chart.id }
+}
+
 export async function reorderCharts(updates: { id: string; position: number }[]): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,11 +1,13 @@
 import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { chatModel } from '@/lib/ai/config'
-import { moduleSchema, formulaConfigSchema } from '@/lib/validations'
+import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/validations'
 import { createClient } from '@/lib/supabase/server'
 import { validateExpression } from '@/lib/formula'
+import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
 import { FIELD_TYPES } from '@/lib/types'
-import type { Module, ModuleField } from '@/lib/types'
+import type { Module, ModuleField, Entry, ChartConfig } from '@/lib/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
@@ -13,7 +15,6 @@ export const runtime = 'nodejs'
 // Context helpers
 // ----------------------------------------------------------------
 
-/** Compact representation of a module for the system prompt. */
 interface ModuleSummary {
   id: string
   name: string
@@ -36,7 +37,7 @@ function buildModuleSummaries(modules: Module[]): ModuleSummary[] {
 
 function buildContextBlock(summaries: ModuleSummary[]): string {
   if (summaries.length === 0) {
-    return '## Existing trackers\nNone yet — this will be the user\'s first tracker.\n'
+    return "## Existing trackers\nNone yet — this will be the user's first tracker.\n"
   }
   const lines = summaries.map((m) => {
     const fieldLines = m.allFields
@@ -51,13 +52,13 @@ function buildContextBlock(summaries: ModuleSummary[]): string {
 }
 
 // ----------------------------------------------------------------
-// System prompt (static part — context block is appended per-request)
+// System prompt
 // ----------------------------------------------------------------
 
 function buildSystemPrompt(contextBlock: string): string {
   return `\
 You are the AI assistant inside Druzy, a personal life-tracker app.
-You help users create trackers (called "modules") — both standard trackers and formula trackers.
+You help users create trackers and visualize their data.
 
 ${contextBlock}
 ---
@@ -79,19 +80,25 @@ Field count: 2–5 is almost always right.
 Required: only when the tracker makes no sense without that field.
 
 ## Formula tracker — createFormulaModule
-Call this when the user wants a value COMPUTED from other trackers (not logged directly).
-Rules:
-- inputs[].moduleId MUST be one of the exact IDs from "Existing trackers" above.
-- inputs[].field MUST be a numeric (number or rating) field key on that module.
-- inputs[].alias is the name the expression uses — short, alphanumeric, e.g. "w" or "cals".
-- expression uses only: numbers, aliases, + - * / % ^ ( ) and unary minus.
-  Example: "cals / weight" or "(sleep * 0.4) + (practice * 0.6)"
-- Only reference standard trackers, never another formula tracker.
-- If the user mentions trackers that don't exist yet, create those first with createModule,
-  then explain they need to set up the formula tracker once data is available.
+Call this when the user wants a value COMPUTED from other trackers.
+- inputs[].moduleId MUST be an exact ID from the list above.
+- inputs[].field MUST be a numeric field key on that module.
+- inputs[].alias: short name used in the expression, e.g. "w" or "cals".
+- expression: arithmetic only — numbers, aliases, + - * / % ^ ( ) and unary minus.
+- Only reference standard trackers (not other formula trackers).
 
-After calling either tool, briefly explain what you designed and why.
-If you ask a general question (not creating a tracker), answer helpfully and invite a tracker description.`
+## Chart preview — proposeChart
+Call this when the user asks to SEE, VISUALIZE, PLOT, or CHART their data.
+Also call it when they describe comparing two things over time.
+- series[].moduleId MUST be an exact ID from the list above.
+- series[].field MUST be a numeric field key on that module.
+- For comparing two trackers over time: use chartType "line", two series, bucketBy "week", aggregation "avg".
+- For dual-axis (very different scales, e.g. weight in lbs vs. calories in kcal): set yAxis "right" on the second series.
+- DO NOT give text instructions about how to create a chart — call proposeChart instead.
+- A live interactive preview will appear in the chat, and the user clicks "Add chart" to save it.
+
+After calling any tool, briefly explain what you designed and why.
+If you're asked a general question, answer helpfully and invite a tracker or chart request.`
 }
 
 // ----------------------------------------------------------------
@@ -119,17 +126,17 @@ const createModuleTool = tool({
   execute: async ({ name, fields }) => {
     const parsed = moduleSchema.safeParse({ name, fields })
     if (!parsed.success) {
-      const errors = parsed.error.issues
-        .map((i) => `${i.path.join('.')}: ${i.message}`)
-        .join('; ')
-      return { success: false as const, error: errors }
+      return {
+        success: false as const,
+        error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      }
     }
     return { success: true as const, proposal: parsed.data }
   },
 })
 
 // ----------------------------------------------------------------
-// createFormulaModule tool (closes over the fetched modules)
+// createFormulaModule tool
 // ----------------------------------------------------------------
 
 function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
@@ -137,8 +144,8 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
 
   return tool({
     description:
-      'Propose a formula tracker whose daily value is computed from existing trackers. ' +
-      'Only call this when the referenced moduleIds already exist in the user\'s tracker list.',
+      "Propose a formula tracker whose daily value is computed from existing trackers. " +
+      "Only call this when the referenced moduleIds already exist in the user's tracker list.",
     inputSchema: z.object({
       name: z.string().min(1).describe('Human-readable name for the formula tracker'),
       inputs: z
@@ -146,13 +153,8 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
           z.object({
             moduleId: z.string().describe('Exact UUID of an existing tracker'),
             field: z.string().describe('Numeric field key on that tracker'),
-            alias: z
-              .string()
-              .describe('Short name the expression uses, e.g. "w" or "cals"'),
-            defaultValue: z
-              .number()
-              .optional()
-              .describe('Value to use when no entry logged on a day'),
+            alias: z.string().describe('Short name the expression uses, e.g. "w" or "cals"'),
+            defaultValue: z.number().optional().describe('Value to use when no entry logged on a day'),
           })
         )
         .min(1),
@@ -161,75 +163,180 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
         .describe('Arithmetic expression over the aliases, e.g. "cals / weight"'),
     }),
     execute: async ({ name, inputs, expression }) => {
-      // Validate each input against the fetched modules.
       for (const inp of inputs) {
         const mod = byId.get(inp.moduleId)
         if (!mod) {
-          return {
-            success: false as const,
-            error: `Tracker with id "${inp.moduleId}" was not found. Use only IDs from the existing trackers list.`,
-          }
+          return { success: false as const, error: `Tracker id "${inp.moduleId}" not found. Use only IDs from the existing trackers list.` }
         }
         if (mod.kind === 'formula') {
-          return {
-            success: false as const,
-            error: `"${mod.name}" is a formula tracker. Formulas can only read from standard trackers.`,
-          }
+          return { success: false as const, error: `"${mod.name}" is a formula tracker. Formulas can only read from standard trackers.` }
         }
         const field = mod.allFields.find((f) => f.key === inp.field)
         if (!field) {
-          return {
-            success: false as const,
-            error: `Field "${inp.field}" not found on "${mod.name}". Available fields: ${mod.allFields.map((f) => f.key).join(', ')}.`,
-          }
+          return { success: false as const, error: `Field "${inp.field}" not found on "${mod.name}". Available: ${mod.allFields.map((f) => f.key).join(', ')}.` }
         }
         if (field.type !== 'number' && field.type !== 'rating') {
-          return {
-            success: false as const,
-            error: `Field "${field.label}" on "${mod.name}" is not numeric (type: ${field.type}). Only number and rating fields can be used in formulas.`,
-          }
+          return { success: false as const, error: `Field "${field.label}" on "${mod.name}" is not numeric (type: ${field.type}).` }
         }
       }
 
-      // Validate expression.
       const aliases = inputs.map((i) => i.alias)
       if (new Set(aliases).size !== aliases.length) {
         return { success: false as const, error: 'Input aliases must be unique.' }
       }
       const exprError = validateExpression(expression, aliases)
-      if (exprError) {
-        return { success: false as const, error: `Expression error: ${exprError}` }
-      }
+      if (exprError) return { success: false as const, error: `Expression error: ${exprError}` }
 
-      // Run full schema validation.
-      const config = { inputs, expression }
-      const parsed = formulaConfigSchema.safeParse(config)
+      const parsed = formulaConfigSchema.safeParse({ inputs, expression })
       if (!parsed.success) {
-        return {
-          success: false as const,
-          error: parsed.error.issues.map((i) => i.message).join('; '),
-        }
+        return { success: false as const, error: parsed.error.issues.map((i) => i.message).join('; ') }
       }
 
-      // Enrich inputs with display names so the card doesn't need extra lookups.
       const enrichedInputs = inputs.map((inp) => {
         const mod = byId.get(inp.moduleId)!
         const field = mod.allFields.find((f) => f.key === inp.field)!
-        return {
-          ...inp,
-          moduleName: mod.name,
-          fieldLabel: field.label,
-          fieldUnit: (field as { unit?: string }).unit,
-        }
+        return { ...inp, moduleName: mod.name, fieldLabel: field.label, fieldUnit: (field as { unit?: string }).unit }
       })
 
       return {
         success: true as const,
-        proposal: {
-          name,
-          config: { inputs: parsed.data.inputs, expression: parsed.data.expression },
-          enrichedInputs,
-        },
+        proposal: { name, config: { inputs: parsed.data.inputs, expression: parsed.data.expression }, enrichedInputs },
+      }
+    },
+  })
+}
+
+// ----------------------------------------------------------------
+// proposeChart tool
+// ----------------------------------------------------------------
+
+function makeProposedChartTool(
+  supabase: SupabaseClient,
+  summaries: ModuleSummary[],
+  userId: string
+) {
+  const byId = new Map(summaries.map((m) => [m.id, m]))
+
+  return tool({
+    description:
+      'Show a live chart preview built from the user\'s actual data. ' +
+      'Call this whenever the user asks to see, visualize, plot, or chart their data. ' +
+      'Do NOT give text instructions — call this tool and a preview card will appear.',
+    inputSchema: z.object({
+      title: z.string().optional().describe('Optional chart title'),
+      chartType: z
+        .enum(['line', 'bar', 'area'])
+        .default('line')
+        .describe('Chart type — use "line" for trends, "bar" for totals, "area" for cumulative'),
+      series: z
+        .array(
+          z.object({
+            moduleId: z.string().describe('Exact UUID of an existing tracker'),
+            field: z.string().describe('Numeric field key on that tracker'),
+            label: z.string().optional().describe('Display label for this series'),
+            yAxis: z
+              .enum(['left', 'right'])
+              .optional()
+              .describe('Set "right" for a second y-axis when scales differ greatly'),
+          })
+        )
+        .min(1),
+      bucketBy: z
+        .enum(['none', 'day', 'week', 'month', 'year'])
+        .optional()
+        .describe('Time grouping — "week" or "month" is best for trends'),
+      aggregation: z
+        .enum(['none', 'sum', 'avg', 'count', 'min', 'max', 'median'])
+        .optional()
+        .describe('How to combine multiple values per bucket — "avg" for most trends'),
+    }),
+    execute: async ({ title, chartType, series, bucketBy, aggregation }) => {
+      // Validate each series references a real numeric field.
+      for (const s of series) {
+        const mod = byId.get(s.moduleId)
+        if (!mod) {
+          return { success: false as const, error: `Tracker id "${s.moduleId}" not found. Use only IDs from the existing trackers list.` }
+        }
+        const field = mod.allFields.find((f) => f.key === s.field)
+        if (!field) {
+          return { success: false as const, error: `Field "${s.field}" not found on "${mod.name}". Numeric fields: ${mod.numericFields.map((f) => f.key).join(', ') || 'none'}.` }
+        }
+        if (field.type !== 'number' && field.type !== 'rating') {
+          return { success: false as const, error: `Field "${field.label}" on "${mod.name}" is not numeric.` }
+        }
+      }
+
+      // Build the full chart config.
+      const config: ChartConfig = {
+        chartType,
+        title,
+        series: series.map((s, i) => ({
+          moduleId: s.moduleId,
+          field: s.field,
+          label: s.label ?? (() => {
+            const mod = byId.get(s.moduleId)!
+            const field = mod.allFields.find((f) => f.key === s.field)
+            return field?.label ?? s.field
+          })(),
+          color: SERIES_COLORS[i % SERIES_COLORS.length],
+          yAxis: s.yAxis,
+        })),
+        bucketBy: bucketBy ?? (series.length > 1 ? 'week' : 'none'),
+        aggregation: aggregation ?? (bucketBy && bucketBy !== 'none' ? 'avg' : 'none'),
+      }
+
+      // Validate against the schema.
+      const parsed = chartConfigSchema.safeParse(config)
+      if (!parsed.success) {
+        return { success: false as const, error: parsed.error.issues.map((i) => i.message).join('; ') }
+      }
+
+      // Fetch entries for all referenced modules.
+      const moduleIds = [...new Set(series.map((s) => s.moduleId))]
+      const { data: rawEntries } = await supabase
+        .from('entries')
+        .select('id, module_id, user_id, values, entry_date, created_at')
+        .eq('user_id', userId)
+        .in('module_id', moduleIds)
+
+      const entries = (rawEntries ?? []) as Entry[]
+      const entriesByModule = new Map<string, Entry[]>()
+      for (const e of entries) {
+        const list = entriesByModule.get(e.module_id) ?? []
+        list.push(e)
+        entriesByModule.set(e.module_id, list)
+      }
+
+      // Build minimal Module-shaped objects for getMultiSeriesData.
+      const modulesById = new Map(
+        summaries.map((m) => [
+          m.id,
+          {
+            id: m.id,
+            name: m.name,
+            fields: m.allFields,
+            kind: m.kind,
+            formula_config: null,
+            user_id: userId,
+            is_builtin: false,
+            shared: false,
+            created_at: '',
+          } as Module,
+        ])
+      )
+
+      const { rows, series: seriesMeta } = getMultiSeriesData(parsed.data, entriesByModule, modulesById)
+
+      // Module options for the "attach to" dropdown — any of the user's trackers.
+      const moduleOptions = summaries.map((m) => ({ id: m.id, name: m.name }))
+      const defaultModuleId = series[0].moduleId
+
+      return {
+        success: true as const,
+        config: parsed.data,
+        previewData: { rows, series: seriesMeta },
+        moduleOptions,
+        defaultModuleId,
       }
     },
   })
@@ -249,7 +356,6 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  // Fetch user's existing modules for context injection and tool validation.
   const { data: rawModules } = await supabase
     .from('modules')
     .select('id, name, kind, fields, formula_config')
@@ -257,8 +363,7 @@ export async function POST(req: Request) {
     .order('created_at', { ascending: true })
 
   const summaries = buildModuleSummaries((rawModules ?? []) as Module[])
-  const contextBlock = buildContextBlock(summaries)
-  const systemPrompt = buildSystemPrompt(contextBlock)
+  const systemPrompt = buildSystemPrompt(buildContextBlock(summaries))
 
   const { messages } = await req.json()
 
@@ -266,11 +371,11 @@ export async function POST(req: Request) {
     model: chatModel,
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    // Allow up to 3 steps so the model can retry after a validation error.
     stopWhen: stepCountIs(3),
     tools: {
       createModule: createModuleTool,
       createFormulaModule: makeCreateFormulaModuleTool(summaries),
+      proposeChart: makeProposedChartTool(supabase, summaries, user.id),
     },
   })
 

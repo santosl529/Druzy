@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ModuleProposalCard } from '@/components/assistant/module-proposal-card'
 import { FormulaProposalCard } from '@/components/assistant/formula-proposal-card'
-import type { ModuleField, FormulaConfig } from '@/lib/types'
+import { ChartProposalCard } from '@/components/assistant/chart-proposal-card'
+import type { ModuleField, FormulaConfig, ChartConfig } from '@/lib/types'
 import type { EnrichedInput } from '@/components/assistant/formula-proposal-card'
+import type { MultiSeriesRow, SeriesMeta } from '@/lib/chart-data'
 
 // ----------------------------------------------------------------
 // Types mirroring the API route's tool execute return values
@@ -27,6 +29,16 @@ type CreateFormulaModuleResult =
         config: FormulaConfig
         enrichedInputs: EnrichedInput[]
       }
+    }
+  | { success: false; error: string }
+
+type ProposeChartResult =
+  | {
+      success: true
+      config: ChartConfig
+      previewData: { rows: MultiSeriesRow[]; series: SeriesMeta[] }
+      moduleOptions: Array<{ id: string; name: string }>
+      defaultModuleId: string
     }
   | { success: false; error: string }
 
@@ -173,6 +185,41 @@ export function AssistantChat() {
                         return (
                           <p key={i} className="text-sm text-destructive">
                             Error calling tool — please try again.
+                          </p>
+                        )
+                      }
+                    }
+
+                    // ── proposeChart ──────────────────────────────────────────
+                    if (toolName === 'proposeChart') {
+                      if (
+                        invocation.state === 'input-streaming' ||
+                        invocation.state === 'input-available'
+                      ) {
+                        return (
+                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
+                            Building your chart preview…
+                          </p>
+                        )
+                      }
+                      if (invocation.state === 'output-available') {
+                        const output = invocation.output as ProposeChartResult | undefined
+                        if (output?.success) {
+                          return (
+                            <ChartProposalCard
+                              key={i}
+                              config={output.config}
+                              previewData={output.previewData}
+                              moduleOptions={output.moduleOptions}
+                              defaultModuleId={output.defaultModuleId}
+                            />
+                          )
+                        }
+                      }
+                      if (invocation.state === 'output-error') {
+                        return (
+                          <p key={i} className="text-sm text-destructive">
+                            Error building chart preview — please try again.
                           </p>
                         )
                       }
