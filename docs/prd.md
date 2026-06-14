@@ -27,7 +27,7 @@
 - **Database / auth / storage:** Supabase — Postgres with Row Level Security, Supabase Auth, Supabase Storage (for photos).
 - **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons. **Function over form for the MVP** — use shadcn defaults; no custom design system yet.
 - **Charts:** Recharts for v1. (D3/visx is the escape hatch if a specific chart proves limiting — not a v1 dependency.)
-- **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here.
+- **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here. **Provider:** OpenRouter (`@ai-sdk/openai` with `baseURL: 'https://openrouter.ai/api/v1'`); model configured in `lib/ai/config.ts` (currently `anthropic/claude-sonnet-4-5`). Swap model by changing one string; swap provider by changing the import.
 - **Food vision:** a cloud vision model (e.g. Claude or GPT vision) via API.
 - **Journal vision:** a **local** model via Ollama (or equivalent) — runs on the user's machine.
 - **Hosting:** Vercel + Supabase cloud (journal transcription stays local regardless).
@@ -146,7 +146,7 @@ on user description:
 ```
 The LLM only ever emits the ModuleSchema shape; Zod is the gate on both the API route (tool execute) and the server action (createModuleFromProposal). No free-form code generation.
 
-**Model config:** `lib/ai/config.ts` — defaults to `anthropic('claude-sonnet-4-5')`. Swap provider by editing one line. Env var: `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` if swapped).
+**Model config:** `lib/ai/config.ts` — currently `openrouter('anthropic/claude-sonnet-4-5')` via OpenRouter. Swap model by editing one string; swap provider by changing the import. Env var: `OPENROUTER_API_KEY`.
 
 ### 6.3 Cross-module analytics (compute in code, AI narrates)
 ```

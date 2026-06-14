@@ -7,23 +7,28 @@ import { SendIcon, SparklesIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ModuleProposalCard } from '@/components/assistant/module-proposal-card'
-import type { ModuleField } from '@/lib/types'
+import { FormulaProposalCard } from '@/components/assistant/formula-proposal-card'
+import type { ModuleField, FormulaConfig } from '@/lib/types'
+import type { EnrichedInput } from '@/components/assistant/formula-proposal-card'
 
 // ----------------------------------------------------------------
-// Types mirroring the API route's tool execute return value
+// Types mirroring the API route's tool execute return values
 // ----------------------------------------------------------------
 
-interface CreateModuleSuccess {
-  success: true
-  proposal: { name: string; fields: ModuleField[] }
-}
+type CreateModuleResult =
+  | { success: true; proposal: { name: string; fields: ModuleField[] } }
+  | { success: false; error: string }
 
-interface CreateModuleError {
-  success: false
-  error: string
-}
-
-type CreateModuleResult = CreateModuleSuccess | CreateModuleError
+type CreateFormulaModuleResult =
+  | {
+      success: true
+      proposal: {
+        name: string
+        config: FormulaConfig
+        enrichedInputs: EnrichedInput[]
+      }
+    }
+  | { success: false; error: string }
 
 // ----------------------------------------------------------------
 // Main chat component
@@ -61,7 +66,7 @@ export function AssistantChat() {
           <div>
             <h1 className="text-xl font-semibold mb-1">AI assistant</h1>
             <p className="text-muted-foreground text-sm max-w-xs">
-              Describe a tracker in plain language and I&apos;ll design the schema for you.
+              Describe a tracker to create, or ask me to compute something from your existing trackers.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-center mt-2">
@@ -110,16 +115,16 @@ export function AssistantChat() {
                     )
                   }
 
-                  // Tool invocation part — only rendered for assistant messages
+                  // Tool invocation parts — only rendered for assistant messages
                   if (isToolUIPart(part) && message.role === 'assistant') {
                     const toolName = getToolName(part)
+                    const invocation = part as typeof part & {
+                      state: string
+                      output?: unknown
+                    }
 
+                    // ── createModule ──────────────────────────────────────────
                     if (toolName === 'createModule') {
-                      const invocation = part as typeof part & {
-                        state: string
-                        output?: CreateModuleResult
-                      }
-
                       if (
                         invocation.state === 'input-streaming' ||
                         invocation.state === 'input-available'
@@ -130,18 +135,40 @@ export function AssistantChat() {
                           </p>
                         )
                       }
-
                       if (invocation.state === 'output-available') {
-                        const output = invocation.output
+                        const output = invocation.output as CreateModuleResult | undefined
                         if (output?.success) {
-                          return (
-                            <ModuleProposalCard key={i} proposal={output.proposal} />
-                          )
+                          return <ModuleProposalCard key={i} proposal={output.proposal} />
                         }
-                        // output.success === false: the model will retry via maxSteps,
-                        // so we show nothing here — the retry flow produces a new part.
+                        // success: false → model retries; render nothing
                       }
+                      if (invocation.state === 'output-error') {
+                        return (
+                          <p key={i} className="text-sm text-destructive">
+                            Error calling tool — please try again.
+                          </p>
+                        )
+                      }
+                    }
 
+                    // ── createFormulaModule ───────────────────────────────────
+                    if (toolName === 'createFormulaModule') {
+                      if (
+                        invocation.state === 'input-streaming' ||
+                        invocation.state === 'input-available'
+                      ) {
+                        return (
+                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
+                            Designing your formula tracker…
+                          </p>
+                        )
+                      }
+                      if (invocation.state === 'output-available') {
+                        const output = invocation.output as CreateFormulaModuleResult | undefined
+                        if (output?.success) {
+                          return <FormulaProposalCard key={i} proposal={output.proposal} />
+                        }
+                      }
                       if (invocation.state === 'output-error') {
                         return (
                           <p key={i} className="text-sm text-destructive">
@@ -202,5 +229,5 @@ const EXAMPLES = [
   'Track my saxophone songs with difficulty',
   'Log my daily mood and sleep hours',
   'Track books I read with a rating',
-  'Log workouts with duration and type',
+  'Compute my calories per unit of weight from my existing trackers',
 ]

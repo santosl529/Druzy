@@ -1,5 +1,10 @@
-import { anthropic } from '@ai-sdk/anthropic'
-// To switch provider, replace this line:
-//   OpenAI:  import { openai } from '@ai-sdk/openai'
-//            export const chatModel = openai('gpt-4o')
-export const chatModel = anthropic('claude-sonnet-4-5')
+import { createOpenAI } from '@ai-sdk/openai'
+
+// OpenRouter — swap the model string to any model on openrouter.ai/models
+// e.g. 'anthropic/claude-sonnet-4-5', 'openai/gpt-4o', 'google/gemini-2.5-pro'
+const openrouter = createOpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+})
+
+export const chatModel = openrouter('openrouter/free')

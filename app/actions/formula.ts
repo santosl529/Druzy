@@ -80,6 +80,44 @@ export async function createFormulaModule(formData: FormData): Promise<{ error: 
   redirect(`/modules/${data.id}`)
 }
 
+/**
+ * Create a formula module from an AI-proposed config.
+ * Accepts plain objects (not FormData). Re-validates server-side.
+ * Returns { id } on success so the client can redirect.
+ */
+export async function createFormulaModuleFromProposal(
+  name: string,
+  config: FormulaConfig
+): Promise<{ error: string } | { id: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated. Please sign in and try again.' }
+
+  const parsed = formulaModuleSchema.safeParse({ name, config })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const inputError = await validateFormulaInputs(parsed.data.config, user.id)
+  if (inputError) return { error: inputError }
+
+  const { data, error } = await supabase
+    .from('modules')
+    .insert({
+      user_id: user.id,
+      name: parsed.data.name,
+      fields: [FORMULA_VALUE_FIELD],
+      kind: 'formula',
+      formula_config: parsed.data.config,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  await createDefaultChart(data.id, [FORMULA_VALUE_FIELD], user.id)
+  revalidatePath('/')
+  return { id: data.id }
+}
+
 export async function updateFormulaModule(
   id: string,
   formData: FormData
