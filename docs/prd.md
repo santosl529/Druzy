@@ -88,7 +88,11 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
   6. "Create tracker" calls `createModuleFromProposal(name, fields)` → re-validates server-side → inserts + `createDefaultChart` → returns `{ id }` → client redirects to `/modules/[id]`.
   7. "Discard" button sets a discarded state on the card; the user types a new description.
 - **Never save a module without explicit confirmation.**
-- **Not yet built:** `queryAnalytics`, `updateTheme`.
+- **Context injection (built):** every `/api/chat` request fetches the user's existing modules (id, name, kind, field keys/types/units) and injects them into the system prompt. All tools can reference existing trackers by UUID.
+- **`createFormulaModule` tool (built):** AI proposes a formula tracker referencing existing modules by UUID. Tool execute validates moduleId/field/expression server-side. `FormulaProposalCard` shows editable alias, defaultValue, and expression; confirm calls `createFormulaModuleFromProposal`.
+- **`proposeChart` tool (built):** when the user asks to see or visualize data, the AI calls `proposeChart` instead of giving text instructions. Tool execute fetches the user's entries, runs `getMultiSeriesData`, and returns the computed data. `ChartProposalCard` renders a live Recharts preview with actual data; "Add to tracker" dropdown; one-click "Add chart" calls `addChartFromProposal`. Supports chartType (line/bar/area), multi-series, bucketBy, aggregation, dual y-axes.
+- **`queryAnalytics` tool (built):** when the user asks a question about their data (averages, trends, correlations, streaks), the AI calls `queryAnalytics`. Tool execute fetches entries server-side, computes the statistic in TypeScript (never sends raw rows to the LLM), and returns structured aggregates. `AnalyticsInsightCard` renders the numbers inline; the LLM narrates in text. Supports four operations: `summary` (count/avg/min/max/total/stdDev), `trend` (direction, % change, slope), `correlation` (Pearson r between two numeric fields across modules), `streak` (current and longest consecutive-day streak).
+- **Not yet built:** `updateTheme`.
 
 ### 5.3 Module detail `/modules/[id]` (core)
 - **Purpose:** view/log/analyze one tracker.
@@ -359,7 +363,7 @@ Each step shippable and testable before the next. **Resist building schema/featu
 1. **Foundation** — Next.js + TypeScript + Supabase; auth; **RLS on every table from the start**; authenticated app shell (login → empty dashboard).
 2. **Module abstraction, no AI** — `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD. *This proves the core data model — don't proceed until it feels right.*
 3. **Charts** — `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, etc.).
-4. **AI assistant layer** — Vercel AI SDK 6; `createModule` tool **built** (Zod-validated, review-then-confirm, editable proposal card); `queryAnalytics` (compute-in-code, AI-narrates) and `updateTheme` **not yet built**.
+4. **AI assistant layer** — Vercel AI SDK 6; `createModule` **built**, `createFormulaModule` **built**, `proposeChart` **built** (live preview + one-click add), context injection **built**, `queryAnalytics` **built** (summary/trend/correlation/streak, computed in app code); `updateTheme` **not yet built**.
 5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
 6. **Journal transcription** — local model; photo → transcribe + extract → review → save; **test on real handwriting early**, with manual fallback ready.
 

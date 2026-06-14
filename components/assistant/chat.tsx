@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input'
 import { ModuleProposalCard } from '@/components/assistant/module-proposal-card'
 import { FormulaProposalCard } from '@/components/assistant/formula-proposal-card'
 import { ChartProposalCard } from '@/components/assistant/chart-proposal-card'
+import { AnalyticsInsightCard } from '@/components/assistant/analytics-insight-card'
 import type { ModuleField, FormulaConfig, ChartConfig } from '@/lib/types'
 import type { EnrichedInput } from '@/components/assistant/formula-proposal-card'
 import type { MultiSeriesRow, SeriesMeta } from '@/lib/chart-data'
+import type { AnalyticsResult } from '@/lib/analytics'
 
 // ----------------------------------------------------------------
 // Types mirroring the API route's tool execute return values
@@ -39,6 +41,22 @@ type ProposeChartResult =
       previewData: { rows: MultiSeriesRow[]; series: SeriesMeta[] }
       moduleOptions: Array<{ id: string; name: string }>
       defaultModuleId: string
+    }
+  | { success: false; error: string }
+
+type QueryAnalyticsResult =
+  | {
+      success: true
+      operation: string
+      result: AnalyticsResult
+      labels: {
+        moduleA: string
+        fieldA: string
+        unitA?: string
+        moduleB?: string
+        fieldB?: string
+        unitB?: string
+      }
     }
   | { success: false; error: string }
 
@@ -224,6 +242,41 @@ export function AssistantChat() {
                         )
                       }
                     }
+
+                    // ── queryAnalytics ────────────────────────────────────────
+                    if (toolName === 'queryAnalytics') {
+                      if (
+                        invocation.state === 'input-streaming' ||
+                        invocation.state === 'input-available'
+                      ) {
+                        return (
+                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
+                            Computing…
+                          </p>
+                        )
+                      }
+                      if (invocation.state === 'output-available') {
+                        const output = invocation.output as QueryAnalyticsResult | undefined
+                        if (output?.success) {
+                          return (
+                            <AnalyticsInsightCard
+                              key={i}
+                              operation={output.operation}
+                              result={output.result}
+                              labels={output.labels}
+                            />
+                          )
+                        }
+                        // success: false → LLM retries; render nothing
+                      }
+                      if (invocation.state === 'output-error') {
+                        return (
+                          <p key={i} className="text-sm text-destructive">
+                            Error computing analytics — please try again.
+                          </p>
+                        )
+                      }
+                    }
                   }
 
                   return null
@@ -277,4 +330,6 @@ const EXAMPLES = [
   'Log my daily mood and sleep hours',
   'Track books I read with a rating',
   'Compute my calories per unit of weight from my existing trackers',
+  "What's my average sleep over the past month?",
+  'Is my weight trending up or down?',
 ]

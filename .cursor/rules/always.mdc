@@ -16,6 +16,7 @@
 - Match existing code style
 - Server actions for all mutations (if applicable)
 - Ask before adding dependencies
+- Always update prd after changes
 
 ## Secrets
 - Never read .env.local or any .env.* file with real values.

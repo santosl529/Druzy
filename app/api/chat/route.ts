@@ -5,8 +5,9 @@ import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/vali
 import { createClient } from '@/lib/supabase/server'
 import { validateExpression } from '@/lib/formula'
 import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
+import { computeSummary, computeTrend, computeCorrelation, computeStreak } from '@/lib/analytics'
 import { FIELD_TYPES } from '@/lib/types'
-import type { Module, ModuleField, Entry, ChartConfig } from '@/lib/types'
+import type { Module, ModuleField, Entry, ChartConfig, DateRange } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
@@ -96,6 +97,16 @@ Also call it when they describe comparing two things over time.
 - For dual-axis (very different scales, e.g. weight in lbs vs. calories in kcal): set yAxis "right" on the second series.
 - DO NOT give text instructions about how to create a chart — call proposeChart instead.
 - A live interactive preview will appear in the chat, and the user clicks "Add chart" to save it.
+
+## Analytics — queryAnalytics
+Call this when the user asks a QUESTION about their data — averages, trends, correlations, streaks, totals.
+Examples: "What's my average sleep?", "Is my weight trending down?", "Do sleep and mood correlate?", "What's my logging streak?"
+- seriesA.moduleId and seriesA.field MUST be an exact ID/key from the list above.
+- For "correlation", also provide seriesB (a second tracker/field). Both fields must be numeric.
+- For "streak", the field parameter inside seriesA is ignored — streak counts unique days with any entry on that tracker.
+- dateRange is optional; omit to use all data.
+- Do NOT use this for visualization — call proposeChart for that. Use queryAnalytics for stats/insight questions.
+- After the tool returns, narrate the result in plain language. Be concise and highlight the key number.
 
 After calling any tool, briefly explain what you designed and why.
 If you're asked a general question, answer helpfully and invite a tracker or chart request.`
@@ -343,6 +354,167 @@ function makeProposedChartTool(
 }
 
 // ----------------------------------------------------------------
+// queryAnalytics tool
+// ----------------------------------------------------------------
+
+const dateRangeSchema = z.object({
+  type: z.enum(['all', 'last_n_days', 'custom']),
+  n: z.number().positive().optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+})
+
+function applyDateRangeFilter(entries: Entry[], dateRange?: DateRange): Entry[] {
+  if (!dateRange || dateRange.type === 'all') return entries
+  if (dateRange.type === 'last_n_days' && dateRange.n) {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - dateRange.n)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+    return entries.filter((e) => e.entry_date >= cutoffStr)
+  }
+  if (dateRange.type === 'custom') {
+    let result = entries
+    if (dateRange.start) result = result.filter((e) => e.entry_date >= dateRange.start!)
+    if (dateRange.end) result = result.filter((e) => e.entry_date <= dateRange.end!)
+    return result
+  }
+  return entries
+}
+
+function makeQueryAnalyticsTool(
+  supabase: SupabaseClient,
+  summaries: ModuleSummary[],
+  userId: string
+) {
+  const byId = new Map(summaries.map((m) => [m.id, m]))
+
+  const seriesSchema = z.object({
+    moduleId: z.string().describe('Exact UUID of an existing tracker'),
+    field: z.string().describe('Numeric field key on that tracker (ignored for streak operation)'),
+  })
+
+  return tool({
+    description:
+      'Compute a statistic (summary, trend, correlation, or streak) from the user\'s actual data. ' +
+      'Call this when the user asks a question about their data — averages, trends, correlations, streaks. ' +
+      'Do NOT call this for visualization; use proposeChart for charts.',
+    inputSchema: z.object({
+      operation: z
+        .enum(['summary', 'trend', 'correlation', 'streak'])
+        .describe(
+          'summary: count/avg/min/max/total for one field. ' +
+          'trend: direction and slope over time. ' +
+          'correlation: Pearson r between two numeric fields. ' +
+          'streak: consecutive days with entries.'
+        ),
+      seriesA: seriesSchema.describe('Primary tracker/field'),
+      seriesB: seriesSchema
+        .optional()
+        .describe('Second tracker/field — required for correlation'),
+      dateRange: dateRangeSchema
+        .optional()
+        .describe('Optional date filter; omit to use all data'),
+    }),
+    execute: async ({ operation, seriesA, seriesB, dateRange }) => {
+      // Validate seriesA
+      const modA = byId.get(seriesA.moduleId)
+      if (!modA) {
+        return { success: false as const, error: `Tracker "${seriesA.moduleId}" not found. Use only IDs from the existing trackers list.` }
+      }
+
+      // For non-streak operations, validate that the field is numeric
+      if (operation !== 'streak') {
+        const fieldA = modA.allFields.find((f) => f.key === seriesA.field)
+        if (!fieldA) {
+          return { success: false as const, error: `Field "${seriesA.field}" not found on "${modA.name}". Available: ${modA.allFields.map((f) => f.key).join(', ')}.` }
+        }
+        if (fieldA.type !== 'number' && fieldA.type !== 'rating') {
+          return { success: false as const, error: `Field "${fieldA.label}" on "${modA.name}" is not numeric (type: ${fieldA.type}). Only number/rating fields can be analyzed.` }
+        }
+      }
+
+      // For correlation, validate seriesB
+      if (operation === 'correlation') {
+        if (!seriesB) {
+          return { success: false as const, error: 'Correlation requires a second series (seriesB).' }
+        }
+        const modB = byId.get(seriesB.moduleId)
+        if (!modB) {
+          return { success: false as const, error: `Tracker "${seriesB.moduleId}" not found.` }
+        }
+        const fieldB = modB.allFields.find((f) => f.key === seriesB.field)
+        if (!fieldB) {
+          return { success: false as const, error: `Field "${seriesB.field}" not found on "${modB.name}".` }
+        }
+        if (fieldB.type !== 'number' && fieldB.type !== 'rating') {
+          return { success: false as const, error: `Field "${fieldB.label}" on "${modB.name}" is not numeric.` }
+        }
+      }
+
+      // Fetch entries for seriesA module
+      const moduleIds = [seriesA.moduleId]
+      if (seriesB && seriesB.moduleId !== seriesA.moduleId) {
+        moduleIds.push(seriesB.moduleId)
+      }
+
+      const { data: rawEntries } = await supabase
+        .from('entries')
+        .select('id, module_id, user_id, values, entry_date, created_at')
+        .eq('user_id', userId)
+        .in('module_id', moduleIds)
+        .order('entry_date', { ascending: true })
+
+      const allEntries = (rawEntries ?? []) as Entry[]
+
+      const entriesA = applyDateRangeFilter(
+        allEntries.filter((e) => e.module_id === seriesA.moduleId),
+        dateRange as DateRange | undefined
+      )
+      const entriesB = seriesB
+        ? applyDateRangeFilter(
+            allEntries.filter((e) => e.module_id === seriesB.moduleId),
+            dateRange as DateRange | undefined
+          )
+        : []
+
+      // Build labels for the LLM to narrate with
+      const fieldAMeta = modA.allFields.find((f) => f.key === seriesA.field)
+      const labels = {
+        moduleA: modA.name,
+        fieldA: fieldAMeta?.label ?? seriesA.field,
+        unitA: (fieldAMeta as { unit?: string } | undefined)?.unit,
+        moduleB: seriesB ? byId.get(seriesB.moduleId)?.name : undefined,
+        fieldB: seriesB
+          ? byId.get(seriesB.moduleId)?.allFields.find((f) => f.key === seriesB.field)?.label ?? seriesB.field
+          : undefined,
+        unitB: seriesB
+          ? ((byId.get(seriesB.moduleId)?.allFields.find((f) => f.key === seriesB.field) as { unit?: string } | undefined)?.unit)
+          : undefined,
+      }
+
+      // Compute
+      let result
+      switch (operation) {
+        case 'summary':
+          result = computeSummary(entriesA, seriesA.field)
+          break
+        case 'trend':
+          result = computeTrend(entriesA, seriesA.field)
+          break
+        case 'correlation':
+          result = computeCorrelation(entriesA, seriesA.field, entriesB, seriesB!.field)
+          break
+        case 'streak':
+          result = computeStreak(entriesA)
+          break
+      }
+
+      return { success: true as const, operation, result, labels }
+    },
+  })
+}
+
+// ----------------------------------------------------------------
 // Route handler
 // ----------------------------------------------------------------
 
@@ -376,6 +548,7 @@ export async function POST(req: Request) {
       createModule: createModuleTool,
       createFormulaModule: makeCreateFormulaModuleTool(summaries),
       proposeChart: makeProposedChartTool(supabase, summaries, user.id),
+      queryAnalytics: makeQueryAnalyticsTool(supabase, summaries, user.id),
     },
   })
 
