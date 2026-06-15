@@ -92,7 +92,17 @@ export function JournalTemplateBuilder({ initial, trackerModules }: Props) {
     })
   }
 
+  const emptyKeyIndexes = fields
+    .map((f, i) => (f.key.trim() === '' ? i : -1))
+    .filter((i) => i !== -1)
+
   function handleSave() {
+    if (emptyKeyIndexes.length > 0) {
+      // Expand the first offending field so the user sees the error.
+      setExpanded((s) => new Set([...s, emptyKeyIndexes[0]]))
+      setError('All fields must have a non-empty key. Fix the highlighted fields before saving.')
+      return
+    }
     setError(null)
     setSaved(false)
     startTransition(async () => {
@@ -168,7 +178,13 @@ export function JournalTemplateBuilder({ initial, trackerModules }: Props) {
                         onChange={(e) => updateField(i, 'key', e.target.value)}
                         placeholder="auto-filled from label"
                         pattern="[a-z0-9_]+"
+                        className={field.key.trim() === '' ? 'border-destructive focus-visible:ring-destructive' : ''}
                       />
+                      {field.key.trim() === '' && (
+                        <p className="text-xs text-destructive">
+                          Key cannot be empty. Enter a label with at least one letter or number.
+                        </p>
+                      )}
                     </div>
                   </div>
 

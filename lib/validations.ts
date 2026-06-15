@@ -174,9 +174,9 @@ export const journalFieldSchema = z
   })
   .refine(
     (f) => {
-      // targetModuleId and targetFieldKey only make sense on number fields.
-      // If either is set on a non-number field, that's a client bug — strip silently at save.
-      if (f.targetModuleId && f.type !== 'number') return true // server action strips it
+      // Tracker connections are only valid on number fields; server strips them from others.
+      if (f.type !== 'number') return true
+      // On number fields, both must be set or both must be unset.
       if (f.targetModuleId && !f.targetFieldKey) return false
       if (f.targetFieldKey && !f.targetModuleId) return false
       return true

@@ -39,9 +39,13 @@ export function getOllamaConfig(): OllamaConfig {
     return { baseUrl: envBase, model: envModel }
   }
 
-  return {
-    baseUrl: localStorage.getItem('ollama_base_url') ?? envBase,
-    model: localStorage.getItem('ollama_journal_model') ?? envModel,
+  try {
+    return {
+      baseUrl: localStorage.getItem('ollama_base_url') ?? envBase,
+      model: localStorage.getItem('ollama_journal_model') ?? envModel,
+    }
+  } catch {
+    return { baseUrl: envBase, model: envModel }
   }
 }
 

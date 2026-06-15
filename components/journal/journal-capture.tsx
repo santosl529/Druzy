@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition, useCallback, useMemo } from 'react'
+import { useState, useRef, useTransition, useCallback, useMemo, useEffect } from 'react'
 import {
   Camera,
   X,
@@ -148,6 +148,12 @@ export function JournalCapture({ template, trackerModules, onSaved }: JournalCap
   // fields derived before any early return so hooks below are not conditional
   const fields = useMemo(() => template?.fields ?? [], [template])
 
+  // Keep a ref pointing at the latest photos array so the unmount cleanup
+  // can revoke any remaining object URLs without stale-closure issues.
+  const photosRef = useRef(photos)
+  useEffect(() => { photosRef.current = photos }, [photos])
+  useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), [])
+
   // ── Transcription ───────────────────────────────────────────────
   const handleTranscribe = useCallback(async () => {
     if (photos.length === 0) return
@@ -198,8 +204,15 @@ export function JournalCapture({ template, trackerModules, onSaved }: JournalCap
       const reader = new FileReader()
       reader.onload = (ev) => {
         const dataUrl = ev.target?.result as string
+        if (!dataUrl || !dataUrl.includes(',')) {
+          URL.revokeObjectURL(preview)
+          return
+        }
         const base64 = dataUrl.split(',')[1]
         setPhotos((p) => [...p, { preview, base64 }])
+      }
+      reader.onerror = () => {
+        URL.revokeObjectURL(preview)
       }
       reader.readAsDataURL(file)
     })
