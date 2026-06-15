@@ -17,6 +17,7 @@ export function Nav({ email }: { email: string }) {
             <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">Trackers</Link>
             <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">Dashboard</Link>
             <Link href="/assistant" className="text-muted-foreground hover:text-foreground transition-colors">Assistant</Link>
+            <Link href="/food" className="text-muted-foreground hover:text-foreground transition-colors">Food</Link>
             <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors">Settings</Link>
           </nav>
         </div>

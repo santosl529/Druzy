@@ -95,6 +95,7 @@ Also call it when they describe comparing two things over time.
 - series[].field MUST be a numeric field key on that module.
 - For comparing two trackers over time: use chartType "line", two series, bucketBy "week", aggregation "avg".
 - For dual-axis (very different scales, e.g. weight in lbs vs. calories in kcal): set yAxis "right" on the second series.
+- When a tracker can have MULTIPLE entries per day (e.g. logging each meal, each workout set), set dailyAggregation first: use "sum" for additive data (calories, reps), "avg" for repeated measurements. Example: "weekly average of daily calorie total" → dailyAggregation="sum", bucketBy="week", aggregation="avg".
 - DO NOT give text instructions about how to create a chart — call proposeChart instead.
 - A live interactive preview will appear in the chat, and the user clicks "Add chart" to save it.
 
@@ -252,6 +253,15 @@ function makeProposedChartTool(
           })
         )
         .min(1),
+      dailyAggregation: z
+        .enum(['sum', 'avg', 'min', 'max'])
+        .optional()
+        .describe(
+          'First-pass aggregation: collapse multiple entries on the same day into one value. ' +
+          'Use "sum" when entries are additive (e.g. multiple meals logged per day). ' +
+          'Use "avg" when entries represent repeated measurements of the same thing. ' +
+          'Omit when each entry is already one measurement per day.'
+        ),
       bucketBy: z
         .enum(['none', 'day', 'week', 'month', 'year'])
         .optional()
@@ -259,9 +269,9 @@ function makeProposedChartTool(
       aggregation: z
         .enum(['none', 'sum', 'avg', 'count', 'min', 'max', 'median'])
         .optional()
-        .describe('How to combine multiple values per bucket — "avg" for most trends'),
+        .describe('How to combine values per bucket — "avg" for most trends. Applied after dailyAggregation if set.'),
     }),
-    execute: async ({ title, chartType, series, bucketBy, aggregation }) => {
+    execute: async ({ title, chartType, series, dailyAggregation, bucketBy, aggregation }) => {
       // Validate each series references a real numeric field.
       for (const s of series) {
         const mod = byId.get(s.moduleId)
@@ -292,6 +302,7 @@ function makeProposedChartTool(
           color: SERIES_COLORS[i % SERIES_COLORS.length],
           yAxis: s.yAxis,
         })),
+        dailyAggregation,
         bucketBy: bucketBy ?? (series.length > 1 ? 'week' : 'none'),
         aggregation: aggregation ?? (bucketBy && bucketBy !== 'none' ? 'avg' : 'none'),
       }

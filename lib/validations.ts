@@ -115,6 +115,7 @@ export const chartConfigSchema = z.object({
   showGrid: z.boolean().optional(),
   showLegend: z.boolean().optional(),
   fillForward: z.boolean().optional(),
+  dailyAggregation: z.enum(['none', 'sum', 'avg', 'count', 'min', 'max', 'median']).optional(),
   referenceLines: z.array(referenceLineSchema).optional(),
   displayField: z.string().optional(),
   secondaryField: z.string().optional(),

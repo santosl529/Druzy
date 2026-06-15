@@ -88,6 +88,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
   const [dateRangeVal, setDateRangeVal] = useState(toDateRangeValue(initConfig))
   const [bucketBy, setBucketBy] = useState<'none' | 'day' | 'week' | 'month' | 'year'>(initConfig.bucketBy ?? 'none')
   const [aggregation, setAggregation] = useState<'none' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'median'>(initConfig.aggregation ?? 'none')
+  const [dailyAggregation, setDailyAggregation] = useState<'none' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'median'>(initConfig.dailyAggregation ?? 'none')
   const [fillForward, setFillForward] = useState(initConfig.fillForward ?? false)
   const [showGrid, setShowGrid] = useState(initConfig.showGrid ?? true)
   const [showLegend, setShowLegend] = useState(initConfig.showLegend ?? false)
@@ -167,6 +168,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
     if (TIME_SERIES_TYPES.includes(chartType)) {
       base.bucketBy = bucketBy as ChartConfig['bucketBy']
       base.aggregation = aggregation as ChartConfig['aggregation']
+      base.dailyAggregation = dailyAggregation !== 'none' ? dailyAggregation as ChartConfig['dailyAggregation'] : undefined
     }
     if (FILL_FORWARD_TYPES.includes(chartType)) {
       base.fillForward = fillForward || undefined
@@ -406,6 +408,21 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
 
           {TIME_SERIES_TYPES.includes(chartType) && (
             <>
+              <div className="space-y-1.5">
+                <Label>Per-day rollup</Label>
+                <Select value={dailyAggregation} onValueChange={(v) => v && setDailyAggregation(v as typeof dailyAggregation)}>
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">(none)</SelectItem>
+                    {(['sum', 'avg', 'min', 'max'] as const).map((a) => (
+                      <SelectItem key={a} value={a}>{a}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Combine multiple entries on the same day before bucketing.
+                </p>
+              </div>
               <div className="space-y-1.5">
                 <Label>Bucket by</Label>
                 <Select value={bucketBy} onValueChange={(v) => v && setBucketBy(v as typeof bucketBy)}>

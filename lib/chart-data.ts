@@ -146,34 +146,54 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeries
   const filtered = getFilteredEntries(entries, config)
   const bucketBy = config.bucketBy ?? 'none'
   const aggregation = config.aggregation ?? 'none'
+  const dailyAggregation = config.dailyAggregation
   const fillForward = config.fillForward ?? false
 
-  // All date-based grouping reads entry_date exclusively.
-  // created_at is never used for day attribution — entries belong to the day
-  // they were *for*, not the day they were logged. This also ensures per-day
-  // series are streak-computation-ready: each key is a distinct YYYY-MM-DD string.
-  if (bucketBy === 'none') {
-    const sorted = [...filtered].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
+  // ── Stage 1: optionally collapse multiple entries per calendar day ──────────
+  // When dailyAggregation is set, reduce all entries on the same date to a
+  // single value before any outer bucketing. This enables "sum per day, then
+  // average per week" patterns that a single aggregation pass can't express.
+  // When dailyAggregation is omitted, work directly with raw entries (existing behaviour).
+  //
+  // All date-based grouping reads entry_date exclusively — created_at is never
+  // used for day attribution.
+  let dailyPoints: TimeSeriesPoint[]
 
-    if (!fillForward) {
-      return sorted.flatMap((e) => {
+  if (dailyAggregation) {
+    const byDay: Record<string, number[]> = {}
+    for (const e of filtered) {
+      const v = toNumber((e.values as Record<string, unknown>)[field])
+      if (v !== null) {
+        ;(byDay[e.entry_date] ??= []).push(v)
+      }
+    }
+    dailyPoints = Object.entries(byDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, values]) => ({ date, value: applyAggregation(values, dailyAggregation) }))
+  } else {
+    dailyPoints = [...filtered]
+      .sort((a, b) => a.entry_date.localeCompare(b.entry_date))
+      .flatMap((e) => {
         const value = toNumber((e.values as Record<string, unknown>)[field])
         return value !== null ? [{ date: e.entry_date, value }] : []
       })
-    }
+  }
+
+  // ── Stage 2: outer bucketing + aggregation (or plot each point directly) ────
+  if (bucketBy === 'none') {
+    if (!fillForward) return dailyPoints
 
     // Fill-forward: carry last value across days with no entry
     const valueByDate: Record<string, number> = {}
-    for (const e of sorted) {
-      const v = toNumber((e.values as Record<string, unknown>)[field])
-      if (v !== null) valueByDate[e.entry_date] = v
+    for (const { date, value } of dailyPoints) {
+      valueByDate[date] = value
     }
-    if (sorted.length === 0) return []
+    if (dailyPoints.length === 0) return []
 
     const today = new Date().toISOString().split('T')[0]
     const result: TimeSeriesPoint[] = []
     let last: number | null = null
-    const cursor = new Date(sorted[0].entry_date + 'T00:00:00Z')
+    const cursor = new Date(dailyPoints[0].date + 'T00:00:00Z')
     const end = new Date(today + 'T00:00:00Z')
 
     while (cursor <= end) {
@@ -185,14 +205,11 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeries
     return result
   }
 
-  // Bucketed: group by bucket key, apply aggregation
+  // Bucketed: group dailyPoints by bucket key, apply outer aggregation
   const bucketMap: Record<string, number[]> = {}
-  for (const e of filtered) {
-    const v = toNumber((e.values as Record<string, unknown>)[field])
-    if (v !== null) {
-      const key = getBucketKey(e.entry_date, bucketBy)
-      ;(bucketMap[key] ??= []).push(v)
-    }
+  for (const { date, value } of dailyPoints) {
+    const key = getBucketKey(date, bucketBy)
+    ;(bucketMap[key] ??= []).push(value)
   }
 
   return Object.entries(bucketMap)

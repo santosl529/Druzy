@@ -111,6 +111,16 @@ export interface ChartConfig {
   showGrid?: boolean
   showLegend?: boolean
   fillForward?: boolean
+  /**
+   * Two-stage aggregation: first collapse multiple entries on the same calendar
+   * day using this operation, then apply the outer `bucketBy` + `aggregation`.
+   *
+   * Example: dailyAggregation='sum', bucketBy='week', aggregation='avg'
+   * → sum entries per day → average those daily totals per week.
+   *
+   * When omitted, each entry is its own data point (existing behaviour).
+   */
+  dailyAggregation?: Aggregation
   referenceLines?: ReferenceLine[]
 
   // ── List-specific ──────────────────────────────────────────
@@ -218,4 +228,52 @@ export interface Entry {
   values: Record<string, unknown>
   entry_date: string
   created_at: string
+}
+
+// ----------------------------------------------------------------
+// Food entries (dedicated table)
+// ----------------------------------------------------------------
+
+export interface FoodEntry {
+  id: string
+  user_id: string
+  entry_date: string
+  calories: number | null
+  protein_g: number | null
+  fat_g: number | null
+  carbs_g: number | null
+  source: 'photo' | 'manual'
+  photo_path: string | null
+  created_at: string
+}
+
+export interface DailyTotals {
+  calories: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+}
+
+export interface MacroEstimate {
+  calories: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+  notes: string
+}
+
+/**
+ * Lightweight view of a module used by the food page to offer
+ * "also log to tracker" — only standard modules, only numeric fields.
+ */
+export interface TrackerModuleField {
+  key: string
+  label: string
+  unit?: string
+}
+
+export interface TrackerModule {
+  id: string
+  name: string
+  numericFields: TrackerModuleField[]
 }

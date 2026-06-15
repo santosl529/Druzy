@@ -8,3 +8,7 @@ const openrouter = createOpenAI({
 })
 
 export const chatModel = openrouter('openrouter/free')
+
+// Vision-capable model used for food photo calorie estimation.
+// Claude Sonnet supports image inputs and structured output via OpenRouter.
+export const visionModel = openrouter('openrouter/free')
