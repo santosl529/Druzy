@@ -1,6 +1,6 @@
 # Druzy — Product Requirements Document
 
-**Version:** 2.1 (MVP)
+**Version:** 2.2 (MVP)
 **Status:** Draft — keep current as decisions change during the build
 **Audience:** AI coding agent (Claude Code) + the builder
 
@@ -27,7 +27,7 @@
 - **Database / auth / storage:** Supabase — Postgres with Row Level Security, Supabase Auth, Supabase Storage (for photos).
 - **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons. **Function over form for the MVP** — use shadcn defaults; no custom design system yet.
 - **Charts:** Recharts for v1. (D3/visx is the escape hatch if a specific chart proves limiting — not a v1 dependency.)
-- **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here. **Provider:** OpenRouter (`@ai-sdk/openai` with `baseURL: 'https://openrouter.ai/api/v1'`); model configured in `lib/ai/config.ts` (currently `anthropic/claude-sonnet-4-5`). Swap model by changing one string; swap provider by changing the import.
+- **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here. **Provider:** OpenRouter (`@ai-sdk/openai` with `baseURL: 'https://openrouter.ai/api/v1'`); model configured in `lib/ai/config.ts` (currently `openrouter/free` for both `chatModel` and `visionModel`). Swap model by changing one string; swap provider by changing the import.
 - **Food vision:** a cloud vision model (e.g. Claude or GPT vision) via API.
 - **Journal vision:** a **local** model via **Ollama** — the browser calls `localhost:11434` directly (no Next.js server involved), so photos and transcribed text never leave the device even on a Vercel deployment. Requires the user to run Ollama with `OLLAMA_ORIGINS` set to allow the app origin. Env vars: `NEXT_PUBLIC_OLLAMA_BASE_URL` (default `http://localhost:11434`) and `NEXT_PUBLIC_OLLAMA_JOURNAL_MODEL` (default `qwen2.5vl`). Both can be overridden at runtime via `localStorage` keys `ollama_base_url` / `ollama_journal_model`.
 - **Hosting:** Vercel + Supabase cloud (journal transcription stays local regardless).
@@ -109,7 +109,11 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 
 ### 5.5 Food / nutrition `/food` (core, specialized)
 - **Purpose:** daily macro tracking via photo or manual entry.
-- **Elements/actions:** photo upload/capture → cloud vision estimates calories/protein/fat/carbs → **editable** result → save; manual entry of macros; daily totals view (calories, protein, fat, carbs); history by day.
+- **Elements/actions:**
+  - **Photo flow:** upload or capture → optional context input (e.g. "22 grams of salmon", "12-inch plate") → explicit "Estimate calories" button (analysis does not auto-trigger on file select) → cloud vision estimates calories/protein/fat/carbs → **editable** result form (never auto-saves) → save.
+  - **Manual flow:** direct macro entry form.
+  - Daily totals view (calories, protein, fat, carbs); day navigation (prev/next); per-entry inline edit and delete.
+  - **"Also log to tracker":** optional collapsible section on both photo and manual forms — select any standard module with numeric fields; values auto-matched from macros by field name; editable before save; saves food entry + tracker entry atomically.
 - **Non-negotiable UX:** estimates are framed as approximate and are editable before saving. Never save AI estimates silently.
 
 ### 5.6 Journal `/journal` (core, specialized)
@@ -159,7 +163,7 @@ on user description:
 ```
 The LLM only ever emits the ModuleSchema shape; Zod is the gate on both the API route (tool execute) and the server action (createModuleFromProposal). No free-form code generation.
 
-**Model config:** `lib/ai/config.ts` — currently `openrouter('anthropic/claude-sonnet-4-5')` via OpenRouter. Swap model by editing one string; swap provider by changing the import. Env var: `OPENROUTER_API_KEY`.
+**Model config:** `lib/ai/config.ts` — `chatModel` and `visionModel` are both currently `openrouter('openrouter/free')` via OpenRouter. Swap model by editing one string; swap provider by changing the import. Env var: `OPENROUTER_API_KEY`.
 
 ### 6.3 Cross-module analytics (compute in code, AI narrates)
 ```
@@ -388,7 +392,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 
 - **Local transcription accuracy** — ~~open~~ decided: default model is `qwen2.5vl` via Ollama (chosen over `llama3.2-vision`, whose `mllama` architecture crashes the llama.cpp runner on several Ollama builds; `qwen2.5vl` runs on Ollama's native engine and is stronger at handwriting/OCR). A manual fallback is always shown on Ollama error. Real-handwriting accuracy must be tested manually by the builder; cannot be automated in CI. Both the base URL and model are overridable via env vars and `localStorage` so the builder can swap models easily.
 - **Food modeling** — ~~decided~~: dedicated `food_entries` table (not a built-in module). Fixed columns (calories, protein_g, fat_g, carbs_g) and dedicated daily-total queries.
-- **Exact cloud vision provider** for food, and exact theme palette(s) — deferred.
+- **Cloud vision provider for food** — ~~deferred~~ decided: `openrouter/free` via OpenRouter (same provider as chat; swap by editing `visionModel` in `lib/ai/config.ts`). Exact theme palette(s) still deferred.
 - **Whether the AI assistant is worth its complexity for any given surface** — validate as you go; for chart-picking specifically, a plain UI may beat the assistant. Don't over-invest in AI where a menu is better.
 
 ---
@@ -397,12 +401,16 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 
 Each step shippable and testable before the next. **Resist building schema/features for out-of-scope or future-phase items.**
 
-1. **Foundation** — Next.js + TypeScript + Supabase; auth; **RLS on every table from the start**; authenticated app shell (login → empty dashboard).
-2. **Module abstraction, no AI** — `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD. *This proves the core data model — don't proceed until it feels right.*
-3. **Charts** — `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, etc.).
-4. **AI assistant layer** — Vercel AI SDK 6; `createModule` **built**, `createFormulaModule` **built**, `proposeChart` **built** (live preview + one-click add), context injection **built**, `queryAnalytics` **built** (summary/trend/correlation/streak, computed in app code); `updateTheme` **not yet built**.
-5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
-6. **Journal transcription** — **in progress**. Browser-direct Ollama (no server involvement); user-defined extraction template; per-field tracker connections; manual fallback on Ollama error; photos never persisted. **Test on real handwriting early.**
+1. **Foundation** — **built.** Next.js + TypeScript + Supabase; auth; RLS on every table; authenticated app shell (login → empty dashboard).
+2. **Module abstraction, no AI** — **built.** `modules` + `entries` tables; manual module builder; generic entry form from the field schema; view entries; full CRUD.
+3. **Charts** — **built.** `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, dual y-axes, etc.).
+4. **AI assistant layer** — **built** (except `updateTheme`). Vercel AI SDK 6; `createModule`, `createFormulaModule`, `proposeChart` (live preview + one-click add), context injection, `queryAnalytics` (summary/trend/correlation/streak, computed in app code). `updateTheme` **not yet built**.
+5. **Formula modules** — **built.** `kind` + `formula_config` columns on `modules`; formula builder UI; sandboxed evaluator; formula modules computed on read, never logged directly.
+6. **Two-stage chart aggregation** — **built.** Optional `dailyAggregation` field on `ChartConfig`; `getTimeSeries` runs two passes when set (first collapses per calendar day, then outer bucket+aggregation); "Per-day rollup" UI in chart builder; `proposeChart` tool updated.
+7. **Bulk import** — **built.** CSV import wizard at `/modules/[id]/import`; column mapping UI; date-column detection; field-mapping with type preview; server action validates and bulk-inserts up to 5 000 rows.
+8. **Settings** — **built.** IANA timezone picker saved to `profiles.day_boundary_tz`; data & privacy disclosure section.
+9. **Food calorie tracking** — **built.** Photo flow (context input + explicit "Estimate calories" button) + manual flow; cloud vision → editable macros → save; daily totals; day navigation; "Also log to tracker" optional feature.
+10. **Journal transcription** — **built.** Browser-direct Ollama (no server involvement); user-defined extraction template; per-field tracker connections; manual fallback on Ollama error; photos never persisted. Default model: `qwen2.5vl`. Real-handwriting accuracy must be tested manually by the builder.
 
 After step 2 especially: stop and actually use the manual version before adding AI on top.
 

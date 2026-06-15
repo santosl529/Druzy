@@ -94,6 +94,13 @@
 - `proposeChart` AI tool updated: `dailyAggregation` parameter added to schema + system prompt guidance
 - Fully backward-compatible: existing charts with no `dailyAggregation` behave identically
 
+### 12. PRD sync (v2.2)
+- Updated `docs/prd.md` to reflect all built features:
+  - §2 / §6.2: model config corrected to `openrouter/free` (both `chatModel` and `visionModel`)
+  - §5.5 Food: added context input, explicit "Estimate calories" button, "Also log to tracker" feature
+  - §11: cloud vision provider marked as decided
+  - §12 Build Order: all steps marked **built**; added formula modules (step 5), two-stage aggregation (step 6), bulk import (step 7), settings (step 8); renumbered food → 9, journal → 10
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI
