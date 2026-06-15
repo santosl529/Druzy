@@ -29,7 +29,7 @@
 - **Charts:** Recharts for v1. (D3/visx is the escape hatch if a specific chart proves limiting — not a v1 dependency.)
 - **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here. **Provider:** OpenRouter (`@ai-sdk/openai` with `baseURL: 'https://openrouter.ai/api/v1'`); model configured in `lib/ai/config.ts` (currently `anthropic/claude-sonnet-4-5`). Swap model by changing one string; swap provider by changing the import.
 - **Food vision:** a cloud vision model (e.g. Claude or GPT vision) via API.
-- **Journal vision:** a **local** model via Ollama (or equivalent) — runs on the user's machine.
+- **Journal vision:** a **local** model via **Ollama** — the browser calls `localhost:11434` directly (no Next.js server involved), so photos and transcribed text never leave the device even on a Vercel deployment. Requires the user to run Ollama with `OLLAMA_ORIGINS` set to allow the app origin. Env vars: `NEXT_PUBLIC_OLLAMA_BASE_URL` (default `http://localhost:11434`) and `NEXT_PUBLIC_OLLAMA_JOURNAL_MODEL` (default `qwen2.5vl`). Both can be overridden at runtime via `localStorage` keys `ollama_base_url` / `ollama_journal_model`.
 - **Hosting:** Vercel + Supabase cloud (journal transcription stays local regardless).
 
 **Libraries / approaches to avoid:**
@@ -113,9 +113,18 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
 - **Non-negotiable UX:** estimates are framed as approximate and are editable before saving. Never save AI estimates silently.
 
 ### 5.6 Journal `/journal` (core, specialized)
-- **Purpose:** transcribe handwritten entries locally and extract structured fields.
-- **Elements/actions:** upload journal photo(s) → **local** model transcribes + extracts (weight, calories, protein, gratitude) → review/edit → save into the relevant modules.
-- **Edge case / fallback:** if local transcription quality is poor, fall back to manual entry with the photo attached (see §11).
+- **Purpose:** transcribe handwritten journal entries using a local Ollama model and extract user-defined structured fields.
+- **Elements/actions:**
+  - Upload one or more journal page photos (local object URLs only, never uploaded).
+  - Set entry date (default: today).
+  - "Transcribe" button → browser calls Ollama directly → full transcription + per-field extracted values appear in a review UI.
+  - **Editable review:** full transcription textarea + per-field editors (text input, number input, add/remove list items).
+  - **Number fields with tracker connections** show a checkbox ("Also log NN to \<Tracker\>", default checked).
+  - Save → persists `journal_entries` row (transcription + extracted dict); checked tracker fields are also logged as entries in the connected modules via `createEntryInModule`.
+  - **Privacy notice** displayed on the page: photos never leave the device; transcription runs locally on Ollama.
+- **Extraction template** (`/journal/template`): user-defined fields, each with a label, type (text / list / number), optional extraction instruction, and (for number fields) an optional connection to a specific numeric field on a tracker module. One template per user; supports up to 20 fields.
+- **Fallback:** if Ollama is unreachable or transcription fails, an amber notice is shown and all fields are editable manually. Photos stay visible as local previews to assist manual entry.
+- **Data never stored:** journal photos are intentionally not uploaded or saved. Only the transcription text and extracted JSON values are persisted in Supabase.
 
 ### 5.7 Settings `/settings`
 - **Purpose:** account, date/time config, data/privacy disclosure.
@@ -177,12 +186,22 @@ on food photo:
 
 ### 6.5 Journal transcription
 ```
-on journal photo (LOCAL ONLY):
-  run local model to transcribe text
-  extract structured fields (weight, calories, protein, gratitude) from the text
-  present transcription + extracted fields for review/edit
-  on save -> write to the relevant modules
-  image and text are processed locally; nothing sent to any third party
+on journal photo(s) (LOCAL ONLY — browser-direct to Ollama at localhost:11434):
+  load user's journal_templates row (fields + tracker mappings) on page load (server)
+  build a JSON schema from the template fields via buildExtractionSchema()
+  POST /api/chat to Ollama with: model, format=json_schema, base64 images, system prompt
+  Ollama returns: { transcription, ...extracted_fields }
+  present full transcription (editable textarea) + per-field review editors
+  number fields with tracker connections show "Also log to <Tracker>" checkboxes (default on)
+  on save (createJournalEntry server action):
+    insert journal_entries row { entry_date, transcription, extracted }
+    re-fetch template server-side (never trust client mappings)
+    for each number field with a target mapping in enabledModuleIds:
+      group values by targetModuleId
+      call createEntryInModule(moduleId, entry_date, values) once per module
+    return { id, loggedModules }
+  on Ollama error: show amber notice; all fields remain editable manually
+  photo is never sent to a server and is never persisted; stays as a local object URL
 ```
 
 Where logic must run: module persistence, analytics computation, and all ownership checks are **server-side**. Journal transcription runs **locally** by requirement.
@@ -241,11 +260,29 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 *(If food is modeled as a built-in module + entries instead of its own table, keep the same fields inside `values` and set `modules.is_builtin = true`. Either is acceptable; pick one and be consistent.)*
 
+### `journal_templates`
+- `id` uuid PK
+- `user_id` uuid FK → profiles.id — **unique** (one template per user)
+- `fields` jsonb — array of `{ key, label, type, instruction?, targetModuleId?, targetFieldKey? }` — `type` ∈ `text | list | number`; tracker connection fields only on `number` type
+- `created_at` timestamptz
+- RLS: owner-scoped, default-deny.
+
+### `journal_entries`
+- `id` uuid PK
+- `user_id` uuid FK → profiles.id (indexed)
+- `entry_date` date (indexed)
+- `transcription` text nullable — verbatim transcription of the handwritten text
+- `extracted` jsonb — `{ [field_key]: value }` per the template fields at time of save
+- `created_at` timestamptz
+- **No `photo_path`** — journal photos are intentionally not stored (local-only)
+- Indexes on `user_id`, `entry_date`.
+- RLS: owner-scoped, default-deny.
+
 ### `assets`
 - `id` uuid PK
 - `user_id` uuid FK → profiles.id
 - `path` text — Supabase Storage path
-- `kind` text — `'food_photo'` | `'journal_photo'` | `'entry_photo'`
+- `kind` text — `'food_photo'` | `'entry_photo'` (journal photos are never stored)
 - `created_at` timestamptz
 
 **Schema-ready, present-but-unused (for clearly-anticipated needs only):**
@@ -321,7 +358,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 **Food macros** (fixed fields): `calories`, `protein_g`, `fat_g`, `carbs_g`
 
-**Journal extraction fields** (fixed for MVP): `weight`, `calories`, `protein`, `gratitude`
+**Journal extraction fields** — **user-defined** per the journal template (not fixed). Each field has a `type` ∈ `text | list | number`; number fields can optionally be wired to a tracker module's numeric field. Up to 20 fields per template.
 
 **Asset kinds:** `food_photo`, `journal_photo`, `entry_photo`
 
@@ -349,7 +386,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 
 ## 11. Open Questions (decided during the build)
 
-- **Local transcription accuracy** — the biggest unknown. Test against the builder's real handwriting early; if quality is too low, ship the manual-entry-with-photo fallback instead of leaning on transcription. Decide which local model after a quick bake-off.
+- **Local transcription accuracy** — ~~open~~ decided: default model is `qwen2.5vl` via Ollama (chosen over `llama3.2-vision`, whose `mllama` architecture crashes the llama.cpp runner on several Ollama builds; `qwen2.5vl` runs on Ollama's native engine and is stronger at handwriting/OCR). A manual fallback is always shown on Ollama error. Real-handwriting accuracy must be tested manually by the builder; cannot be automated in CI. Both the base URL and model are overridable via env vars and `localStorage` so the builder can swap models easily.
 - **Food modeling** — ~~decided~~: dedicated `food_entries` table (not a built-in module). Fixed columns (calories, protein_g, fat_g, carbs_g) and dedicated daily-total queries.
 - **Exact cloud vision provider** for food, and exact theme palette(s) — deferred.
 - **Whether the AI assistant is worth its complexity for any given surface** — validate as you go; for chart-picking specifically, a plain UI may beat the assistant. Don't over-invest in AI where a menu is better.
@@ -365,7 +402,7 @@ Each step shippable and testable before the next. **Resist building schema/featu
 3. **Charts** — `charts` table; multiple charts per module; drag-to-reorder; `/dashboard` all-charts view; full chart config (bucketBy, aggregation, dateRange, fillForward, referenceLines, list type, etc.).
 4. **AI assistant layer** — Vercel AI SDK 6; `createModule` **built**, `createFormulaModule` **built**, `proposeChart` **built** (live preview + one-click add), context injection **built**, `queryAnalytics` **built** (summary/trend/correlation/streak, computed in app code); `updateTheme` **not yet built**.
 5. **Food calorie tracking** — cloud vision → editable macros → save; manual path; daily totals.
-6. **Journal transcription** — local model; photo → transcribe + extract → review → save; **test on real handwriting early**, with manual fallback ready.
+6. **Journal transcription** — **in progress**. Browser-direct Ollama (no server involvement); user-defined extraction template; per-field tracker connections; manual fallback on Ollama error; photos never persisted. **Test on real handwriting early.**
 
 After step 2 especially: stop and actually use the manual version before adding AI on top.
 

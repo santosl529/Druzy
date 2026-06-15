@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { FIELD_TYPES, CHART_TYPES } from './types'
+import { FIELD_TYPES, CHART_TYPES, JOURNAL_FIELD_TYPES } from './types'
 import { validateExpression } from './formula'
 
 export const moduleFieldSchema = z.object({
@@ -155,3 +155,52 @@ export const bulkImportPayloadSchema = z.object({
 })
 
 export type BulkImportPayload = z.infer<typeof bulkImportPayloadSchema>
+
+// ----------------------------------------------------------------
+// Journal template + entry schemas
+// ----------------------------------------------------------------
+
+export const journalFieldSchema = z
+  .object({
+    key: z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
+    label: z.string().min(1, 'Label is required'),
+    type: z.enum(JOURNAL_FIELD_TYPES),
+    instruction: z.string().max(300).optional(),
+    targetModuleId: z.string().uuid().optional(),
+    targetFieldKey: z.string().min(1).optional(),
+  })
+  .refine(
+    (f) => {
+      // targetModuleId and targetFieldKey only make sense on number fields.
+      // If either is set on a non-number field, that's a client bug — strip silently at save.
+      if (f.targetModuleId && f.type !== 'number') return true // server action strips it
+      if (f.targetModuleId && !f.targetFieldKey) return false
+      if (f.targetFieldKey && !f.targetModuleId) return false
+      return true
+    },
+    { message: 'Tracker connection requires both a module and a field.' }
+  )
+
+export const journalTemplateSchema = z
+  .object({
+    fields: z.array(journalFieldSchema).max(20, 'Templates can have at most 20 fields'),
+  })
+  .superRefine((t, ctx) => {
+    const keys = t.fields.map((f) => f.key)
+    if (new Set(keys).size !== keys.length) {
+      ctx.addIssue({ code: 'custom', message: 'Field keys must be unique', path: ['fields'] })
+    }
+  })
+
+export type JournalTemplateFormValues = z.infer<typeof journalTemplateSchema>
+
+export const journalEntrySchema = z.object({
+  entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  transcription: z.string().optional(),
+  extracted: z.record(z.string(), z.unknown()),
+  /** IDs of tracker modules the user has opted to log connected fields into. */
+  enabledModuleIds: z.array(z.string().uuid()),
+})

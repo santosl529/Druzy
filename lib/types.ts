@@ -277,3 +277,51 @@ export interface TrackerModule {
   name: string
   numericFields: TrackerModuleField[]
 }
+
+// ----------------------------------------------------------------
+// Journal extraction template + entries
+// ----------------------------------------------------------------
+
+/** The three field types a journal extraction template supports. */
+export const JOURNAL_FIELD_TYPES = ['text', 'list', 'number'] as const
+export type JournalFieldType = (typeof JOURNAL_FIELD_TYPES)[number]
+
+/**
+ * One field in the user's journal extraction template.
+ * - text: a single extracted string (e.g. mood, one-sentence summary)
+ * - list: array of extracted strings (e.g. "things that happened today")
+ * - number: a single numeric value (e.g. calories, weight)
+ *
+ * number fields can optionally be wired to a tracker module field so the
+ * extracted value is also logged as a tracker entry on save.
+ */
+export interface JournalField {
+  key: string
+  label: string
+  type: JournalFieldType
+  /** Optional instruction passed to the AI to guide extraction for this field. */
+  instruction?: string
+  /** UUID of the tracker module to log this value into (number fields only). */
+  targetModuleId?: string
+  /** Key of the numeric field on that module to fill (number fields only). */
+  targetFieldKey?: string
+}
+
+/** One row in journal_templates (at most one per user). */
+export interface JournalTemplate {
+  id: string
+  user_id: string
+  fields: JournalField[]
+  created_at: string
+}
+
+/** One row in journal_entries. Photo is never stored — stays on device. */
+export interface JournalEntry {
+  id: string
+  user_id: string
+  entry_date: string
+  transcription: string | null
+  /** Extracted field values keyed by JournalField.key. */
+  extracted: Record<string, unknown>
+  created_at: string
+}

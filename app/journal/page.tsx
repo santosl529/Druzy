@@ -1,0 +1,68 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { Nav } from '@/components/nav'
+import { JournalCapture } from '@/components/journal/journal-capture'
+import { JournalHistory } from '@/components/journal/journal-history'
+import { getJournalTemplate, getJournalEntries } from '@/app/actions/journal'
+import { getTrackerModules } from '@/app/actions/food'
+
+export default async function JournalPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const [template, entries, trackerModules] = await Promise.all([
+    getJournalTemplate(),
+    getJournalEntries(30),
+    getTrackerModules(),
+  ])
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Nav email={user.email ?? ''} />
+      <main className="max-w-2xl mx-auto w-full px-4 py-10 space-y-10">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Journal</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Transcribe handwritten entries locally — photos never leave your device.
+            </p>
+          </div>
+          <a
+            href="/journal/template"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            Edit template →
+          </a>
+        </div>
+
+        {/* Privacy notice */}
+        <div className="rounded-md bg-muted/40 border px-3 py-2 text-xs text-muted-foreground">
+          <strong className="text-foreground">Privacy:</strong> Transcription runs on your local
+          Ollama model. Photos are never sent to any server or stored in the database.
+          Only the extracted text and field values are saved to your Supabase account.
+        </div>
+
+        {/* Capture */}
+        <section>
+          <h2 className="text-base font-medium mb-4">New entry</h2>
+          <JournalCapture
+            template={template}
+            trackerModules={trackerModules}
+          />
+        </section>
+
+        {/* History */}
+        {entries.length > 0 && (
+          <section>
+            <h2 className="text-base font-medium mb-4">Recent entries</h2>
+            <JournalHistory entries={entries} template={template} />
+          </section>
+        )}
+      </main>
+    </div>
+  )
+}
