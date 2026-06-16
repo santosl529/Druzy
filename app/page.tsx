@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { buttonVariants } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { TrackerGrid } from '@/components/tracker-grid'
 import type { Module } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -20,6 +20,26 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
 
   const typedModules = (modules ?? []) as Module[]
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('day_boundary_tz')
+    .eq('id', user.id)
+    .single()
+  const tz = (profile?.day_boundary_tz as string | null) ?? 'UTC'
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+
+  const moduleIds = typedModules.map((m) => m.id)
+  const { data: todayEntries } =
+    moduleIds.length > 0
+      ? await supabase
+          .from('entries')
+          .select('module_id')
+          .eq('user_id', user.id)
+          .eq('entry_date', today)
+          .in('module_id', moduleIds)
+      : { data: [] }
+  const doneToday = new Set((todayEntries ?? []).map((e) => e.module_id))
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -56,29 +76,11 @@ export default async function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {typedModules.map((mod) => (
-              <Link key={mod.id} href={`/modules/${mod.id}`} className="group">
-                <Card className="h-full transition-colors group-hover:bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {mod.name}
-                      {mod.kind === 'formula' && (
-                        <span className="text-[10px] font-medium uppercase tracking-wide rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                          Formula
-                        </span>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      {mod.kind === 'formula'
-                        ? 'Computed from other trackers'
-                        : `${mod.fields.length} ${mod.fields.length === 1 ? 'field' : 'fields'}`}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
-          </div>
+          <TrackerGrid
+            modules={typedModules}
+            initialDoneToday={[...doneToday]}
+            serverDate={today}
+          />
         )}
       </main>
     </div>

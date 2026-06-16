@@ -101,6 +101,13 @@
   - §11: cloud vision provider marked as decided
   - §12 Build Order: all steps marked **built**; added formula modules (step 5), two-stage aggregation (step 6), bulk import (step 7), settings (step 8); renumbered food → 9, journal → 10
 
+### 13. Tracker status indicators
+- Tracker cards on the home page (`/`) now show green (entry exists today) or red (no entry today) via border color + colored dot; formula trackers show no color since they can't be logged manually
+- "Mark done" button appears on hover for red trackers; inserts a blank entry (`values: {}`) for today without navigating away
+- New `markGreenForToday` server action in `app/actions/entries.ts`: respects `profiles.day_boundary_tz`, idempotent (skips insert if entry already exists for today), revalidates `/` and the module detail path
+- New `components/tracker-card.tsx` client component (uses `useTransition` for pending state); card Link wraps the full card, button is outside the `<a>` tag to avoid invalid nesting
+- `app/page.tsx` fetches today's entries in a single query (guarded for empty module list) and passes `hasEntryToday` per card
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI
