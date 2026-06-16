@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { TrackerCard } from '@/components/tracker-card'
 import { getTodayEntryStatus } from '@/app/actions/entries'
+import { clientToday } from '@/lib/date'
 import type { Module } from '@/lib/types'
 
 interface TrackerGridProps {
@@ -11,24 +12,33 @@ interface TrackerGridProps {
   initialDoneToday: string[]
   // The date string the server used — if it differs from the client date we re-fetch.
   serverDate: string
+  // Day-boundary timezone from Settings (null = fall back to browser tz).
+  savedTimezone: string | null
 }
 
-export function TrackerGrid({ modules, initialDoneToday, serverDate }: TrackerGridProps) {
+export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezone }: TrackerGridProps) {
   const [doneToday, setDoneToday] = useState(new Set(initialDoneToday))
+  // The authoritative "today" honors the saved timezone, falling back to the
+  // browser timezone when unset. Initialized to the server date to avoid a
+  // hydration mismatch, then reconciled on mount.
+  const [today, setToday] = useState(serverDate)
   const [, startTransition] = useTransition()
 
   useEffect(() => {
-    const clientDate = new Date().toLocaleDateString('en-CA')
+    const clientDate = clientToday(savedTimezone)
+    // When the client and server agree, the initial state is already correct.
     if (clientDate === serverDate) return
 
-    // Server and browser disagree on today (timezone mismatch) — re-fetch with correct date.
+    // Server and client disagree on today (timezone mismatch) — re-fetch status
+    // and correct the date. Both updates run inside the transition.
     const moduleIds = modules.map((m) => m.id)
     startTransition(async () => {
       const ids = await getTodayEntryStatus(moduleIds, clientDate)
+      setToday(clientDate)
       setDoneToday(new Set(ids))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverDate])
+  }, [serverDate, savedTimezone])
 
   function handleMarkDone(moduleId: string) {
     setDoneToday((prev) => new Set([...prev, moduleId]))
@@ -41,6 +51,7 @@ export function TrackerGrid({ modules, initialDoneToday, serverDate }: TrackerGr
           key={mod.id}
           mod={mod}
           hasEntryToday={doneToday.has(mod.id)}
+          today={today}
           onMarkDone={handleMarkDone}
         />
       ))}

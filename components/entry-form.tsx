@@ -13,24 +13,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createEntry } from '@/app/actions/entries'
+import { clientToday } from '@/lib/date'
 import type { ModuleField } from '@/lib/types'
 
 interface Props {
   moduleId: string
   fields: ModuleField[]
+  /** Day-boundary timezone from Settings (null = fall back to browser tz). */
+  savedTimezone?: string | null
 }
 
-/** Returns today's date as YYYY-MM-DD in the browser's local timezone. */
-function localDateString(): string {
-  const d = new Date()
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-export function EntryForm({ moduleId, fields }: Props) {
+export function EntryForm({ moduleId, fields, savedTimezone }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selectValues, setSelectValues] = useState<Record<string, string>>({})
@@ -64,7 +57,7 @@ export function EntryForm({ moduleId, fields }: Props) {
             id="entry_date"
             name="entry_date"
             type="date"
-            defaultValue={localDateString()}
+            defaultValue={clientToday(savedTimezone)}
           />
         </div>
 

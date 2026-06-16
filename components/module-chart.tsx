@@ -23,6 +23,7 @@ import {
 import { CalendarHeatmap } from '@/components/charts/calendar-heatmap'
 import { ListChart } from '@/components/charts/list-chart'
 import { EntryList } from '@/components/entry-list'
+import { clientEffectiveTimezone } from '@/lib/date'
 import type { Chart, Entry, Module, ModuleField } from '@/lib/types'
 
 interface Props {
@@ -33,6 +34,8 @@ interface Props {
   sourceModules?: Module[]
   /** Entries for all referenced modules (including the home module). */
   sourceEntries?: Entry[]
+  /** Day-boundary timezone from Settings (null = fall back to browser tz). */
+  timezone?: string | null
 }
 
 const MULTI_SERIES_TYPES = ['line', 'bar', 'area'] as const
@@ -65,8 +68,9 @@ function autoYLabel(chart: Chart, fields: ModuleField[], explicitLabel: string |
   return f.unit ? `${f.label} (${f.unit})` : undefined
 }
 
-export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntries }: Props) {
+export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntries, timezone }: Props) {
   const { config } = chart
+  const tz = clientEffectiveTimezone(timezone)
 
   // Multi-series path: 2+ series joined by date, possibly across modules.
   if (config.series.length > 1 && isMultiSeriesType(config.chartType)) {
@@ -78,7 +82,7 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
       entriesByModule.set(e.module_id, list)
     }
 
-    const { rows, series } = getMultiSeriesData(config, entriesByModule, modulesById)
+    const { rows, series } = getMultiSeriesData(config, entriesByModule, modulesById, tz)
     if (rows.length === 0) return <NoData />
 
     return (
@@ -112,25 +116,25 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
 
   switch (config.chartType) {
     case 'line': {
-      const data = getTimeSeries(entries, config)
+      const data = getTimeSeries(entries, config, tz)
       if (data.length === 0) return <NoData />
       return <LineChartView data={data} label={label} yLabel={yLabel} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'bar': {
-      const data = getTimeSeries(entries, config)
+      const data = getTimeSeries(entries, config, tz)
       if (data.length === 0) return <NoData />
       return <BarChartView data={data} label={label} yLabel={yLabel} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'area': {
-      const data = getTimeSeries(entries, config)
+      const data = getTimeSeries(entries, config, tz)
       if (data.length === 0) return <NoData />
       return <AreaChartView data={data} label={label} yLabel={yLabel} stepAfter={fillForward} yAxisMin={config.yAxisMin} yAxisMax={config.yAxisMax} zeroBaseline={config.zeroBaseline} />
     }
 
     case 'scatter': {
-      const data = getScatterData(entries, config)
+      const data = getScatterData(entries, config, tz)
       if (data.length === 0) return <NoData />
       const xField = fields.find((f) => f.key === config.series[0]?.field)
       const yField = fields.find((f) => f.key === config.series[1]?.field)
@@ -140,13 +144,13 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     }
 
     case 'pie': {
-      const data = getPieData(entries, config)
+      const data = getPieData(entries, config, tz)
       if (data.length === 0) return <NoData />
       return <PieChartView data={data} />
     }
 
     case 'histogram': {
-      const data = getHistogramData(entries, config)
+      const data = getHistogramData(entries, config, 8, tz)
       if (data.length === 0) return <NoData />
       return <HistogramView data={data} />
     }
@@ -154,7 +158,7 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     case 'stacked-bar': {
       if (numericFields.length < 2) return <NoData />
       const stackConfig = { ...config, series: numericFields.map((f) => ({ moduleId: chart.module_id, field: f.key })) }
-      const data = getStackedBarData(entries, stackConfig, numericFields)
+      const data = getStackedBarData(entries, stackConfig, numericFields, tz)
       return <StackedBarView data={data} fields={numericFields} />
     }
 
@@ -169,8 +173,8 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     }
 
     case 'calendar-heatmap': {
-      const data = getCalendarData(entries, config)
-      return <CalendarHeatmap data={data} />
+      const data = getCalendarData(entries, config, tz)
+      return <CalendarHeatmap data={data} timezone={tz} />
     }
 
     case 'heatmap': {
@@ -182,7 +186,7 @@ export function ModuleChart({ chart, entries, fields, sourceModules, sourceEntri
     }
 
     case 'list': {
-      return <ListChart entries={entries} config={config} fields={fields} />
+      return <ListChart entries={entries} config={config} fields={fields} timezone={tz} />
     }
 
     case 'table': {

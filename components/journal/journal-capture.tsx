@@ -16,16 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { createJournalEntry } from '@/app/actions/journal'
 import { transcribeJournal, OllamaError } from '@/lib/ollama'
+import { clientToday } from '@/lib/date'
 import type { JournalField, JournalTemplate, TrackerModule } from '@/lib/types'
-
-// ----------------------------------------------------------------
-// Helpers
-// ----------------------------------------------------------------
-
-function todayStr(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
 
 // ----------------------------------------------------------------
 // Field editors (text / list / number)
@@ -111,16 +103,18 @@ interface JournalCaptureProps {
   template: JournalTemplate | null
   trackerModules: TrackerModule[]
   onSaved?: () => void
+  /** Day-boundary timezone from Settings (null = fall back to browser tz). */
+  savedTimezone?: string | null
 }
 
-export function JournalCapture({ template, trackerModules, onSaved }: JournalCaptureProps) {
+export function JournalCapture({ template, trackerModules, onSaved, savedTimezone }: JournalCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Photos ──────────────────────────────────────────────────────
   const [photos, setPhotos] = useState<Array<{ preview: string; base64: string }>>([])
 
   // ── Transcription state ─────────────────────────────────────────
-  const [date, setDate] = useState(todayStr())
+  const [date, setDate] = useState(() => clientToday(savedTimezone))
   const [transcribing, setTranscribing] = useState(false)
   const [transcribeError, setTranscribeError] = useState<string | null>(null)
   const [transcription, setTranscription] = useState('')
@@ -250,7 +244,7 @@ export function JournalCapture({ template, trackerModules, onSaved }: JournalCap
       setTranscription('')
       setExtracted({})
       setHasResult(false)
-      setDate(todayStr())
+      setDate(clientToday(savedTimezone))
       setEnabledModuleIds(new Set(mappedModuleIds))
       onSaved?.()
     })
@@ -265,7 +259,7 @@ export function JournalCapture({ template, trackerModules, onSaved }: JournalCap
     setTranscribeError(null)
     setSaveError(null)
     setSavedModules(null)
-    setDate(todayStr())
+    setDate(clientToday(savedTimezone))
   }
 
   // ── Render ──────────────────────────────────────────────────────

@@ -3,15 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { FoodLog } from '@/components/food/food-log'
 import { getFoodEntriesForDate, getDailyTotals, getTrackerModules } from '@/app/actions/food'
+import { todayInTimezone } from '@/lib/date'
 import type { FoodEntry, DailyTotals, TrackerModule } from '@/lib/types'
-
-function todayStr(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
 
 export default async function FoodPage() {
   const supabase = await createClient()
@@ -20,7 +13,14 @@ export default async function FoodPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const today = todayStr()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('day_boundary_tz')
+    .eq('id', user.id)
+    .single()
+  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
+  const today = todayInTimezone(savedTimezone || 'UTC')
+
   const [entries, totals, trackerModules]: [FoodEntry[], DailyTotals, TrackerModule[]] =
     await Promise.all([
       getFoodEntriesForDate(today),
@@ -44,6 +44,7 @@ export default async function FoodPage() {
           initialEntries={entries}
           initialTotals={totals}
           trackerModules={trackerModules}
+          savedTimezone={savedTimezone}
         />
       </main>
     </div>

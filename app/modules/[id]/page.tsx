@@ -19,10 +19,13 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: module }, { data: charts }] = await Promise.all([
+  const [{ data: module }, { data: charts }, { data: profile }] = await Promise.all([
     supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),
     supabase.from('charts').select('*').eq('module_id', id).eq('user_id', user.id).order('position'),
+    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
   ])
+
+  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
 
   if (!module) notFound()
 
@@ -103,7 +106,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
         ) : (
           <section>
             <h2 className="font-medium mb-4">Log entry</h2>
-            <EntryForm moduleId={id} fields={typedModule.fields} />
+            <EntryForm moduleId={id} fields={typedModule.fields} savedTimezone={savedTimezone} />
           </section>
         )}
 
@@ -131,6 +134,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
               fields={typedModule.fields}
               sourceModules={sourceModules}
               sourceEntries={sourceEntries}
+              timezone={savedTimezone}
             />
           )}
         </section>

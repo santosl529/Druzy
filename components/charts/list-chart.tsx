@@ -7,13 +7,14 @@ interface Props {
   entries: Entry[]
   config: ChartConfig
   fields: ModuleField[]
+  timezone?: string | null
 }
 
 function fieldLabel(fields: ModuleField[], key: string): string {
   return fields.find((f) => f.key === key)?.label ?? key
 }
 
-export function ListChart({ entries, config, fields }: Props) {
+export function ListChart({ entries, config, fields, timezone }: Props) {
   const displayField = config.displayField ?? config.series[0]?.field
   const secondaryField = config.secondaryField
 
@@ -21,7 +22,7 @@ export function ListChart({ entries, config, fields }: Props) {
     return <p className="text-sm text-muted-foreground py-4">Configure a display field for this list.</p>
   }
 
-  const data = getListData(entries, config)
+  const data = getListData(entries, config, timezone ?? 'UTC')
 
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-8">No entries yet.</p>

@@ -1,4 +1,5 @@
 import type { Entry, Module, ModuleField, ChartConfig, ChartFilter, BucketBy, Aggregation } from './types'
+import { todayInTimezone, daysAgoInTimezone } from './date'
 
 // ----------------------------------------------------------------
 // Output shapes
@@ -105,17 +106,19 @@ function matchesFilter(vals: Record<string, unknown>, f: ChartFilter): boolean {
 // Preprocessing
 // ----------------------------------------------------------------
 
-/** Apply dateRange + filters from config. Always call before rendering. */
-export function getFilteredEntries(entries: Entry[], config: ChartConfig): Entry[] {
+/**
+ * Apply dateRange + filters from config. Always call before rendering.
+ * `timezone` governs relative windows like "last N days" so they line up with
+ * the user's day-boundary timezone (defaults to UTC when not supplied).
+ */
+export function getFilteredEntries(entries: Entry[], config: ChartConfig, timezone = 'UTC'): Entry[] {
   let result = entries
 
   // Date range
   const dr = config.dateRange
   if (dr && dr.type !== 'all') {
     if (dr.type === 'last_n_days' && dr.n) {
-      const cutoff = new Date()
-      cutoff.setDate(cutoff.getDate() - dr.n)
-      const cutoffStr = cutoff.toISOString().split('T')[0]
+      const cutoffStr = daysAgoInTimezone(dr.n, timezone)
       result = result.filter((e) => e.entry_date >= cutoffStr)
     } else if (dr.type === 'custom') {
       if (dr.start) result = result.filter((e) => e.entry_date >= dr.start!)
@@ -139,11 +142,11 @@ export function getFilteredEntries(entries: Entry[], config: ChartConfig): Entry
 // All functions accept the full ChartConfig and read what they need.
 // ----------------------------------------------------------------
 
-export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeriesPoint[] {
+export function getTimeSeries(entries: Entry[], config: ChartConfig, timezone = 'UTC'): TimeSeriesPoint[] {
   const field = config.series[0]?.field
   if (!field) return []
 
-  const filtered = getFilteredEntries(entries, config)
+  const filtered = getFilteredEntries(entries, config, timezone)
   const bucketBy = config.bucketBy ?? 'none'
   const aggregation = config.aggregation ?? 'none'
   const dailyAggregation = config.dailyAggregation
@@ -190,7 +193,7 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig): TimeSeries
     }
     if (dailyPoints.length === 0) return []
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayInTimezone(timezone)
     const result: TimeSeriesPoint[] = []
     let last: number | null = null
     const cursor = new Date(dailyPoints[0].date + 'T00:00:00Z')
@@ -236,7 +239,8 @@ export const SERIES_COLORS = [
 export function getMultiSeriesData(
   config: ChartConfig,
   entriesByModule: Map<string, Entry[]>,
-  modulesById: Map<string, Module>
+  modulesById: Map<string, Module>,
+  timezone = 'UTC'
 ): { rows: MultiSeriesRow[]; series: SeriesMeta[] } {
   const seriesMeta: SeriesMeta[] = []
   const perSeriesPoints: TimeSeriesPoint[][] = []
@@ -248,7 +252,7 @@ export function getMultiSeriesData(
 
     const singleConfig: ChartConfig = { ...config, series: [s] }
     // Missing module/entries (e.g. dangling reference) yields an empty series.
-    perSeriesPoints.push(mod ? getTimeSeries(entries, singleConfig) : [])
+    perSeriesPoints.push(mod ? getTimeSeries(entries, singleConfig, timezone) : [])
 
     seriesMeta.push({
       key: `s${i}`,
@@ -274,12 +278,12 @@ export function getMultiSeriesData(
   return { rows, series: seriesMeta }
 }
 
-export function getScatterData(entries: Entry[], config: ChartConfig): ScatterPoint[] {
+export function getScatterData(entries: Entry[], config: ChartConfig, timezone = 'UTC'): ScatterPoint[] {
   const xField = config.series[0]?.field
   const yField = config.series[1]?.field
   if (!xField || !yField) return []
 
-  return getFilteredEntries(entries, config).flatMap((e) => {
+  return getFilteredEntries(entries, config, timezone).flatMap((e) => {
     const vals = e.values as Record<string, unknown>
     const x = toNumber(vals[xField])
     const y = toNumber(vals[yField])
@@ -287,12 +291,12 @@ export function getScatterData(entries: Entry[], config: ChartConfig): ScatterPo
   })
 }
 
-export function getPieData(entries: Entry[], config: ChartConfig): PieSlice[] {
+export function getPieData(entries: Entry[], config: ChartConfig, timezone = 'UTC'): PieSlice[] {
   const field = config.series[0]?.field
   if (!field) return []
 
   const counts: Record<string, number> = {}
-  for (const e of getFilteredEntries(entries, config)) {
+  for (const e of getFilteredEntries(entries, config, timezone)) {
     const val = String((e.values as Record<string, unknown>)[field] ?? 'Unknown')
     counts[val] = (counts[val] ?? 0) + 1
   }
@@ -301,11 +305,11 @@ export function getPieData(entries: Entry[], config: ChartConfig): PieSlice[] {
     .sort((a, b) => b.value - a.value)
 }
 
-export function getHistogramData(entries: Entry[], config: ChartConfig, numBins = 8): HistogramBin[] {
+export function getHistogramData(entries: Entry[], config: ChartConfig, numBins = 8, timezone = 'UTC'): HistogramBin[] {
   const field = config.series[0]?.field
   if (!field) return []
 
-  const values = getFilteredEntries(entries, config).flatMap((e) => {
+  const values = getFilteredEntries(entries, config, timezone).flatMap((e) => {
     const v = toNumber((e.values as Record<string, unknown>)[field])
     return v !== null ? [v] : []
   })
@@ -330,9 +334,10 @@ export function getHistogramData(entries: Entry[], config: ChartConfig, numBins 
 export function getStackedBarData(
   entries: Entry[],
   config: ChartConfig,
-  numericFields: ModuleField[]
+  numericFields: ModuleField[],
+  timezone = 'UTC'
 ): StackedBarPoint[] {
-  return [...getFilteredEntries(entries, config)]
+  return [...getFilteredEntries(entries, config, timezone)]
     .sort((a, b) => a.entry_date.localeCompare(b.entry_date))
     .map((e) => {
       const vals = e.values as Record<string, unknown>
@@ -344,11 +349,11 @@ export function getStackedBarData(
     })
 }
 
-export function getCalendarData(entries: Entry[], config: ChartConfig): Record<string, number> {
+export function getCalendarData(entries: Entry[], config: ChartConfig, timezone = 'UTC'): Record<string, number> {
   const field = config.series[0]?.field ?? null
   const map: Record<string, number> = {}
 
-  for (const e of getFilteredEntries(entries, config)) {
+  for (const e of getFilteredEntries(entries, config, timezone)) {
     const value = field ? (toNumber((e.values as Record<string, unknown>)[field]) ?? 1) : 1
     map[e.entry_date] = (map[e.entry_date] ?? 0) + value
   }
@@ -356,8 +361,8 @@ export function getCalendarData(entries: Entry[], config: ChartConfig): Record<s
 }
 
 /** Returns entries sorted/filtered for the 'list' chart type. */
-export function getListData(entries: Entry[], config: ChartConfig): Entry[] {
-  let result = getFilteredEntries(entries, config)
+export function getListData(entries: Entry[], config: ChartConfig, timezone = 'UTC'): Entry[] {
+  let result = getFilteredEntries(entries, config, timezone)
 
   const sortField = config.sort?.field ?? config.displayField ?? 'entry_date'
   const dir = config.sort?.direction ?? 'desc'
@@ -379,8 +384,6 @@ export function getListData(entries: Entry[], config: ChartConfig): Entry[] {
 // Helpers used externally (e.g. ModuleChart, dashboard)
 // ----------------------------------------------------------------
 
-export function daysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().split('T')[0]
+export function daysAgo(n: number, timezone = 'UTC'): string {
+  return daysAgoInTimezone(n, timezone)
 }

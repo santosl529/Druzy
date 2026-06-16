@@ -31,10 +31,11 @@ interface ChartCardProps {
   fields: ModuleField[]
   sourceModules?: Module[]
   sourceEntries?: Entry[]
+  timezone?: string | null
   onDelete: (chartId: string) => void
 }
 
-function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, sourceEntries, onDelete }: ChartCardProps) {
+function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, sourceEntries, timezone, onDelete }: ChartCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: chart.id })
 
@@ -84,6 +85,7 @@ function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, so
           fields={fields}
           sourceModules={sourceModules}
           sourceEntries={sourceEntries}
+          timezone={timezone}
         />
       </div>
     </div>
@@ -97,10 +99,11 @@ interface Props {
   fields: ModuleField[]
   sourceModules?: Module[]
   sourceEntries?: Entry[]
+  timezone?: string | null
 }
 
 export function SortableChartsList({
-  charts: initialCharts, moduleId, entries, fields, sourceModules, sourceEntries,
+  charts: initialCharts, moduleId, entries, fields, sourceModules, sourceEntries, timezone,
 }: Props) {
   const [charts, setCharts] = useState(initialCharts)
   const [, startTransition] = useTransition()
@@ -143,6 +146,7 @@ export function SortableChartsList({
               fields={fields}
               sourceModules={sourceModules}
               sourceEntries={sourceEntries}
+              timezone={timezone}
               onDelete={handleDelete}
             />
           ))}

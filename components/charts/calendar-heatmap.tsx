@@ -1,20 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
+import { clientEffectiveTimezone, todayInTimezone } from '@/lib/date'
 
 interface Props {
   data: Record<string, number>
   weeks?: number
+  /** Day-boundary timezone from Settings (null = fall back to browser tz). */
+  timezone?: string | null
 }
 
 const DAYS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-// Return today as a local YYYY-MM-DD string (never UTC, avoids timezone flipping)
-function localToday(): string {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-}
 
 // Add days to a YYYY-MM-DD string using UTC arithmetic to avoid DST skips
 function addDays(dateStr: string, n: number): string {
@@ -28,9 +25,9 @@ function getIntensity(value: number, max: number): number {
   return Math.ceil((value / max) * 4)
 }
 
-export function CalendarHeatmap({ data, weeks = 52 }: Props) {
+export function CalendarHeatmap({ data, weeks = 52, timezone }: Props) {
   const { grid, monthLabels, maxValue } = useMemo(() => {
-    const todayStr = localToday()
+    const todayStr = todayInTimezone(clientEffectiveTimezone(timezone))
 
     // Align to the most recent Sunday using UTC arithmetic
     const todayUTC = new Date(todayStr + 'T00:00:00Z')
@@ -71,7 +68,7 @@ export function CalendarHeatmap({ data, weeks = 52 }: Props) {
     const max = Math.max(0, ...Object.values(data))
 
     return { grid: cols, monthLabels: labels, maxValue: max }
-  }, [data, weeks])
+  }, [data, weeks, timezone])
 
   const CELL = 13
   const GAP = 2

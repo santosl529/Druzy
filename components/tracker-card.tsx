@@ -12,18 +12,18 @@ import type { Module } from '@/lib/types'
 interface TrackerCardProps {
   mod: Module
   hasEntryToday: boolean
+  /** Today's date (YYYY-MM-DD) resolved in the user's day-boundary timezone. */
+  today: string
   onMarkDone?: (moduleId: string) => void
 }
 
-export function TrackerCard({ mod, hasEntryToday, onMarkDone }: TrackerCardProps) {
+export function TrackerCard({ mod, hasEntryToday, today, onMarkDone }: TrackerCardProps) {
   const [isPending, startTransition] = useTransition()
   const isFormula = mod.kind === 'formula'
 
   function handleMarkGreen(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    // Use the browser's local date (en-CA gives YYYY-MM-DD), matching how entry forms work.
-    const today = new Date().toLocaleDateString('en-CA')
     startTransition(async () => {
       const result = await markGreenForToday(mod.id, today)
       if (!result?.error) {

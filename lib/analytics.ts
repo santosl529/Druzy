@@ -1,4 +1,5 @@
 import type { Entry } from './types'
+import { todayInTimezone } from './date'
 
 // ----------------------------------------------------------------
 // Output shapes
@@ -243,7 +244,7 @@ export function computeCorrelation(
 // computeStreak — consecutive calendar days with at least one entry
 // ----------------------------------------------------------------
 
-export function computeStreak(entries: Entry[]): StreakResult {
+export function computeStreak(entries: Entry[], timezone = 'UTC'): StreakResult {
   if (entries.length === 0) {
     return {
       operation: 'streak',
@@ -273,10 +274,10 @@ export function computeStreak(entries: Entry[]): StreakResult {
     }
   }
 
-  // Current streak: count backwards from today
-  const today = new Date().toISOString().split('T')[0]
+  // Current streak: count backwards from today (in the user's day-boundary tz)
+  const today = todayInTimezone(timezone)
   const yesterday = (() => {
-    const d = new Date()
+    const d = new Date(today + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - 1)
     return d.toISOString().split('T')[0]
   })()

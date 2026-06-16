@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition, useCallback } from 'react'
+import { useState, useRef, useTransition, useCallback, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Camera, PenLine, Trash2, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import {
   deleteFoodEntry,
   updateFoodEntry,
 } from '@/app/actions/food'
+import { clientToday } from '@/lib/date'
 import type { FoodEntry, DailyTotals, MacroEstimate, TrackerModule } from '@/lib/types'
 
 // ----------------------------------------------------------------
@@ -39,14 +40,6 @@ function offsetDate(dateStr: string, days: number): string {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
   return `${yy}-${mm}-${dd}`
-}
-
-function todayStr(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
 }
 
 /**
@@ -750,6 +743,8 @@ interface FoodLogProps {
   initialEntries: FoodEntry[]
   initialTotals: DailyTotals
   trackerModules: TrackerModule[]
+  /** Day-boundary timezone from Settings (null = fall back to browser tz). */
+  savedTimezone: string | null
 }
 
 export function FoodLog({
@@ -757,6 +752,7 @@ export function FoodLog({
   initialEntries,
   initialTotals,
   trackerModules,
+  savedTimezone,
 }: FoodLogProps) {
   const [date, setDate] = useState(initialDate)
   const [entries, setEntries] = useState<FoodEntry[]>(initialEntries)
@@ -773,7 +769,7 @@ export function FoodLog({
     })
   }, [])
 
-  const navigateDate = (newDate: string) => {
+  const navigateDate = useCallback((newDate: string) => {
     setAddMode(null)
     startDateTransition(async () => {
       const res = await fetch(`/api/food/entries?date=${newDate}`)
@@ -784,7 +780,26 @@ export function FoodLog({
       }
       setDate(newDate)
     })
-  }
+  }, [])
+
+  // The server computes the initial date using the saved timezone (or UTC when
+  // unset). If the browser-effective "today" differs (e.g. the setting is unset
+  // and the server defaulted to UTC), reconcile to the correct day on mount.
+  // All state updates run inside the transition to avoid cascading renders.
+  useEffect(() => {
+    const clientDate = clientToday(savedTimezone)
+    if (clientDate === initialDate) return
+    startDateTransition(async () => {
+      const res = await fetch(`/api/food/entries?date=${clientDate}`)
+      if (res.ok) {
+        const data = await res.json()
+        setEntries(data.entries)
+        setTotals(data.totals)
+      }
+      setDate(clientDate)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSaved = (entry: FoodEntry) => {
     const updated = [...entries, entry]
@@ -805,7 +820,7 @@ export function FoodLog({
     recalcTotals(next)
   }
 
-  const isToday = date === todayStr()
+  const isToday = date === clientToday(savedTimezone)
 
   return (
     <div className="space-y-6">
@@ -824,7 +839,7 @@ export function FoodLog({
           {!isToday && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
-              onClick={() => navigateDate(todayStr())}
+              onClick={() => navigateDate(clientToday(savedTimezone))}
             >
               Back to today
             </button>

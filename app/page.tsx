@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
+import { todayInTimezone } from '@/lib/date'
 import type { Module } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -26,8 +27,8 @@ export default async function DashboardPage() {
     .select('day_boundary_tz')
     .eq('id', user.id)
     .single()
-  const tz = (profile?.day_boundary_tz as string | null) ?? 'UTC'
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
+  const today = todayInTimezone(savedTimezone || 'UTC')
 
   const moduleIds = typedModules.map((m) => m.id)
   const { data: todayEntries } =
@@ -80,6 +81,7 @@ export default async function DashboardPage() {
             modules={typedModules}
             initialDoneToday={[...doneToday]}
             serverDate={today}
+            savedTimezone={savedTimezone}
           />
         )}
       </main>

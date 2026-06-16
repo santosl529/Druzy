@@ -5,6 +5,7 @@ import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/vali
 import { createClient } from '@/lib/supabase/server'
 import { validateExpression } from '@/lib/formula'
 import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
+import { daysAgoInTimezone } from '@/lib/date'
 import { computeSummary, computeTrend, computeCorrelation, computeStreak } from '@/lib/analytics'
 import { FIELD_TYPES } from '@/lib/types'
 import type { Module, ModuleField, Entry, ChartConfig, DateRange } from '@/lib/types'
@@ -225,7 +226,8 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
 function makeProposedChartTool(
   supabase: SupabaseClient,
   summaries: ModuleSummary[],
-  userId: string
+  userId: string,
+  timezone: string
 ) {
   const byId = new Map(summaries.map((m) => [m.id, m]))
 
@@ -347,7 +349,7 @@ function makeProposedChartTool(
         ])
       )
 
-      const { rows, series: seriesMeta } = getMultiSeriesData(parsed.data, entriesByModule, modulesById)
+      const { rows, series: seriesMeta } = getMultiSeriesData(parsed.data, entriesByModule, modulesById, timezone)
 
       // Module options for the "attach to" dropdown — any of the user's trackers.
       const moduleOptions = summaries.map((m) => ({ id: m.id, name: m.name }))
@@ -375,12 +377,10 @@ const dateRangeSchema = z.object({
   end: z.string().optional(),
 })
 
-function applyDateRangeFilter(entries: Entry[], dateRange?: DateRange): Entry[] {
+function applyDateRangeFilter(entries: Entry[], dateRange?: DateRange, timezone = 'UTC'): Entry[] {
   if (!dateRange || dateRange.type === 'all') return entries
   if (dateRange.type === 'last_n_days' && dateRange.n) {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - dateRange.n)
-    const cutoffStr = cutoff.toISOString().split('T')[0]
+    const cutoffStr = daysAgoInTimezone(dateRange.n, timezone)
     return entries.filter((e) => e.entry_date >= cutoffStr)
   }
   if (dateRange.type === 'custom') {
@@ -395,7 +395,8 @@ function applyDateRangeFilter(entries: Entry[], dateRange?: DateRange): Entry[] 
 function makeQueryAnalyticsTool(
   supabase: SupabaseClient,
   summaries: ModuleSummary[],
-  userId: string
+  userId: string,
+  timezone: string
 ) {
   const byId = new Map(summaries.map((m) => [m.id, m]))
 
@@ -479,12 +480,14 @@ function makeQueryAnalyticsTool(
 
       const entriesA = applyDateRangeFilter(
         allEntries.filter((e) => e.module_id === seriesA.moduleId),
-        dateRange as DateRange | undefined
+        dateRange as DateRange | undefined,
+        timezone
       )
       const entriesB = seriesB
         ? applyDateRangeFilter(
             allEntries.filter((e) => e.module_id === seriesB.moduleId),
-            dateRange as DateRange | undefined
+            dateRange as DateRange | undefined,
+            timezone
           )
         : []
 
@@ -516,7 +519,7 @@ function makeQueryAnalyticsTool(
           result = computeCorrelation(entriesA, seriesA.field, entriesB, seriesB!.field)
           break
         case 'streak':
-          result = computeStreak(entriesA)
+          result = computeStreak(entriesA, timezone)
           break
       }
 
@@ -539,12 +542,16 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const { data: rawModules } = await supabase
-    .from('modules')
-    .select('id, name, kind, fields, formula_config')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
+  const [{ data: rawModules }, { data: profile }] = await Promise.all([
+    supabase
+      .from('modules')
+      .select('id, name, kind, fields, formula_config')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true }),
+    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
+  ])
 
+  const userTz = (profile?.day_boundary_tz as string | null) || 'UTC'
   const summaries = buildModuleSummaries((rawModules ?? []) as Module[])
   const systemPrompt = buildSystemPrompt(buildContextBlock(summaries))
 
@@ -558,8 +565,8 @@ export async function POST(req: Request) {
     tools: {
       createModule: createModuleTool,
       createFormulaModule: makeCreateFormulaModuleTool(summaries),
-      proposeChart: makeProposedChartTool(supabase, summaries, user.id),
-      queryAnalytics: makeQueryAnalyticsTool(supabase, summaries, user.id),
+      proposeChart: makeProposedChartTool(supabase, summaries, user.id, userTz),
+      queryAnalytics: makeQueryAnalyticsTool(supabase, summaries, user.id, userTz),
     },
   })
 

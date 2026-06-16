@@ -13,11 +13,14 @@ export default async function JournalPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [template, entries, trackerModules] = await Promise.all([
+  const [template, entries, trackerModules, { data: profile }] = await Promise.all([
     getJournalTemplate(),
     getJournalEntries(30),
     getTrackerModules(),
+    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
   ])
+
+  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -52,6 +55,7 @@ export default async function JournalPage() {
           <JournalCapture
             template={template}
             trackerModules={trackerModules}
+            savedTimezone={savedTimezone}
           />
         </section>
 

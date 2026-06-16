@@ -104,9 +104,19 @@
 ### 13. Tracker status indicators
 - Tracker cards on the home page (`/`) now show green (entry exists today) or red (no entry today) via border color + colored dot; formula trackers show no color since they can't be logged manually
 - "Mark done" button appears on hover for red trackers; inserts a blank entry (`values: {}`) for today without navigating away
-- New `markGreenForToday` server action in `app/actions/entries.ts`: respects `profiles.day_boundary_tz`, idempotent (skips insert if entry already exists for today), revalidates `/` and the module detail path
-- New `components/tracker-card.tsx` client component (uses `useTransition` for pending state); card Link wraps the full card, button is outside the `<a>` tag to avoid invalid nesting
+- New `markGreenForToday(moduleId, entryDate)` server action in `app/actions/entries.ts`: takes the client-supplied date, idempotent (skips insert if entry already exists for that date), revalidates `/` and the module detail path
+- New `getTodayEntryStatus(moduleIds, date)` server action for client-side reconciliation of which trackers are done today
+- New `components/tracker-card.tsx` client component (uses `useTransition` for pending state); card Link wraps the full card, button is outside the `<a>` tag to avoid invalid nesting; receives the resolved `today` date as a prop
+- New `components/tracker-grid.tsx` wraps the cards, reconciles the server date against the client's effective timezone on mount, and updates card colors optimistically when a tracker is marked done (no reload)
 - `app/page.tsx` fetches today's entries in a single query (guarded for empty module list) and passes `hasEntryToday` per card
+
+### 14. Project-wide timezone consistency (day-boundary tz)
+- New `lib/date.ts` centralizes all "today"/day-boundary logic: `todayInTimezone(tz)`, `clientEffectiveTimezone(savedTz)` (saved setting, else browser tz), `clientToday(savedTz)`, `daysAgoInTimezone(n, tz)`
+- The single source of truth for which calendar day a "now" event belongs to is `profiles.day_boundary_tz` (from Settings); when unset, the client falls back to the browser tz and the server to UTC
+- **Bug fixed:** food page computed "today" server-side in UTC, so photo/manual entries near midnight were logged to the wrong day. Food page now resolves today via the saved tz and `FoodLog` reconciles on mount using the client's effective tz (day nav + totals refetch correctly)
+- Data-attribution surfaces now use the effective settings tz for their default date: food (`app/food/page.tsx` + `components/food/food-log.tsx`), manual entry form (`components/entry-form.tsx`), journal capture (`components/journal/journal-capture.tsx`), and tracker mark-done
+- Chart/analytics "today" windows now honor the settings tz: `lib/chart-data.ts` (`getFilteredEntries`/`getTimeSeries`/`getMultiSeriesData` + all chart-type helpers + `daysAgo` accept a `timezone` param), `lib/analytics.ts` `computeStreak`, `components/charts/calendar-heatmap.tsx` today marker. Timezone is threaded from the pages (`/modules/[id]`, `/dashboard`) → `SortableChartsList` → `ModuleChart`/`ListChart`, and from `app/api/chat/route.ts` (proposeChart + queryAnalytics tools fetch the user's `day_boundary_tz`)
+- All `timezone` params default to `'UTC'` for backward compatibility; client chart components resolve unset settings to the browser tz
 
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)

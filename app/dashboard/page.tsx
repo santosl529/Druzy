@@ -10,11 +10,14 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: charts }, { data: modules }, { data: entries }] = await Promise.all([
+  const [{ data: charts }, { data: modules }, { data: entries }, { data: profile }] = await Promise.all([
     supabase.from('charts').select('*').eq('user_id', user.id).order('module_id').order('position'),
     supabase.from('modules').select('*').eq('user_id', user.id),
     supabase.from('entries').select('*').eq('user_id', user.id),
+    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
   ])
+
+  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
 
   const typedCharts = (charts ?? []) as Chart[]
   const typedModules = (modules ?? []) as Module[]
@@ -68,6 +71,7 @@ export default async function DashboardPage() {
                       fields={mod.fields}
                       sourceModules={typedModules}
                       sourceEntries={typedEntries}
+                      timezone={savedTimezone}
                     />
                   </div>
                 </div>
