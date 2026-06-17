@@ -134,7 +134,7 @@ export function SortableChartsList({
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext id={`charts-${moduleId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={charts.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-4">
           {charts.map((chart) => (

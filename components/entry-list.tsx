@@ -56,22 +56,38 @@ function EditRow({ entry, fields, moduleId, onCancel }: EditRowProps) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  // Initialise select values from the current entry.
-  const [selectValues, setSelectValues] = useState<Record<string, string>>(() => {
-    const vals: Record<string, string> = {}
-    for (const f of fields) {
-      if (f.type === 'select') {
-        vals[f.key] = String((entry.values as Record<string, unknown>)[f.key] ?? '')
-      }
-    }
+  // Fully controlled state for every field. The inputs live in sibling table
+  // cells (not inside the <form>), so we can't rely on FormData reading the DOM —
+  // we build the FormData manually from this state on save.
+  const [entryDate, setEntryDate] = useState(entry.entry_date)
+  const [values, setValues] = useState<Record<string, unknown>>(() => {
+    const initial = entry.values as Record<string, unknown>
+    const vals: Record<string, unknown> = {}
+    for (const f of fields) vals[f.key] = initial[f.key]
     return vals
   })
+
+  function setField(key: string, val: unknown) {
+    setValues((s) => ({ ...s, [key]: val }))
+  }
 
   function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
-    const fd = new FormData(e.currentTarget)
-    for (const [key, val] of Object.entries(selectValues)) fd.set(key, val)
+
+    const fd = new FormData()
+    fd.set('entry_date', entryDate)
+    for (const f of fields) {
+      const val = values[f.key]
+      if (f.type === 'boolean') {
+        // Match the create path: checked -> 'on', unchecked -> omitted (false).
+        if (val === true) fd.set(f.key, 'on')
+      } else if (val !== null && val !== undefined) {
+        fd.set(f.key, String(val))
+      } else {
+        fd.set(f.key, '')
+      }
+    }
 
     startTransition(async () => {
       const result = await updateEntry(entry.id, moduleId, fields, fd)
@@ -83,47 +99,54 @@ function EditRow({ entry, fields, moduleId, onCancel }: EditRowProps) {
     })
   }
 
-  const vals = entry.values as Record<string, unknown>
-
   return (
     <TableRow className="bg-muted/30">
       <TableCell>
         <Input
-          name="entry_date"
           type="date"
-          defaultValue={entry.entry_date}
+          value={entryDate}
+          onChange={(e) => setEntryDate(e.target.value)}
           className="h-7 w-32 text-sm"
         />
       </TableCell>
       {fields.map((f) => (
         <TableCell key={f.key} className="py-1">
           {f.type === 'text' && (
-            <Input name={f.key} defaultValue={String(vals[f.key] ?? '')} className="h-7 text-sm" />
+            <Input
+              value={String(values[f.key] ?? '')}
+              onChange={(e) => setField(f.key, e.target.value)}
+              className="h-7 text-sm"
+            />
           )}
           {(f.type === 'number' || f.type === 'rating') && (
             <Input
-              name={f.key}
               type="number"
               step={f.type === 'rating' ? '1' : 'any'}
               min={f.type === 'rating' ? 1 : undefined}
               max={f.type === 'rating' ? 5 : undefined}
-              defaultValue={vals[f.key] !== null && vals[f.key] !== undefined ? String(vals[f.key]) : ''}
+              value={values[f.key] !== null && values[f.key] !== undefined ? String(values[f.key]) : ''}
+              onChange={(e) => setField(f.key, e.target.value)}
               className="h-7 w-24 text-sm"
             />
           )}
           {f.type === 'date' && (
-            <Input name={f.key} type="date" defaultValue={String(vals[f.key] ?? '')} className="h-7 text-sm" />
+            <Input
+              type="date"
+              value={String(values[f.key] ?? '')}
+              onChange={(e) => setField(f.key, e.target.value)}
+              className="h-7 text-sm"
+            />
           )}
           {f.type === 'boolean' && (
             <Checkbox
-              name={f.key}
-              defaultChecked={vals[f.key] === true}
+              checked={values[f.key] === true}
+              onCheckedChange={(v) => setField(f.key, v === true)}
             />
           )}
           {f.type === 'select' && (
             <Select
-              value={selectValues[f.key] ?? ''}
-              onValueChange={(v) => setSelectValues((s) => ({ ...s, [f.key]: v ?? '' }))}
+              value={String(values[f.key] ?? '')}
+              onValueChange={(v) => setField(f.key, v ?? '')}
             >
               <SelectTrigger className="h-7 w-32 text-sm">
                 <SelectValue placeholder="Select…" />

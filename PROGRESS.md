@@ -118,6 +118,20 @@
 - Chart/analytics "today" windows now honor the settings tz: `lib/chart-data.ts` (`getFilteredEntries`/`getTimeSeries`/`getMultiSeriesData` + all chart-type helpers + `daysAgo` accept a `timezone` param), `lib/analytics.ts` `computeStreak`, `components/charts/calendar-heatmap.tsx` today marker. Timezone is threaded from the pages (`/modules/[id]`, `/dashboard`) → `SortableChartsList` → `ModuleChart`/`ListChart`, and from `app/api/chat/route.ts` (proposeChart + queryAnalytics tools fetch the user's `day_boundary_tz`)
 - All `timezone` params default to `'UTC'` for backward compatibility; client chart components resolve unset settings to the browser tz
 
+### 15. Calendar-heatmap field picker accepts non-numeric fields
+- **Bug fixed:** the chart builder field dropdown only listed numeric fields for calendar-heatmap, so newly added text/select/boolean fields couldn't be selected ("can't make a chart with that new field")
+- `components/chart-builder.tsx` now derives `fieldsForType`: `pie` and `calendar-heatmap` offer all field types; other single-field charts still require numeric fields
+- `getCalendarData` already handles this — it sums numeric values per day and counts entries per day for non-numeric fields; added helper text in the builder explaining the behavior
+
+### 16. Entry edit form fix + boolean calendar heatmap
+- **Bug fixed (entry editing wiped values):** `EditRow` in `components/entry-list.tsx` had its `<form>` nested inside only the actions table cell, while all field inputs lived in sibling cells outside the form. `new FormData(form)` therefore captured nothing, so saving an edit wiped every non-select field (boolean → false, text/number → null, and entry_date reset to today). Rewrote `EditRow` to be fully controlled (`entryDate` + `values` state) and build the `FormData` manually from state on save
+- **Boolean calendar heatmap:** `getCalendarData` in `lib/chart-data.ts` now handles boolean fields explicitly — true days = 1, false days = 0 (heatmap lights up only on true days). Also tolerant of string `'true'`/`'false'`. Numeric fields still sum per day; other non-numeric fields count entries per day
+- Updated calendar-heatmap helper text in `components/chart-builder.tsx` to mention checkbox-field behavior
+
+### 17. Boolean heatmap = binary + dnd-kit hydration fix
+- **Heatmap binary for boolean fields:** `getCalendarData` now detects when a field is boolean (every logged value is true/false) and aggregates with OR semantics per day (any true → 1, else 0) using `Math.max`, instead of summing. This keeps true days at full intensity (max becomes 1, so true = full primary color) rather than scaling them down relative to multi-true days. Numeric fields still sum; non-numeric non-boolean fields still count entries
+- **Hydration mismatch fixed:** `@dnd-kit` `DndContext` auto-generated `aria-describedby` ids (`DndDescribedBy-0` vs `-1`) differed between server and client render. Passed a stable `id={`charts-${moduleId}`}` to `DndContext` in `components/charts/sortable-charts.tsx`
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI

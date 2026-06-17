@@ -106,6 +106,10 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
   const numericFields = fields.filter((f) => f.type === 'number' || f.type === 'rating')
   const textFields = fields.filter((f) => f.type === 'text' || f.type === 'select' || f.type === 'boolean')
   const allFields = fields
+  // pie and calendar-heatmap work with any field type (heatmap counts entries
+  // per day for non-numeric fields); other single-field charts need numbers.
+  const fieldsForType =
+    chartType === 'pie' || chartType === 'calendar-heatmap' ? allFields : numericFields
 
   function numericFieldsFor(modId: string): ModuleField[] {
     const mod = modules.find((m) => m.id === modId)
@@ -371,17 +375,22 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
             <div className="space-y-1.5">
               <Label>Field</Label>
               <Select
-                items={fieldItems(chartType === 'pie' ? allFields : numericFields)}
+                items={fieldItems(fieldsForType)}
                 value={field}
                 onValueChange={(v) => setField(v ?? field)}
               >
                 <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(chartType === 'pie' ? allFields : numericFields).map((f) => (
+                  {fieldsForType.map((f) => (
                     <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {chartType === 'calendar-heatmap' && (
+                <p className="text-xs text-muted-foreground">
+                  Numeric fields sum per day; checkbox fields light up on true days; other fields count entries per day.
+                </p>
+              )}
             </div>
           )}
         </div>

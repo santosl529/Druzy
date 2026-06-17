@@ -353,9 +353,36 @@ export function getCalendarData(entries: Entry[], config: ChartConfig, timezone 
   const field = config.series[0]?.field ?? null
   const map: Record<string, number> = {}
 
-  for (const e of getFilteredEntries(entries, config, timezone)) {
-    const value = field ? (toNumber((e.values as Record<string, unknown>)[field]) ?? 1) : 1
-    map[e.entry_date] = (map[e.entry_date] ?? 0) + value
+  const filtered = getFilteredEntries(entries, config, timezone)
+
+  if (!field) {
+    // No field selected: classic activity heatmap (count entries per day).
+    for (const e of filtered) {
+      map[e.entry_date] = (map[e.entry_date] ?? 0) + 1
+    }
+    return map
+  }
+
+  // Treat the field as boolean when every logged value for it is a boolean
+  // (true/false), so the heatmap is binary: a day is "on" (1) if any entry that
+  // day is true, otherwise "off" (0). This keeps true days at full intensity
+  // instead of being scaled down relative to busier multi-true days.
+  const present = filtered
+    .map((e) => (e.values as Record<string, unknown>)[field])
+    .filter((v) => v !== null && v !== undefined && v !== '')
+  const isBoolean =
+    present.length > 0 &&
+    present.every((v) => typeof v === 'boolean' || v === 'true' || v === 'false')
+
+  for (const e of filtered) {
+    const raw = (e.values as Record<string, unknown>)[field]
+    if (isBoolean) {
+      const truthy = raw === true || raw === 'true' ? 1 : 0
+      map[e.entry_date] = Math.max(map[e.entry_date] ?? 0, truthy)
+    } else {
+      // Numeric field: sum per day. Non-numeric: count entries (default 1).
+      map[e.entry_date] = (map[e.entry_date] ?? 0) + (toNumber(raw) ?? 1)
+    }
   }
   return map
 }
