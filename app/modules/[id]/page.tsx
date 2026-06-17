@@ -64,7 +64,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
       <Nav email={user.email ?? ''} />
       <main className="max-w-4xl mx-auto w-full px-4 py-10 space-y-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm text-muted-foreground mb-1">
               <Link href="/" className="hover:underline">Trackers</Link> /
@@ -76,7 +76,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
                 : `${typedEntries.length} ${typedEntries.length === 1 ? 'entry' : 'entries'}`}
             </p>
           </div>
-          <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+          <div className="flex gap-2 flex-wrap">
             {!isFormula && (
               <Link href={`/modules/${id}/import`} className={buttonVariants({ variant: 'outline' })}>
                 Import

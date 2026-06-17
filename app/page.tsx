@@ -46,12 +46,12 @@ export default async function DashboardPage() {
     <div className="flex flex-col min-h-screen">
       <Nav email={user.email ?? ''} />
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-10">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold mb-1">Your trackers</h1>
             <p className="text-muted-foreground">Log and visualize anything that matters to you.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Link href="/modules/new/formula" className={buttonVariants({ variant: 'outline' })}>
               Formula tracker
             </Link>

@@ -5,7 +5,8 @@ import { clientEffectiveTimezone, todayInTimezone } from '@/lib/date'
 
 interface Props {
   data: Record<string, number>
-  weeks?: number
+  /** How many calendar months to show (ending today). */
+  months?: number
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   timezone?: string | null
 }
@@ -25,16 +26,28 @@ function getIntensity(value: number, max: number): number {
   return Math.ceil((value / max) * 4)
 }
 
-export function CalendarHeatmap({ data, weeks = 52, timezone }: Props) {
+export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
   const { grid, monthLabels, maxValue } = useMemo(() => {
     const todayStr = todayInTimezone(clientEffectiveTimezone(timezone))
-
-    // Align to the most recent Sunday using UTC arithmetic
     const todayUTC = new Date(todayStr + 'T00:00:00Z')
-    const dayOfWeek = todayUTC.getUTCDay() // 0=Sun
-    const startStr = addDays(todayStr, -(dayOfWeek + (weeks - 1) * 7))
 
-    const totalDays = weeks * 7
+    // First day of the month `months - 1` months ago
+    const startMonthYear = todayUTC.getUTCFullYear()
+    const startMonthIdx = todayUTC.getUTCMonth() - (months - 1)
+    const firstOfStartMonth = new Date(Date.UTC(startMonthYear, startMonthIdx, 1))
+    const firstOfStartStr = firstOfStartMonth.toISOString().split('T')[0]
+
+    // Walk back to the preceding Sunday so the grid aligns on week boundaries
+    const startDayOfWeek = firstOfStartMonth.getUTCDay() // 0=Sun
+    const startStr = addDays(firstOfStartStr, -startDayOfWeek)
+
+    // Total days from that Sunday through today's Sunday + rest of week
+    const todayDayOfWeek = todayUTC.getUTCDay()
+    const endStr = addDays(todayStr, 6 - todayDayOfWeek) // end of today's week
+    const msPerDay = 86400000
+    const totalDays =
+      Math.round((new Date(endStr + 'T00:00:00Z').getTime() - new Date(startStr + 'T00:00:00Z').getTime()) / msPerDay) + 1
+    const weeks = Math.ceil(totalDays / 7)
     const days: Array<{ date: string; value: number; inFuture: boolean }> = []
 
     for (let i = 0; i < totalDays; i++) {
@@ -68,7 +81,7 @@ export function CalendarHeatmap({ data, weeks = 52, timezone }: Props) {
     const max = Math.max(0, ...Object.values(data))
 
     return { grid: cols, monthLabels: labels, maxValue: max }
-  }, [data, weeks, timezone])
+  }, [data, months, timezone])
 
   const CELL = 13
   const GAP = 2

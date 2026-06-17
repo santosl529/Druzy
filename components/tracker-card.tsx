@@ -73,7 +73,7 @@ export function TrackerCard({ mod, hasEntryToday, today, onMarkDone }: TrackerCa
           <Button
             size="sm"
             variant="secondary"
-            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+            className="h-7 px-2 text-xs sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={handleMarkGreen}
             disabled={isPending}
           >
