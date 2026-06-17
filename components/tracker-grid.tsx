@@ -14,9 +14,11 @@ interface TrackerGridProps {
   serverDate: string
   // Day-boundary timezone from Settings (null = fall back to browser tz).
   savedTimezone: string | null
+  // Openness value [0,1] per module id, computed server-side.
+  opennessByModule: Record<string, number>
 }
 
-export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezone }: TrackerGridProps) {
+export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezone, opennessByModule }: TrackerGridProps) {
   const [doneToday, setDoneToday] = useState(new Set(initialDoneToday))
   // The authoritative "today" honors the saved timezone, falling back to the
   // browser timezone when unset. Initialized to the server date to avoid a
@@ -52,6 +54,7 @@ export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezo
           mod={mod}
           hasEntryToday={doneToday.has(mod.id)}
           today={today}
+          openness={opennessByModule[mod.id] ?? 0}
           onMarkDone={handleMarkDone}
         />
       ))}

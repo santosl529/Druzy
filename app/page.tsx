@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
-import { todayInTimezone } from '@/lib/date'
+import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
+import { computeOpenness } from '@/lib/openness'
 import type { Module } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -31,16 +32,46 @@ export default async function DashboardPage() {
   const today = todayInTimezone(savedTimezone || 'UTC')
 
   const moduleIds = typedModules.map((m) => m.id)
-  const { data: todayEntries } =
+  const since = daysAgoInTimezone(29, savedTimezone || 'UTC') // inclusive 30-day window
+
+  // One query: every entry (module_id, entry_date) for this user. At this scale
+  // (tens of users, a handful of trackers) this is a cheap indexed read.
+  const { data: allEntries } =
     moduleIds.length > 0
       ? await supabase
           .from('entries')
-          .select('module_id')
+          .select('module_id, entry_date')
           .eq('user_id', user.id)
-          .eq('entry_date', today)
           .in('module_id', moduleIds)
       : { data: [] }
-  const doneToday = new Set((todayEntries ?? []).map((e) => e.module_id))
+
+  const nowMs = Date.parse(today + 'T00:00:00Z')
+  const recentDaysByModule = new Map<string, Set<string>>()
+  const totalByModule = new Map<string, number>()
+  for (const e of allEntries ?? []) {
+    totalByModule.set(e.module_id, (totalByModule.get(e.module_id) ?? 0) + 1)
+    if (e.entry_date >= since) {
+      const set = recentDaysByModule.get(e.module_id) ?? new Set<string>()
+      set.add(e.entry_date)
+      recentDaysByModule.set(e.module_id, set)
+    }
+  }
+
+  const opennessByModule: Record<string, number> = {}
+  for (const m of typedModules) {
+    const createdMs = Date.parse(m.created_at)
+    const daysSinceCreated = Math.max(0, Math.round((nowMs - createdMs) / 86400000))
+    opennessByModule[m.id] = computeOpenness({
+      recentDays: recentDaysByModule.get(m.id)?.size ?? 0,
+      totalEntries: totalByModule.get(m.id) ?? 0,
+      daysSinceCreated,
+      isFormula: m.kind === 'formula',
+    })
+  }
+
+  const doneToday = new Set(
+    (allEntries ?? []).filter((e) => e.entry_date === today).map((e) => e.module_id),
+  )
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -82,6 +113,7 @@ export default async function DashboardPage() {
             initialDoneToday={[...doneToday]}
             serverDate={today}
             savedTimezone={savedTimezone}
+            opennessByModule={opennessByModule}
           />
         )}
       </main>
