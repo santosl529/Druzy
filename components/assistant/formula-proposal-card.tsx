@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { createFormulaModuleFromProposal } from '@/app/actions/formula'
+import { CrystalPicker } from '@/components/crystal-picker'
 import type { FormulaConfig } from '@/lib/types'
+import type { CrystalKey } from '@/lib/crystals'
 
 // Enriched input shape returned by the tool execute (includes display names).
 export interface EnrichedInput {
@@ -40,6 +42,7 @@ export function FormulaProposalCard({ proposal }: Props) {
   const [expression, setExpression] = useState(proposal.config.expression)
   // Alias and defaultValue are editable; moduleId/field are fixed (set by AI).
   const [inputs, setInputs] = useState<EnrichedInput[]>(proposal.enrichedInputs)
+  const [crystalType, setCrystalType] = useState<CrystalKey>('amethyst')
   const [error, setError] = useState<string | null>(null)
   const [discarded, setDiscarded] = useState(false)
 
@@ -76,7 +79,7 @@ export function FormulaProposalCard({ proposal }: Props) {
       expression,
     }
     startTransition(async () => {
-      const result = await createFormulaModuleFromProposal(name, config)
+      const result = await createFormulaModuleFromProposal(name, config, crystalType)
       if ('error' in result) {
         setError(result.error)
       } else {
@@ -106,6 +109,12 @@ export function FormulaProposalCard({ proposal }: Props) {
           onChange={(e) => setName(e.target.value)}
           className="font-medium"
         />
+      </div>
+
+      {/* Crystal */}
+      <div className="space-y-1.5">
+        <Label>Crystal</Label>
+        <CrystalPicker value={crystalType} onChange={setCrystalType} />
       </div>
 
       {/* Inputs */}

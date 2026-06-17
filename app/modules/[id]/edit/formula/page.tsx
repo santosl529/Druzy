@@ -35,7 +35,7 @@ export default async function EditFormulaModulePage({ params }: { params: Promis
         <FormulaBuilder
           modules={sourceModules}
           entries={(entries ?? []) as Entry[]}
-          initial={{ id: formulaModule.id, name: formulaModule.name, config: formulaModule.formula_config }}
+          initial={{ id: formulaModule.id, name: formulaModule.name, config: formulaModule.formula_config, crystal_type: (formulaModule as Module).crystal_type }}
         />
       </main>
     </div>

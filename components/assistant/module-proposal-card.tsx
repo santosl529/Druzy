@@ -17,8 +17,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createModuleFromProposal } from '@/app/actions/modules'
+import { CrystalPicker } from '@/components/crystal-picker'
 import { FIELD_TYPES } from '@/lib/types'
 import type { ModuleField } from '@/lib/types'
+import type { CrystalKey } from '@/lib/crystals'
 
 interface Props {
   proposal: { name: string; fields: ModuleField[] }
@@ -47,6 +49,7 @@ export function ModuleProposalCard({ proposal }: Props) {
 
   const [name, setName] = useState(proposal.name)
   const [fields, setFields] = useState<FieldRow[]>(proposal.fields)
+  const [crystalType, setCrystalType] = useState<CrystalKey>('amethyst')
   const [error, setError] = useState<string | null>(null)
   const [discarded, setDiscarded] = useState(false)
 
@@ -83,7 +86,7 @@ export function ModuleProposalCard({ proposal }: Props) {
   function handleConfirm() {
     setError(null)
     startTransition(async () => {
-      const result = await createModuleFromProposal(name, fields)
+      const result = await createModuleFromProposal(name, fields, crystalType)
       if ('error' in result) {
         setError(result.error)
       } else {
@@ -113,6 +116,12 @@ export function ModuleProposalCard({ proposal }: Props) {
           onChange={(e) => setName(e.target.value)}
           className="font-medium"
         />
+      </div>
+
+      {/* Crystal */}
+      <div className="space-y-1.5">
+        <Label>Crystal</Label>
+        <CrystalPicker value={crystalType} onChange={setCrystalType} />
       </div>
 
       {/* Fields */}

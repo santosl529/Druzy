@@ -13,8 +13,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { createModule, updateModule } from '@/app/actions/modules'
+import { CrystalPicker } from '@/components/crystal-picker'
 import { FIELD_TYPES } from '@/lib/types'
 import type { Module, ModuleField } from '@/lib/types'
+import type { CrystalKey } from '@/lib/crystals'
 
 interface Props {
   initial?: Module
@@ -33,6 +35,7 @@ export function ModuleBuilder({ initial }: Props) {
   const [fields, setFields] = useState<ModuleField[]>(
     initial?.fields ?? [{ key: '', label: '', type: 'text', required: false }]
   )
+  const [crystalType, setCrystalType] = useState<CrystalKey>(initial?.crystal_type ?? 'amethyst')
 
   function addField() {
     setFields((f) => [...f, { key: '', label: '', type: 'text', required: false }])
@@ -57,6 +60,7 @@ export function ModuleBuilder({ initial }: Props) {
     const fd = new FormData()
     fd.set('name', name)
     fd.set('fields', JSON.stringify(fields))
+    fd.set('crystal_type', crystalType)
 
     startTransition(async () => {
       const result = initial
@@ -74,6 +78,11 @@ export function ModuleBuilder({ initial }: Props) {
           id="name" value={name} onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Sleep, Mood, Workouts" required
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Crystal</Label>
+        <CrystalPicker value={crystalType} onChange={setCrystalType} />
       </div>
 
       <Separator />

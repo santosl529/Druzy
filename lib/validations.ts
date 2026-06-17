@@ -19,7 +19,7 @@ export const moduleFieldSchema = z.object({
 export const moduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
-  crystal_type: crystalTypeSchema.optional(),
+  crystal_type: crystalTypeSchema,
 })
 
 export type ModuleFormValues = z.infer<typeof moduleSchema>

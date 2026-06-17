@@ -15,6 +15,7 @@ export async function createModule(formData: FormData): Promise<{ error: string 
   const raw = {
     name: formData.get('name') as string,
     fields: JSON.parse(formData.get('fields') as string) as ModuleField[],
+    crystal_type: formData.get('crystal_type') as string,
   }
 
   const parsed = moduleSchema.safeParse(raw)
@@ -22,7 +23,7 @@ export async function createModule(formData: FormData): Promise<{ error: string 
 
   const { data, error } = await supabase
     .from('modules')
-    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields })
+    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields, crystal_type: parsed.data.crystal_type })
     .select('id')
     .single()
 
@@ -42,6 +43,7 @@ export async function updateModule(id: string, formData: FormData): Promise<{ er
   const raw = {
     name: formData.get('name') as string,
     fields: JSON.parse(formData.get('fields') as string) as ModuleField[],
+    crystal_type: formData.get('crystal_type') as string,
   }
 
   const parsed = moduleSchema.safeParse(raw)
@@ -49,7 +51,7 @@ export async function updateModule(id: string, formData: FormData): Promise<{ er
 
   const { error } = await supabase
     .from('modules')
-    .update({ name: parsed.data.name, fields: parsed.data.fields })
+    .update({ name: parsed.data.name, fields: parsed.data.fields, crystal_type: parsed.data.crystal_type })
     .eq('id', id)
     .eq('user_id', user.id)
 
@@ -123,18 +125,19 @@ export async function getModuleDeleteWarnings(id: string): Promise<{
  */
 export async function createModuleFromProposal(
   name: string,
-  fields: ModuleField[]
+  fields: ModuleField[],
+  crystalType: string,
 ): Promise<{ error: string } | { id: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated. Please sign in and try again.' }
 
-  const parsed = moduleSchema.safeParse({ name, fields })
+  const parsed = moduleSchema.safeParse({ name, fields, crystal_type: crystalType })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   const { data, error } = await supabase
     .from('modules')
-    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields })
+    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields, crystal_type: parsed.data.crystal_type })
     .select('id')
     .single()
 

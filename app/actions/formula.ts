@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { formulaModuleSchema } from '@/lib/validations'
+import { formulaModuleSchema, crystalTypeSchema } from '@/lib/validations'
 import { FORMULA_VALUE_FIELD } from '@/lib/formula'
 import { createDefaultChart } from '@/app/actions/charts'
 import type { FormulaConfig, Module } from '@/lib/types'
@@ -60,6 +60,9 @@ export async function createFormulaModule(formData: FormData): Promise<{ error: 
   const inputError = await validateFormulaInputs(parsed.data.config, user.id)
   if (inputError) return { error: inputError }
 
+  const crystal = crystalTypeSchema.safeParse(formData.get('crystal_type'))
+  if (!crystal.success) return { error: 'Pick a crystal for this tracker' }
+
   const { data, error } = await supabase
     .from('modules')
     .insert({
@@ -68,6 +71,7 @@ export async function createFormulaModule(formData: FormData): Promise<{ error: 
       fields: [FORMULA_VALUE_FIELD],
       kind: 'formula',
       formula_config: parsed.data.config,
+      crystal_type: crystal.data,
     })
     .select('id')
     .single()
@@ -87,7 +91,8 @@ export async function createFormulaModule(formData: FormData): Promise<{ error: 
  */
 export async function createFormulaModuleFromProposal(
   name: string,
-  config: FormulaConfig
+  config: FormulaConfig,
+  crystalType: string,
 ): Promise<{ error: string } | { id: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -99,6 +104,9 @@ export async function createFormulaModuleFromProposal(
   const inputError = await validateFormulaInputs(parsed.data.config, user.id)
   if (inputError) return { error: inputError }
 
+  const crystal = crystalTypeSchema.safeParse(crystalType)
+  if (!crystal.success) return { error: 'Pick a crystal for this tracker' }
+
   const { data, error } = await supabase
     .from('modules')
     .insert({
@@ -107,6 +115,7 @@ export async function createFormulaModuleFromProposal(
       fields: [FORMULA_VALUE_FIELD],
       kind: 'formula',
       formula_config: parsed.data.config,
+      crystal_type: crystal.data,
     })
     .select('id')
     .single()
@@ -132,9 +141,12 @@ export async function updateFormulaModule(
   const inputError = await validateFormulaInputs(parsed.data.config, user.id)
   if (inputError) return { error: inputError }
 
+  const crystal = crystalTypeSchema.safeParse(formData.get('crystal_type'))
+  if (!crystal.success) return { error: 'Pick a crystal for this tracker' }
+
   const { error } = await supabase
     .from('modules')
-    .update({ name: parsed.data.name, formula_config: parsed.data.config })
+    .update({ name: parsed.data.name, formula_config: parsed.data.config, crystal_type: crystal.data })
     .eq('id', id)
     .eq('user_id', user.id)
     .eq('kind', 'formula')

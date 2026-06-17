@@ -13,8 +13,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createFormulaModule, updateFormulaModule } from '@/app/actions/formula'
+import { CrystalPicker } from '@/components/crystal-picker'
 import { validateExpression, computeFormulaSeries } from '@/lib/formula'
 import type { Entry, FormulaConfig, Module, ModuleField } from '@/lib/types'
+import type { CrystalKey } from '@/lib/crystals'
 
 interface Props {
   /** Standard modules available as formula inputs. */
@@ -22,7 +24,7 @@ interface Props {
   /** Entries for those modules — used for the live preview. */
   entries: Entry[]
   /** When set, the builder edits an existing formula module. */
-  initial?: { id: string; name: string; config: FormulaConfig }
+  initial?: { id: string; name: string; config: FormulaConfig; crystal_type?: CrystalKey }
 }
 
 interface InputRow {
@@ -75,6 +77,7 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initial?.name ?? '')
+  const [crystalType, setCrystalType] = useState<CrystalKey>(initial?.crystal_type ?? 'amethyst')
   const [inputs, setInputs] = useState<InputRow[]>(
     initial?.config.inputs
       ? toInputRows(initial.config.inputs)
@@ -147,6 +150,7 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
     const formData = new FormData()
     formData.set('name', name.trim())
     formData.set('config', JSON.stringify({ inputs: completeInputs, expression: expression.trim() }))
+    formData.set('crystal_type', crystalType)
 
     startTransition(async () => {
       const result = initial
@@ -167,6 +171,12 @@ export function FormulaBuilder({ modules, entries, initial }: Props) {
           placeholder="e.g. Day progress"
           className="max-w-sm"
         />
+      </div>
+
+      {/* Crystal */}
+      <div className="space-y-2">
+        <Label>Crystal</Label>
+        <CrystalPicker value={crystalType} onChange={setCrystalType} />
       </div>
 
       {/* Inputs */}
