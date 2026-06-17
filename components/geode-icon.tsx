@@ -11,7 +11,6 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
   // useId produces a stable, unique-per-instance id — safe for SVG defs.
   const uid = useId().replace(/:/g, '-')
   const crystalGrad = `${uid}-crystal`
-  const crystalGradAlt = `${uid}-crystal-alt`
   const roughen = `${uid}-roughen`
   const halo = `${uid}-halo`
   const innerGlow = `${uid}-inner-glow`
@@ -30,11 +29,6 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
           <stop offset="0%" stopColor="var(--crystal-glow)" />
           <stop offset="40%" stopColor="var(--crystal-primary)" />
           <stop offset="100%" stopColor="var(--crystal-primary)" stopOpacity="0.8" />
-        </linearGradient>
-        {/* Secondary crystal gradient for side crystals */}
-        <linearGradient id={crystalGradAlt} x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--crystal-glow)" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="var(--crystal-primary)" />
         </linearGradient>
         {/* Roughen edges for a hand-painted, non-vector feel */}
         <filter id={roughen} x="-5%" y="-5%" width="110%" height="110%">
