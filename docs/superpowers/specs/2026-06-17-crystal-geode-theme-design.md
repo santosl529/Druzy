@@ -26,7 +26,9 @@ theme is a natural fit rather than a bolt-on.
 
 ## Non-Goals
 
-- SVG/canvas geode illustrations (rejected — CSS-only reveal chosen for maintainability).
+- Canvas / WebGL rendering (rejected — SVG gives crisp, themeable vector art without the weight).
+- Per-type bespoke geode *shells* (the shell geometry is shared across all 8 types for homogeneity;
+  only crystal color and optional facet accents vary).
 - Animated openness transitions on the client (static render at computed value; see Known Extensions).
 - A manual light/dark toggle (system preference only for now).
 - Caching/denormalizing openness (rejected — see Performance).
@@ -131,22 +133,46 @@ This **replaces** the current red/green card border (`border-green-500` / `borde
 `components/tracker-card.tsx`). The geode is now the card's primary visual; the pill carries
 the binary daily signal.
 
-### CSS implementation (no SVG/canvas)
-Each card gets inline CSS custom properties (cast `as React.CSSProperties` in TSX):
-`--openness` (number), `--crystal-primary`, `--crystal-glow`.
+### Implementation: SVG geode (hybrid)
 
-- **Surface:** base stone gradient on the card; a `::before` pseudo-element holds the crystal
-  gradient, revealed via `clip-path: polygon(...)` whose coordinates are parametric on
-  openness, e.g. a central seam widening: `calc(50% - 50% * var(--openness))` on each side.
-- **Border:**
-  `color-mix(in oklch, var(--stone-border), var(--crystal-primary) calc(var(--openness) * 100%))`
-- **Glow:**
-  `box-shadow: 0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 50%), transparent)`
-- **Blooming shimmer:** a CSS keyframe on background-position/opacity, gated to high openness
-  (e.g. only meaningful past ~0.8), respecting `prefers-reduced-motion`.
+The geode is rendered as an **inline SVG** illustration, with CSS custom properties driving
+openness and color. SVG is chosen because a geode is an inherently illustrative, organic
+object — a rough rocky shell splitting along a jagged seam to reveal *faceted* crystals.
+That faceting and the irregular crack are the payoff of the whole metaphor and read poorly as
+CSS gradients/clip-paths. SVG gives crisp, themeable vector art that scales to any card size.
 
-These rely on `color-mix()` and `calc()` in `clip-path`/color positions — stable evergreen-browser
-features. Verified feasible.
+**Shared geometry, per-type color (homogeneity):** there is **one** reusable
+`<GeodeIcon>` component — a single shared shell shape and a single shared crystal-cluster
+shape. Crystal *type* changes only the fill/gradient (and optionally subtle facet-accent
+paths), never the overall silhouette. So every card looks like the same kind of object; only
+the gem inside differs in color. This directly serves the "cards stay homogenous" requirement.
+
+**Driven by CSS variables** (set inline on the card / SVG root, cast `as React.CSSProperties`):
+`--openness` (0–1 number), `--crystal-primary`, `--crystal-glow`.
+
+- **Shell + reveal:** the rocky shell is drawn as two halves; the crystal cluster sits beneath.
+  Openness parts the halves — each half carries
+  `transform: translateX(calc(var(--openness) * ±<amount>))` (or a small rotation about the
+  seam), exposing more of the cluster as openness rises. A jagged seam path gives the organic
+  crack CSS can't.
+- **Crystal fill:** an SVG `linearGradient` from `--crystal-primary` to `--crystal-glow`;
+  facet highlights as lighter overlay paths. The cluster's visible *brightness/saturation* can
+  also scale with openness so a sealed geode reads dim and a bloomed one reads vivid.
+- **Border / card glow** (on the card element, not the SVG):
+  `border-color: color-mix(in oklch, var(--stone-border), var(--crystal-primary) calc(var(--openness) * 100%))`
+  and
+  `box-shadow: 0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 50%), transparent)`.
+- **Blooming shimmer:** a subtle SVG/CSS animation (e.g. a moving highlight or opacity pulse on
+  the facet overlay) gated to high openness (~past 0.8) and disabled under
+  `prefers-reduced-motion`.
+
+These rely on `color-mix()`/`calc()` (stable evergreen-browser features) plus standard SVG
+transforms and gradients. Verified feasible. The SVG itself is **static at the computed openness
+value** — no client animation of openness (see Known Extensions).
+
+**Artwork note:** the shared shell + crystal-cluster paths must be authored deliberately (hand-
+drawn or carefully cleaned-up generated SVG). Rough auto-generated paths are the main quality
+risk; budget design iteration on this one component since it's the theme's signature element.
 
 ---
 
@@ -224,8 +250,8 @@ trackers-per-user ever grows.
   multiplier; cap at 1; `days_since_created < 1` guard; formula module ⇒ 1.
 - **`lib/crystals.ts`** — every `CrystalType` has a name, primary, and glow; keys match the DB
   check constraint and the TS union (guards against drift).
-- **Card rendering** — given an openness value and crystal type, the correct CSS variables are
-  emitted; status pill reflects `hasEntryToday`.
+- **Card / `<GeodeIcon>` rendering** — given an openness value and crystal type, the correct
+  CSS variables and crystal gradient stops are emitted; status pill reflects `hasEntryToday`.
 - **Typecheck / lint / build** per the project Definition of Done.
 
 ---
@@ -235,7 +261,8 @@ trackers-per-user ever grows.
 - Animated openness transitions: would require registering `--openness` via `@property` as
   `<number>` so CSS can interpolate it. Static render needs nothing special.
 - Manual light/dark toggle via `next-themes`.
-- Per-crystal distinct *shapes* / facet patterns (currently differentiated by color only).
+- Per-crystal distinct *shell silhouettes* (shell geometry is shared in v1; only crystal color
+  and optional facet accents vary).
 - "Skipped today" pill variant.
 
 ---
@@ -243,7 +270,8 @@ trackers-per-user ever grows.
 ## Affected files (reference)
 
 - `app/globals.css` — palette overhaul + dark-mode media query
-- `lib/crystals.ts` *(new)* — crystal source of truth
+- `lib/crystals.ts` *(new)* — crystal source of truth (key → name, primary, glow, optional facet accents)
+- `components/geode-icon.tsx` *(new)* — shared SVG geode (parametric on `--openness`, color per crystal)
 - `lib/openness.ts` *(new)* — openness computation
 - `lib/types.ts` — `CrystalType`, `Module.crystal_type`
 - `supabase/migrations/20240106000000_module_crystal_type.sql` *(new)*
