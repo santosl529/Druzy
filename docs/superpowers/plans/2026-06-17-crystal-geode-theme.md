@@ -720,7 +720,11 @@ git commit -m "feat: geological palette with system-aware dark mode"
 
 ---
 
-### Task 7: Shared SVG `<GeodeIcon>` component
+### Task 7: Watercolor-styled staged `<GeodeIcon>` component
+
+> Art direction reference: `docs/references/tracker-opening/frame_001.jpg … frame_010.jpg` — a
+> 10-frame opening (whole stone → glowing cracks → split into ~4 chunks → crystal bloom with rays).
+> We render the **static** state for a card's computed openness; the frames define the look per stage.
 
 **Files:**
 - Create: `components/geode-icon.tsx`
@@ -784,9 +788,28 @@ export function geodeVars(crystalType: string, openness: number): CSSProperties 
 Run: `npx vitest run lib/__tests__/geode-style.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Write `components/geode-icon.tsx`**
+- [ ] **Step 5: Write `components/geode-icon.tsx`** — watercolor-styled, staged
 
-A shared shell (two halves that part with openness) over a crystal cluster. Uses the CSS vars from `geodeVars`. The shell halves translate outward by `calc(var(--openness) * N)`; the cluster's opacity/brightness rises with openness.
+**Art direction is set by `docs/references/tracker-opening/frame_001.jpg … frame_010.jpg`.** Open
+those images and match the look: ink outlines, layered watercolor-ish fills, a soft colored halo
+behind the stone, paper-grain/roughened edges, and the staged opening below. The crystal color is
+the CSS var `--crystal-primary`/`--crystal-glow` (the reference is red; ours recolors per type).
+
+**Stage → openness map (from the spec):**
+
+| Openness | Stage (frames) | Drawn |
+|---|---|---|
+| 0.0–0.2 | Sealed (1–2) | Whole grey faceted stone, faint seam, halo |
+| 0.2–0.4 | Cracking (3–4) | Crack network spreads; first warm glow in seams |
+| 0.4–0.55 | Charging (5) | Crack network glows bright; stone still closed |
+| 0.55–0.75 | Splitting (6–7) | Stone parts into ~4 chunks; glow pours out; crystal tips emerge |
+| 0.75–1.0 | Blooming (8–10) | Chunks at corners; full crystal cluster; rays + splatter + sparkles |
+
+**Structure the SVG as stacked layers, each driven by openness via inline `calc()` on `style`** so
+the whole thing renders statically at the given value (no JS animation). Build it as a skeleton
+with the layer structure below, then **iterate the actual `d`/`points` paths against the reference
+frames** until each stage reads right. The exact path data is expected to be hand-refined — the
+skeleton encodes the *mechanics*, not final art.
 
 ```tsx
 import { geodeVars } from '@/lib/geode-style'
@@ -797,52 +820,119 @@ interface Props {
   className?: string
 }
 
+// Per-instance gradient/filter ids must be unique when many cards render at once.
+let GEODE_SEQ = 0
+
 export function GeodeIcon({ crystalType, openness, className }: Props) {
+  const uid = `geode-${(GEODE_SEQ = (GEODE_SEQ + 1) % 1e6)}`
+  const crystalGrad = `${uid}-crystal`
+  const roughen = `${uid}-roughen`
+  const halo = `${uid}-halo`
+
   return (
     <svg
       viewBox="0 0 64 64"
       className={className}
       style={geodeVars(crystalType, openness)}
       role="img"
-      aria-label="Geode"
+      aria-label="Geode tracker"
     >
       <defs>
-        <linearGradient id="geode-crystal" x1="0" y1="0" x2="1" y2="1">
+        {/* Crystal fill: glow -> primary */}
+        <linearGradient id={crystalGrad} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="var(--crystal-glow)" />
           <stop offset="100%" stopColor="var(--crystal-primary)" />
         </linearGradient>
+        {/* Roughen edges for a hand-painted, non-vector feel */}
+        <filter id={roughen}>
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.4" />
+        </filter>
+        {/* Soft colored halo behind the stone (pink-ish in the ref; themed here) */}
+        <radialGradient id={halo} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--crystal-glow)" stopOpacity="0.35" />
+          <stop offset="70%" stopColor="var(--crystal-glow)" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="var(--crystal-glow)" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
-      {/* Crystal cluster (revealed as the shell parts) */}
-      <g style={{ opacity: 'calc(0.25 + var(--openness) * 0.75)' }}>
-        <polygon points="32,16 38,30 32,48 26,30" fill="url(#geode-crystal)" />
-        <polygon points="24,22 30,34 24,46 19,33" fill="url(#geode-crystal)" opacity="0.85" />
-        <polygon points="40,22 45,33 40,46 34,34" fill="url(#geode-crystal)" opacity="0.85" />
-        {/* facet highlight */}
-        <polygon points="32,16 35,30 32,40 30,30" fill="var(--crystal-glow)" opacity="0.5" />
+      {/* Halo — always present, intensifies slightly with openness */}
+      <rect x="0" y="0" width="64" height="64" fill={`url(#${halo})`}
+        style={{ opacity: 'calc(0.5 + var(--openness) * 0.5)' }} />
+
+      {/* Burst rays + sparkles — bloom only (gated past ~0.8) */}
+      <g stroke="var(--crystal-primary)" strokeWidth="1" strokeLinecap="round"
+         style={{ opacity: 'calc(max(var(--openness) - 0.8, 0) * 5)' }}>
+        <line x1="32" y1="2" x2="32" y2="10" />
+        <line x1="62" y1="32" x2="54" y2="32" />
+        <line x1="32" y1="62" x2="32" y2="54" />
+        <line x1="2" y1="32" x2="10" y2="32" />
+        <line x1="10" y1="10" x2="16" y2="16" />
+        <line x1="54" y1="10" x2="48" y2="16" />
+        <line x1="10" y1="54" x2="16" y2="48" />
+        <line x1="54" y1="54" x2="48" y2="48" />
       </g>
 
-      {/* Rocky shell — two halves parting along a jagged seam */}
-      <g fill="var(--stone-border, #2E2A3B)">
-        <path
-          style={{ transform: 'translateX(calc(var(--openness) * -10px))' }}
-          d="M32 4 L30 14 L34 22 L29 32 L33 42 L30 52 L32 60 L6 60 L6 4 Z"
-        />
-        <path
-          style={{ transform: 'translateX(calc(var(--openness) * 10px))' }}
-          d="M32 4 L34 14 L30 22 L35 32 L31 42 L34 52 L32 60 L58 60 L58 4 Z"
-        />
+      {/* Crack-glow network — lights up during charging, fades once split */}
+      <g stroke="var(--crystal-glow)" strokeWidth="2" strokeLinecap="round" fill="none"
+         filter={`url(#${roughen})`}
+         style={{ opacity: 'calc(min(max(var(--openness) - 0.2, 0) * 4, 1) * (1 - max(var(--openness) - 0.75, 0) * 4))' }}>
+        <path d="M32 12 L31 30 L33 40 L32 52" />
+        <path d="M32 30 L18 33" />
+        <path d="M33 34 L48 31" />
+      </g>
+
+      {/* Crystal cluster — grows out of the gap; scale + opacity rise with openness */}
+      <g
+        fill={`url(#${crystalGrad})`}
+        stroke="rgba(0,0,0,0.55)"
+        strokeWidth="0.6"
+        style={{
+          opacity: 'calc(max(var(--openness) - 0.5, 0) * 2)',
+          transform: 'scale(calc(0.6 + var(--openness) * 0.4))',
+          transformOrigin: 'center',
+        }}
+      >
+        <polygon points="32,14 38,30 32,50 26,30" />
+        <polygon points="22,22 29,34 23,48 17,33" opacity="0.9" />
+        <polygon points="42,22 47,33 41,48 35,34" opacity="0.9" />
+        {/* facet highlights */}
+        <polygon points="32,14 35,30 32,42 30,30" fill="var(--crystal-glow)" opacity="0.55" stroke="none" />
+      </g>
+
+      {/* Stone shell — 4 chunks. Flush below split threshold; fly to corners past it. */}
+      <g fill="#9a98a0" stroke="rgba(0,0,0,0.7)" strokeWidth="0.8" filter={`url(#${roughen})`}>
+        <path style={{ transform: 'translate(calc(max(var(--openness) - 0.55, 0) * -34px), calc(max(var(--openness) - 0.55, 0) * -34px))' }}
+          d="M32 4 L33 30 L32 32 L6 32 L6 4 Z" />
+        <path style={{ transform: 'translate(calc(max(var(--openness) - 0.55, 0) * 34px), calc(max(var(--openness) - 0.55, 0) * -34px))' }}
+          d="M32 4 L58 4 L58 32 L33 32 L32 30 Z" />
+        <path style={{ transform: 'translate(calc(max(var(--openness) - 0.55, 0) * -34px), calc(max(var(--openness) - 0.55, 0) * 34px))' }}
+          d="M6 32 L32 32 L33 34 L32 60 L6 60 Z" />
+        <path style={{ transform: 'translate(calc(max(var(--openness) - 0.55, 0) * 34px), calc(max(var(--openness) - 0.55, 0) * 34px))' }}
+          d="M33 32 L58 32 L58 60 L32 60 L32 34 Z" />
       </g>
     </svg>
   )
 }
 ```
 
-> Note: SVG `transform` on `<path>` with `calc()` + a CSS var is supported in modern browsers via the CSS `transform` property (not the SVG attribute). Verify visually in Step 6; if a target browser misbehaves, switch the two halves to wrapping `<g>` elements with the same inline `style`.
+Notes for the implementer:
+- The `calc(max(var(--openness) - 0.55, 0) * …)` pattern is how each stage "switches on" at its
+  threshold using pure CSS (`max()` + `calc()` are stable in evergreen browsers). Keep that mechanic;
+  refine the constants and paths visually.
+- `feTurbulence`/`feDisplacementMap` give the painted, roughened edge. If it reads too noisy at
+  card size, lower `scale` or drop the filter on the crystal layer.
+- Unique `uid` per instance prevents gradient/filter id collisions when the grid renders many cards.
 
-- [ ] **Step 6: Visual check via a scratch route (optional but recommended)**
+- [ ] **Step 6: Visual check against the reference frames**
 
-Temporarily render a few `<GeodeIcon>` at openness `0`, `0.3`, `0.6`, `1` and different crystals on the dashboard or a scratch page; confirm the shell parts and the crystal brightens as openness rises across both light and dark mode. Remove the scratch render before committing.
+Render `<GeodeIcon>` at openness `0.1, 0.3, 0.5, 0.65, 0.85, 1.0` for at least two crystal types
+(e.g. `amethyst`, `carnelian`) on a scratch render. Compare each against the matching reference
+stage in `docs/references/tracker-opening/`:
+- 0.1 → frame 2 (sealed stone), 0.3 → frames 3–4 (cracking), 0.5 → frame 5 (glowing cracks),
+  0.65 → frames 6–7 (splitting), 0.85 → frame 8, 1.0 → frame 10 (full bloom + rays).
+Iterate the paths/constants until each stage reads recognizably like its frame, in **both light and
+dark mode**. Remove the scratch render before committing.
 
 - [ ] **Step 7: Typecheck, lint, test, commit**
 
@@ -850,7 +940,7 @@ Run: `npx tsc --noEmit`, `npm run lint`, `npx vitest run` — all clean/green.
 
 ```bash
 git add components/geode-icon.tsx lib/geode-style.ts lib/__tests__/geode-style.test.ts
-git commit -m "feat: shared SVG geode icon"
+git commit -m "feat: watercolor-styled staged geode icon"
 ```
 
 ---

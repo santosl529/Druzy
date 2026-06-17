@@ -133,46 +133,63 @@ This **replaces** the current red/green card border (`border-green-500` / `borde
 `components/tracker-card.tsx`). The geode is now the card's primary visual; the pill carries
 the binary daily signal.
 
-### Implementation: SVG geode (hybrid)
+### Implementation: watercolor-styled SVG geode
 
-The geode is rendered as an **inline SVG** illustration, with CSS custom properties driving
-openness and color. SVG is chosen because a geode is an inherently illustrative, organic
-object — a rough rocky shell splitting along a jagged seam to reveal *faceted* crystals.
-That faceting and the irregular crack are the payoff of the whole metaphor and read poorly as
-CSS gradients/clip-paths. SVG gives crisp, themeable vector art that scales to any card size.
+The geode is rendered as an **inline SVG** illustration, recolorable per crystal via CSS custom
+properties. SVG is chosen so all 8 crystal types recolor cleanly from one shared illustration —
+raster frames would need re-rendering per color. The **art direction follows the reference
+frames in `docs/references/tracker-opening/`**: hand-drawn ink outlines, layered watercolor-ish
+fills, a soft colored halo behind the stone, and paper-grain texture. True painterly watercolor
+is *approximated* in SVG (ink strokes + layered translucent fills + an `feTurbulence`/`feDisplacementMap`
+roughen filter on edges + a soft radial halo), not pixel-identical to the painted frames.
 
-**Shared geometry, per-type color (homogeneity):** there is **one** reusable
-`<GeodeIcon>` component — a single shared shell shape and a single shared crystal-cluster
-shape. Crystal *type* changes only the fill/gradient (and optionally subtle facet-accent
-paths), never the overall silhouette. So every card looks like the same kind of object; only
-the gem inside differs in color. This directly serves the "cards stay homogenous" requirement.
+**Shared geometry, per-type color (homogeneity):** there is **one** reusable `<GeodeIcon>`
+component. The stone, crack network, crystal cluster, and burst rays are all shared geometry;
+crystal *type* changes only the fill/gradient colors via CSS vars, never the silhouette. Every
+card is recognizably the same object; only the gem color differs.
 
-**Driven by CSS variables** (set inline on the card / SVG root, cast `as React.CSSProperties`):
+**Driven by CSS variables** (set inline on the SVG root, cast `as React.CSSProperties`):
 `--openness` (0–1 number), `--crystal-primary`, `--crystal-glow`.
 
-- **Shell + reveal:** the rocky shell is drawn as two halves; the crystal cluster sits beneath.
-  Openness parts the halves — each half carries
-  `transform: translateX(calc(var(--openness) * ±<amount>))` (or a small rotation about the
-  seam), exposing more of the cluster as openness rises. A jagged seam path gives the organic
-  crack CSS can't.
-- **Crystal fill:** an SVG `linearGradient` from `--crystal-primary` to `--crystal-glow`;
-  facet highlights as lighter overlay paths. The cluster's visible *brightness/saturation* can
-  also scale with openness so a sealed geode reads dim and a bloomed one reads vivid.
+**Staged reveal — the reference is a 10-frame opening; we render the static state for the card's
+computed openness.** The frames map to openness thresholds (continuous interpolation where
+practical; layer opacity/transform crossfades between stages otherwise):
+
+| Openness | Stage (matches reference frames) | What's drawn |
+|---|---|---|
+| 0.0–0.2 | **Sealed** (frames 1–2) | Whole faceted grey stone, faint hairline seam, soft halo |
+| 0.2–0.4 | **Cracking** (frames 3–4) | Crack network spreads across the stone; first warm glow in the seams |
+| 0.4–0.55 | **Charging** (frame 5) | Crack network glows bright (energy `--crystal-glow`); stone still closed |
+| 0.55–0.75 | **Splitting** (frames 6–7) | Stone parts into ~4 chunks; glow pours from the gap; crystal tips emerge |
+| 0.75–1.0 | **Blooming** (frames 8–10) | Chunks pushed to the corners; full faceted crystal cluster centered; radiating rays + watercolor splatter + sparkles |
+
+Mechanics:
+- **Stone chunks:** ~4 chunk paths, each translating outward (toward its corner) by
+  `calc(var(--openness) * <amount>)` past the split threshold, with a slight rotation. Below the
+  split threshold they sit flush forming the whole stone.
+- **Crack glow:** the crack/seam paths are stroked with `--crystal-glow`, their opacity rising
+  with openness so the "charging" stage lights up before the stone parts.
+- **Crystal cluster:** faceted polygons filled by a `linearGradient` from `--crystal-glow` to
+  `--crystal-primary`, with lighter facet-highlight overlays; cluster scale/opacity rise with
+  openness so it grows out of the gap.
+- **Burst rays + sparkles:** radiating stroke lines + a few sparkle marks, opacity gated to
+  high openness (~past 0.8) so they only appear at bloom.
 - **Border / card glow** (on the card element, not the SVG):
   `border-color: color-mix(in oklch, var(--stone-border), var(--crystal-primary) calc(var(--openness) * 100%))`
   and
-  `box-shadow: 0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 50%), transparent)`.
-- **Blooming shimmer:** a subtle SVG/CSS animation (e.g. a moving highlight or opacity pulse on
-  the facet overlay) gated to high openness (~past 0.8) and disabled under
-  `prefers-reduced-motion`.
+  `box-shadow: 0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 45%), transparent)`.
+- **Blooming shimmer:** an optional subtle highlight/opacity pulse on the facets, gated past ~0.8
+  and disabled under `prefers-reduced-motion`.
 
-These rely on `color-mix()`/`calc()` (stable evergreen-browser features) plus standard SVG
-transforms and gradients. Verified feasible. The SVG itself is **static at the computed openness
-value** — no client animation of openness (see Known Extensions).
+These rely on `color-mix()`/`calc()` plus standard SVG transforms, gradients, and filters — all
+stable evergreen-browser features. The SVG renders **static at the computed openness value** — no
+client animation of openness itself (see Known Extensions).
 
-**Artwork note:** the shared shell + crystal-cluster paths must be authored deliberately (hand-
-drawn or carefully cleaned-up generated SVG). Rough auto-generated paths are the main quality
-risk; budget design iteration on this one component since it's the theme's signature element.
+**Artwork note:** the stone, crack, cluster, and ray paths must be authored deliberately to match
+the reference's illustrated feel. This is the theme's signature element — budget real iteration
+here, comparing against `docs/references/tracker-opening/frame_00N.jpg` at each stage. Building it
+in stage layers (sealed / cracking / charging / splitting / blooming) that cross-fade by openness
+keeps it tractable.
 
 ---
 
