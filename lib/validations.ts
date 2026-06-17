@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { FIELD_TYPES, CHART_TYPES, JOURNAL_FIELD_TYPES } from './types'
 import { validateExpression } from './formula'
+import { CRYSTAL_KEYS } from './crystals'
+
+export const crystalTypeSchema = z.enum(CRYSTAL_KEYS)
 
 export const moduleFieldSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
@@ -16,6 +19,7 @@ export const moduleFieldSchema = z.object({
 export const moduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
+  crystal_type: crystalTypeSchema.optional(),
 })
 
 export type ModuleFormValues = z.infer<typeof moduleSchema>

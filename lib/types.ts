@@ -1,3 +1,7 @@
+import type { CrystalKey } from './crystals'
+
+export type CrystalType = CrystalKey
+
 // ----------------------------------------------------------------
 // Field types
 // ----------------------------------------------------------------
@@ -207,6 +211,8 @@ export interface Module {
   kind: ModuleKind
   /** Present only when kind = 'formula'. */
   formula_config: FormulaConfig | null
+  /** User-chosen crystal that themes this tracker's geode card. */
+  crystal_type: CrystalType
   is_builtin: boolean
   shared: boolean
   created_at: string
