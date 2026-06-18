@@ -4,7 +4,7 @@
 Druzy is a self-hostable web app for logging and visualizing arbitrary aspects of personal life — experiences, skills practiced, health metrics, scores, gratitude, anything. The defining idea: a user describes a tracker in plain language and an AI assistant turns it into a structured, chartable "module." Two specialized AI capture features round it out: food-photo calorie estimation and handwritten-journal transcription (local model, never leaves the device). Designed for the builder plus a handful of friends — tens of users, not thousands. Currently pre-code / MVP phase.
 
 ## Stack
-- **Framework:** Next.js 15 (App Router), React, TypeScript (strict)
+- **Framework:** Next.js 16 (App Router), React, TypeScript (strict)
 - **Validation:** Zod — shared between AI tool outputs and DB-facing types
 - **Database / auth / storage:** Supabase (Postgres + RLS, Supabase Auth, Supabase Storage)
 - **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons (shadcn defaults, no custom design system)
@@ -37,7 +37,7 @@ lib/
     client.ts    # browser client
     server.ts    # server client (SSR)
   utils.ts       # cn() helper
-middleware.ts    # session refresh + route protection
+proxy.ts         # session refresh + route protection (Next.js 16 proxy convention)
 supabase/
   migrations/    # SQL migrations (run in Supabase dashboard or CLI)
 ```

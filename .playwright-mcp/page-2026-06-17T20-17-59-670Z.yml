@@ -1,0 +1,594 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "LIGHT mode" [level=2] [ref=e4]
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]: carnelian
+          - generic [ref=e8]:
+            - img "Geode tracker" [ref=e9]
+            - generic [ref=e77]: 0 sealed
+          - generic [ref=e78]:
+            - img "Geode tracker" [ref=e79]
+            - generic [ref=e147]: 0.1 sealed
+          - generic [ref=e148]:
+            - img "Geode tracker" [ref=e149]
+            - generic [ref=e217]: 0.3 cracking
+          - generic [ref=e218]:
+            - img "Geode tracker" [ref=e219]
+            - generic [ref=e287]: 0.5 charging
+          - generic [ref=e288]:
+            - img "Geode tracker" [ref=e289]
+            - generic [ref=e357]: 0.6 splitting
+          - generic [ref=e358]:
+            - img "Geode tracker" [ref=e359]
+            - generic [ref=e427]: 0.7 splitting
+          - generic [ref=e428]:
+            - img "Geode tracker" [ref=e429]
+            - generic [ref=e497]: 0.85 blooming
+          - generic [ref=e498]:
+            - img "Geode tracker" [ref=e499]
+            - generic [ref=e567]: 1 full bloom
+        - generic [ref=e568]:
+          - generic [ref=e569]: amethyst
+          - generic [ref=e570]:
+            - img "Geode tracker" [ref=e571]
+            - generic [ref=e639]: 0 sealed
+          - generic [ref=e640]:
+            - img "Geode tracker" [ref=e641]
+            - generic [ref=e709]: 0.1 sealed
+          - generic [ref=e710]:
+            - img "Geode tracker" [ref=e711]
+            - generic [ref=e779]: 0.3 cracking
+          - generic [ref=e780]:
+            - img "Geode tracker" [ref=e781]
+            - generic [ref=e849]: 0.5 charging
+          - generic [ref=e850]:
+            - img "Geode tracker" [ref=e851]
+            - generic [ref=e919]: 0.6 splitting
+          - generic [ref=e920]:
+            - img "Geode tracker" [ref=e921]
+            - generic [ref=e989]: 0.7 splitting
+          - generic [ref=e990]:
+            - img "Geode tracker" [ref=e991]
+            - generic [ref=e1059]: 0.85 blooming
+          - generic [ref=e1060]:
+            - img "Geode tracker" [ref=e1061]
+            - generic [ref=e1129]: 1 full bloom
+      - table [ref=e1130]:
+        - rowgroup [ref=e1131]:
+          - row "crystal \\ openness 0 sealed 0.1 sealed 0.3 cracking 0.5 charging 0.6 splitting 0.7 splitting 0.85 blooming 1 full bloom" [ref=e1132]:
+            - columnheader "crystal \\ openness" [ref=e1133]
+            - columnheader "0 sealed" [ref=e1134]:
+              - text: "0"
+              - generic [ref=e1135]: sealed
+            - columnheader "0.1 sealed" [ref=e1136]:
+              - text: "0.1"
+              - generic [ref=e1137]: sealed
+            - columnheader "0.3 cracking" [ref=e1138]:
+              - text: "0.3"
+              - generic [ref=e1139]: cracking
+            - columnheader "0.5 charging" [ref=e1140]:
+              - text: "0.5"
+              - generic [ref=e1141]: charging
+            - columnheader "0.6 splitting" [ref=e1142]:
+              - text: "0.6"
+              - generic [ref=e1143]: splitting
+            - columnheader "0.7 splitting" [ref=e1144]:
+              - text: "0.7"
+              - generic [ref=e1145]: splitting
+            - columnheader "0.85 blooming" [ref=e1146]:
+              - text: "0.85"
+              - generic [ref=e1147]: blooming
+            - columnheader "1 full bloom" [ref=e1148]:
+              - text: "1"
+              - generic [ref=e1149]: full bloom
+        - rowgroup [ref=e1150]:
+          - row "amethyst Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e1151]:
+            - cell "amethyst" [ref=e1152]
+            - cell "Geode tracker" [ref=e1153]:
+              - img "Geode tracker" [ref=e1154]
+            - cell "Geode tracker" [ref=e1222]:
+              - img "Geode tracker" [ref=e1223]
+            - cell "Geode tracker" [ref=e1291]:
+              - img "Geode tracker" [ref=e1292]
+            - cell "Geode tracker" [ref=e1360]:
+              - img "Geode tracker" [ref=e1361]
+            - cell "Geode tracker" [ref=e1429]:
+              - img "Geode tracker" [ref=e1430]
+            - cell "Geode tracker" [ref=e1498]:
+              - img "Geode tracker" [ref=e1499]
+            - cell "Geode tracker" [ref=e1567]:
+              - img "Geode tracker" [ref=e1568]
+            - cell "Geode tracker" [ref=e1636]:
+              - img "Geode tracker" [ref=e1637]
+          - row "rose_quartz Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e1705]:
+            - cell "rose_quartz" [ref=e1706]
+            - cell "Geode tracker" [ref=e1707]:
+              - img "Geode tracker" [ref=e1708]
+            - cell "Geode tracker" [ref=e1776]:
+              - img "Geode tracker" [ref=e1777]
+            - cell "Geode tracker" [ref=e1845]:
+              - img "Geode tracker" [ref=e1846]
+            - cell "Geode tracker" [ref=e1914]:
+              - img "Geode tracker" [ref=e1915]
+            - cell "Geode tracker" [ref=e1983]:
+              - img "Geode tracker" [ref=e1984]
+            - cell "Geode tracker" [ref=e2052]:
+              - img "Geode tracker" [ref=e2053]
+            - cell "Geode tracker" [ref=e2121]:
+              - img "Geode tracker" [ref=e2122]
+            - cell "Geode tracker" [ref=e2190]:
+              - img "Geode tracker" [ref=e2191]
+          - row "citrine Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e2259]:
+            - cell "citrine" [ref=e2260]
+            - cell "Geode tracker" [ref=e2261]:
+              - img "Geode tracker" [ref=e2262]
+            - cell "Geode tracker" [ref=e2330]:
+              - img "Geode tracker" [ref=e2331]
+            - cell "Geode tracker" [ref=e2399]:
+              - img "Geode tracker" [ref=e2400]
+            - cell "Geode tracker" [ref=e2468]:
+              - img "Geode tracker" [ref=e2469]
+            - cell "Geode tracker" [ref=e2537]:
+              - img "Geode tracker" [ref=e2538]
+            - cell "Geode tracker" [ref=e2606]:
+              - img "Geode tracker" [ref=e2607]
+            - cell "Geode tracker" [ref=e2675]:
+              - img "Geode tracker" [ref=e2676]
+            - cell "Geode tracker" [ref=e2744]:
+              - img "Geode tracker" [ref=e2745]
+          - row "aquamarine Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e2813]:
+            - cell "aquamarine" [ref=e2814]
+            - cell "Geode tracker" [ref=e2815]:
+              - img "Geode tracker" [ref=e2816]
+            - cell "Geode tracker" [ref=e2884]:
+              - img "Geode tracker" [ref=e2885]
+            - cell "Geode tracker" [ref=e2953]:
+              - img "Geode tracker" [ref=e2954]
+            - cell "Geode tracker" [ref=e3022]:
+              - img "Geode tracker" [ref=e3023]
+            - cell "Geode tracker" [ref=e3091]:
+              - img "Geode tracker" [ref=e3092]
+            - cell "Geode tracker" [ref=e3160]:
+              - img "Geode tracker" [ref=e3161]
+            - cell "Geode tracker" [ref=e3229]:
+              - img "Geode tracker" [ref=e3230]
+            - cell "Geode tracker" [ref=e3298]:
+              - img "Geode tracker" [ref=e3299]
+          - row "malachite Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e3367]:
+            - cell "malachite" [ref=e3368]
+            - cell "Geode tracker" [ref=e3369]:
+              - img "Geode tracker" [ref=e3370]
+            - cell "Geode tracker" [ref=e3438]:
+              - img "Geode tracker" [ref=e3439]
+            - cell "Geode tracker" [ref=e3507]:
+              - img "Geode tracker" [ref=e3508]
+            - cell "Geode tracker" [ref=e3576]:
+              - img "Geode tracker" [ref=e3577]
+            - cell "Geode tracker" [ref=e3645]:
+              - img "Geode tracker" [ref=e3646]
+            - cell "Geode tracker" [ref=e3714]:
+              - img "Geode tracker" [ref=e3715]
+            - cell "Geode tracker" [ref=e3783]:
+              - img "Geode tracker" [ref=e3784]
+            - cell "Geode tracker" [ref=e3852]:
+              - img "Geode tracker" [ref=e3853]
+          - row "carnelian Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e3921]:
+            - cell "carnelian" [ref=e3922]
+            - cell "Geode tracker" [ref=e3923]:
+              - img "Geode tracker" [ref=e3924]
+            - cell "Geode tracker" [ref=e3992]:
+              - img "Geode tracker" [ref=e3993]
+            - cell "Geode tracker" [ref=e4061]:
+              - img "Geode tracker" [ref=e4062]
+            - cell "Geode tracker" [ref=e4130]:
+              - img "Geode tracker" [ref=e4131]
+            - cell "Geode tracker" [ref=e4199]:
+              - img "Geode tracker" [ref=e4200]
+            - cell "Geode tracker" [ref=e4268]:
+              - img "Geode tracker" [ref=e4269]
+            - cell "Geode tracker" [ref=e4337]:
+              - img "Geode tracker" [ref=e4338]
+            - cell "Geode tracker" [ref=e4406]:
+              - img "Geode tracker" [ref=e4407]
+          - row "labradorite Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e4475]:
+            - cell "labradorite" [ref=e4476]
+            - cell "Geode tracker" [ref=e4477]:
+              - img "Geode tracker" [ref=e4478]
+            - cell "Geode tracker" [ref=e4546]:
+              - img "Geode tracker" [ref=e4547]
+            - cell "Geode tracker" [ref=e4615]:
+              - img "Geode tracker" [ref=e4616]
+            - cell "Geode tracker" [ref=e4684]:
+              - img "Geode tracker" [ref=e4685]
+            - cell "Geode tracker" [ref=e4753]:
+              - img "Geode tracker" [ref=e4754]
+            - cell "Geode tracker" [ref=e4822]:
+              - img "Geode tracker" [ref=e4823]
+            - cell "Geode tracker" [ref=e4891]:
+              - img "Geode tracker" [ref=e4892]
+            - cell "Geode tracker" [ref=e4960]:
+              - img "Geode tracker" [ref=e4961]
+          - row "obsidian Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e5029]:
+            - cell "obsidian" [ref=e5030]
+            - cell "Geode tracker" [ref=e5031]:
+              - img "Geode tracker" [ref=e5032]
+            - cell "Geode tracker" [ref=e5100]:
+              - img "Geode tracker" [ref=e5101]
+            - cell "Geode tracker" [ref=e5169]:
+              - img "Geode tracker" [ref=e5170]
+            - cell "Geode tracker" [ref=e5238]:
+              - img "Geode tracker" [ref=e5239]
+            - cell "Geode tracker" [ref=e5307]:
+              - img "Geode tracker" [ref=e5308]
+            - cell "Geode tracker" [ref=e5376]:
+              - img "Geode tracker" [ref=e5377]
+            - cell "Geode tracker" [ref=e5445]:
+              - img "Geode tracker" [ref=e5446]
+            - cell "Geode tracker" [ref=e5514]:
+              - img "Geode tracker" [ref=e5515]
+      - heading "Tracker cards (real component)" [level=3] [ref=e5583]
+      - generic [ref=e5584]:
+        - generic [ref=e5585]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e5586] [cursor=pointer]:
+            - /url: /modules/mock-amethyst-standard
+            - generic [ref=e5588]:
+              - img "Geode tracker" [ref=e5589]
+              - generic [ref=e5657]:
+                - generic [ref=e5659]: Meditation
+                - generic [ref=e5660]: 1 field
+              - generic [ref=e5661]: Today
+          - button "Mark done" [ref=e5663]:
+            - img
+            - text: Mark done
+        - generic [ref=e5664]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e5665] [cursor=pointer]:
+            - /url: /modules/mock-carnelian-standard
+            - generic [ref=e5667]:
+              - img "Geode tracker" [ref=e5668]
+              - generic [ref=e5736]:
+                - generic [ref=e5738]: Meditation
+                - generic [ref=e5739]: 1 field
+              - generic [ref=e5740]: Today
+          - button "Mark done" [ref=e5742]:
+            - img
+            - text: Mark done
+        - link "Geode tracker Meditation 1 field Logged" [ref=e5744] [cursor=pointer]:
+          - /url: /modules/mock-aquamarine-standard
+          - generic [ref=e5746]:
+            - img "Geode tracker" [ref=e5747]
+            - generic [ref=e5815]:
+              - generic [ref=e5817]: Meditation
+              - generic [ref=e5818]: 1 field
+            - generic [ref=e5819]:
+              - img [ref=e5820]
+              - text: Logged
+        - generic [ref=e5822]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e5823] [cursor=pointer]:
+            - /url: /modules/mock-citrine-standard
+            - generic [ref=e5825]:
+              - img "Geode tracker" [ref=e5826]
+              - generic [ref=e5894]:
+                - generic [ref=e5896]: Meditation
+                - generic [ref=e5897]: 1 field
+              - generic [ref=e5898]: Today
+          - button "Mark done" [ref=e5900]:
+            - img
+            - text: Mark done
+        - link "Geode tracker Wellness Score Formula Computed from other trackers" [ref=e5902] [cursor=pointer]:
+          - /url: /modules/mock-malachite-formula
+          - generic [ref=e5904]:
+            - img "Geode tracker" [ref=e5905]
+            - generic [ref=e5973]:
+              - generic [ref=e5974]:
+                - generic [ref=e5975]: Wellness Score
+                - generic [ref=e5976]: Formula
+              - generic [ref=e5977]: Computed from other trackers
+        - link "Geode tracker Meditation 1 field Logged" [ref=e5979] [cursor=pointer]:
+          - /url: /modules/mock-obsidian-standard
+          - generic [ref=e5981]:
+            - img "Geode tracker" [ref=e5982]
+            - generic [ref=e6050]:
+              - generic [ref=e6052]: Meditation
+              - generic [ref=e6053]: 1 field
+            - generic [ref=e6054]:
+              - img [ref=e6055]
+              - text: Logged
+    - generic [ref=e6057]:
+      - heading "DARK mode" [level=2] [ref=e6058]
+      - generic [ref=e6059]:
+        - generic [ref=e6060]:
+          - generic [ref=e6061]: carnelian
+          - generic [ref=e6062]:
+            - img "Geode tracker" [ref=e6063]
+            - generic [ref=e6131]: 0 sealed
+          - generic [ref=e6132]:
+            - img "Geode tracker" [ref=e6133]
+            - generic [ref=e6201]: 0.1 sealed
+          - generic [ref=e6202]:
+            - img "Geode tracker" [ref=e6203]
+            - generic [ref=e6271]: 0.3 cracking
+          - generic [ref=e6272]:
+            - img "Geode tracker" [ref=e6273]
+            - generic [ref=e6341]: 0.5 charging
+          - generic [ref=e6342]:
+            - img "Geode tracker" [ref=e6343]
+            - generic [ref=e6411]: 0.6 splitting
+          - generic [ref=e6412]:
+            - img "Geode tracker" [ref=e6413]
+            - generic [ref=e6481]: 0.7 splitting
+          - generic [ref=e6482]:
+            - img "Geode tracker" [ref=e6483]
+            - generic [ref=e6551]: 0.85 blooming
+          - generic [ref=e6552]:
+            - img "Geode tracker" [ref=e6553]
+            - generic [ref=e6621]: 1 full bloom
+        - generic [ref=e6622]:
+          - generic [ref=e6623]: amethyst
+          - generic [ref=e6624]:
+            - img "Geode tracker" [ref=e6625]
+            - generic [ref=e6693]: 0 sealed
+          - generic [ref=e6694]:
+            - img "Geode tracker" [ref=e6695]
+            - generic [ref=e6763]: 0.1 sealed
+          - generic [ref=e6764]:
+            - img "Geode tracker" [ref=e6765]
+            - generic [ref=e6833]: 0.3 cracking
+          - generic [ref=e6834]:
+            - img "Geode tracker" [ref=e6835]
+            - generic [ref=e6903]: 0.5 charging
+          - generic [ref=e6904]:
+            - img "Geode tracker" [ref=e6905]
+            - generic [ref=e6973]: 0.6 splitting
+          - generic [ref=e6974]:
+            - img "Geode tracker" [ref=e6975]
+            - generic [ref=e7043]: 0.7 splitting
+          - generic [ref=e7044]:
+            - img "Geode tracker" [ref=e7045]
+            - generic [ref=e7113]: 0.85 blooming
+          - generic [ref=e7114]:
+            - img "Geode tracker" [ref=e7115]
+            - generic [ref=e7183]: 1 full bloom
+      - table [ref=e7184]:
+        - rowgroup [ref=e7185]:
+          - row "crystal \\ openness 0 sealed 0.1 sealed 0.3 cracking 0.5 charging 0.6 splitting 0.7 splitting 0.85 blooming 1 full bloom" [ref=e7186]:
+            - columnheader "crystal \\ openness" [ref=e7187]
+            - columnheader "0 sealed" [ref=e7188]:
+              - text: "0"
+              - generic [ref=e7189]: sealed
+            - columnheader "0.1 sealed" [ref=e7190]:
+              - text: "0.1"
+              - generic [ref=e7191]: sealed
+            - columnheader "0.3 cracking" [ref=e7192]:
+              - text: "0.3"
+              - generic [ref=e7193]: cracking
+            - columnheader "0.5 charging" [ref=e7194]:
+              - text: "0.5"
+              - generic [ref=e7195]: charging
+            - columnheader "0.6 splitting" [ref=e7196]:
+              - text: "0.6"
+              - generic [ref=e7197]: splitting
+            - columnheader "0.7 splitting" [ref=e7198]:
+              - text: "0.7"
+              - generic [ref=e7199]: splitting
+            - columnheader "0.85 blooming" [ref=e7200]:
+              - text: "0.85"
+              - generic [ref=e7201]: blooming
+            - columnheader "1 full bloom" [ref=e7202]:
+              - text: "1"
+              - generic [ref=e7203]: full bloom
+        - rowgroup [ref=e7204]:
+          - row "amethyst Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e7205]:
+            - cell "amethyst" [ref=e7206]
+            - cell "Geode tracker" [ref=e7207]:
+              - img "Geode tracker" [ref=e7208]
+            - cell "Geode tracker" [ref=e7276]:
+              - img "Geode tracker" [ref=e7277]
+            - cell "Geode tracker" [ref=e7345]:
+              - img "Geode tracker" [ref=e7346]
+            - cell "Geode tracker" [ref=e7414]:
+              - img "Geode tracker" [ref=e7415]
+            - cell "Geode tracker" [ref=e7483]:
+              - img "Geode tracker" [ref=e7484]
+            - cell "Geode tracker" [ref=e7552]:
+              - img "Geode tracker" [ref=e7553]
+            - cell "Geode tracker" [ref=e7621]:
+              - img "Geode tracker" [ref=e7622]
+            - cell "Geode tracker" [ref=e7690]:
+              - img "Geode tracker" [ref=e7691]
+          - row "rose_quartz Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e7759]:
+            - cell "rose_quartz" [ref=e7760]
+            - cell "Geode tracker" [ref=e7761]:
+              - img "Geode tracker" [ref=e7762]
+            - cell "Geode tracker" [ref=e7830]:
+              - img "Geode tracker" [ref=e7831]
+            - cell "Geode tracker" [ref=e7899]:
+              - img "Geode tracker" [ref=e7900]
+            - cell "Geode tracker" [ref=e7968]:
+              - img "Geode tracker" [ref=e7969]
+            - cell "Geode tracker" [ref=e8037]:
+              - img "Geode tracker" [ref=e8038]
+            - cell "Geode tracker" [ref=e8106]:
+              - img "Geode tracker" [ref=e8107]
+            - cell "Geode tracker" [ref=e8175]:
+              - img "Geode tracker" [ref=e8176]
+            - cell "Geode tracker" [ref=e8244]:
+              - img "Geode tracker" [ref=e8245]
+          - row "citrine Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e8313]:
+            - cell "citrine" [ref=e8314]
+            - cell "Geode tracker" [ref=e8315]:
+              - img "Geode tracker" [ref=e8316]
+            - cell "Geode tracker" [ref=e8384]:
+              - img "Geode tracker" [ref=e8385]
+            - cell "Geode tracker" [ref=e8453]:
+              - img "Geode tracker" [ref=e8454]
+            - cell "Geode tracker" [ref=e8522]:
+              - img "Geode tracker" [ref=e8523]
+            - cell "Geode tracker" [ref=e8591]:
+              - img "Geode tracker" [ref=e8592]
+            - cell "Geode tracker" [ref=e8660]:
+              - img "Geode tracker" [ref=e8661]
+            - cell "Geode tracker" [ref=e8729]:
+              - img "Geode tracker" [ref=e8730]
+            - cell "Geode tracker" [ref=e8798]:
+              - img "Geode tracker" [ref=e8799]
+          - row "aquamarine Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e8867]:
+            - cell "aquamarine" [ref=e8868]
+            - cell "Geode tracker" [ref=e8869]:
+              - img "Geode tracker" [ref=e8870]
+            - cell "Geode tracker" [ref=e8938]:
+              - img "Geode tracker" [ref=e8939]
+            - cell "Geode tracker" [ref=e9007]:
+              - img "Geode tracker" [ref=e9008]
+            - cell "Geode tracker" [ref=e9076]:
+              - img "Geode tracker" [ref=e9077]
+            - cell "Geode tracker" [ref=e9145]:
+              - img "Geode tracker" [ref=e9146]
+            - cell "Geode tracker" [ref=e9214]:
+              - img "Geode tracker" [ref=e9215]
+            - cell "Geode tracker" [ref=e9283]:
+              - img "Geode tracker" [ref=e9284]
+            - cell "Geode tracker" [ref=e9352]:
+              - img "Geode tracker" [ref=e9353]
+          - row "malachite Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e9421]:
+            - cell "malachite" [ref=e9422]
+            - cell "Geode tracker" [ref=e9423]:
+              - img "Geode tracker" [ref=e9424]
+            - cell "Geode tracker" [ref=e9492]:
+              - img "Geode tracker" [ref=e9493]
+            - cell "Geode tracker" [ref=e9561]:
+              - img "Geode tracker" [ref=e9562]
+            - cell "Geode tracker" [ref=e9630]:
+              - img "Geode tracker" [ref=e9631]
+            - cell "Geode tracker" [ref=e9699]:
+              - img "Geode tracker" [ref=e9700]
+            - cell "Geode tracker" [ref=e9768]:
+              - img "Geode tracker" [ref=e9769]
+            - cell "Geode tracker" [ref=e9837]:
+              - img "Geode tracker" [ref=e9838]
+            - cell "Geode tracker" [ref=e9906]:
+              - img "Geode tracker" [ref=e9907]
+          - row "carnelian Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e9975]:
+            - cell "carnelian" [ref=e9976]
+            - cell "Geode tracker" [ref=e9977]:
+              - img "Geode tracker" [ref=e9978]
+            - cell "Geode tracker" [ref=e10046]:
+              - img "Geode tracker" [ref=e10047]
+            - cell "Geode tracker" [ref=e10115]:
+              - img "Geode tracker" [ref=e10116]
+            - cell "Geode tracker" [ref=e10184]:
+              - img "Geode tracker" [ref=e10185]
+            - cell "Geode tracker" [ref=e10253]:
+              - img "Geode tracker" [ref=e10254]
+            - cell "Geode tracker" [ref=e10322]:
+              - img "Geode tracker" [ref=e10323]
+            - cell "Geode tracker" [ref=e10391]:
+              - img "Geode tracker" [ref=e10392]
+            - cell "Geode tracker" [ref=e10460]:
+              - img "Geode tracker" [ref=e10461]
+          - row "labradorite Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e10529]:
+            - cell "labradorite" [ref=e10530]
+            - cell "Geode tracker" [ref=e10531]:
+              - img "Geode tracker" [ref=e10532]
+            - cell "Geode tracker" [ref=e10600]:
+              - img "Geode tracker" [ref=e10601]
+            - cell "Geode tracker" [ref=e10669]:
+              - img "Geode tracker" [ref=e10670]
+            - cell "Geode tracker" [ref=e10738]:
+              - img "Geode tracker" [ref=e10739]
+            - cell "Geode tracker" [ref=e10807]:
+              - img "Geode tracker" [ref=e10808]
+            - cell "Geode tracker" [ref=e10876]:
+              - img "Geode tracker" [ref=e10877]
+            - cell "Geode tracker" [ref=e10945]:
+              - img "Geode tracker" [ref=e10946]
+            - cell "Geode tracker" [ref=e11014]:
+              - img "Geode tracker" [ref=e11015]
+          - row "obsidian Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker Geode tracker" [ref=e11083]:
+            - cell "obsidian" [ref=e11084]
+            - cell "Geode tracker" [ref=e11085]:
+              - img "Geode tracker" [ref=e11086]
+            - cell "Geode tracker" [ref=e11154]:
+              - img "Geode tracker" [ref=e11155]
+            - cell "Geode tracker" [ref=e11223]:
+              - img "Geode tracker" [ref=e11224]
+            - cell "Geode tracker" [ref=e11292]:
+              - img "Geode tracker" [ref=e11293]
+            - cell "Geode tracker" [ref=e11361]:
+              - img "Geode tracker" [ref=e11362]
+            - cell "Geode tracker" [ref=e11430]:
+              - img "Geode tracker" [ref=e11431]
+            - cell "Geode tracker" [ref=e11499]:
+              - img "Geode tracker" [ref=e11500]
+            - cell "Geode tracker" [ref=e11568]:
+              - img "Geode tracker" [ref=e11569]
+      - heading "Tracker cards (real component)" [level=3] [ref=e11637]
+      - generic [ref=e11638]:
+        - generic [ref=e11639]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e11640] [cursor=pointer]:
+            - /url: /modules/mock-amethyst-standard
+            - generic [ref=e11642]:
+              - img "Geode tracker" [ref=e11643]
+              - generic [ref=e11711]:
+                - generic [ref=e11713]: Meditation
+                - generic [ref=e11714]: 1 field
+              - generic [ref=e11715]: Today
+          - button "Mark done" [ref=e11717]:
+            - img
+            - text: Mark done
+        - generic [ref=e11718]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e11719] [cursor=pointer]:
+            - /url: /modules/mock-carnelian-standard
+            - generic [ref=e11721]:
+              - img "Geode tracker" [ref=e11722]
+              - generic [ref=e11790]:
+                - generic [ref=e11792]: Meditation
+                - generic [ref=e11793]: 1 field
+              - generic [ref=e11794]: Today
+          - button "Mark done" [ref=e11796]:
+            - img
+            - text: Mark done
+        - link "Geode tracker Meditation 1 field Logged" [ref=e11798] [cursor=pointer]:
+          - /url: /modules/mock-aquamarine-standard
+          - generic [ref=e11800]:
+            - img "Geode tracker" [ref=e11801]
+            - generic [ref=e11869]:
+              - generic [ref=e11871]: Meditation
+              - generic [ref=e11872]: 1 field
+            - generic [ref=e11873]:
+              - img [ref=e11874]
+              - text: Logged
+        - generic [ref=e11876]:
+          - link "Geode tracker Meditation 1 field Today" [ref=e11877] [cursor=pointer]:
+            - /url: /modules/mock-citrine-standard
+            - generic [ref=e11879]:
+              - img "Geode tracker" [ref=e11880]
+              - generic [ref=e11948]:
+                - generic [ref=e11950]: Meditation
+                - generic [ref=e11951]: 1 field
+              - generic [ref=e11952]: Today
+          - button "Mark done" [ref=e11954]:
+            - img
+            - text: Mark done
+        - link "Geode tracker Wellness Score Formula Computed from other trackers" [ref=e11956] [cursor=pointer]:
+          - /url: /modules/mock-malachite-formula
+          - generic [ref=e11958]:
+            - img "Geode tracker" [ref=e11959]
+            - generic [ref=e12027]:
+              - generic [ref=e12028]:
+                - generic [ref=e12029]: Wellness Score
+                - generic [ref=e12030]: Formula
+              - generic [ref=e12031]: Computed from other trackers
+        - link "Geode tracker Meditation 1 field Logged" [ref=e12033] [cursor=pointer]:
+          - /url: /modules/mock-obsidian-standard
+          - generic [ref=e12035]:
+            - img "Geode tracker" [ref=e12036]
+            - generic [ref=e12104]:
+              - generic [ref=e12106]: Meditation
+              - generic [ref=e12107]: 1 field
+            - generic [ref=e12108]:
+              - img [ref=e12109]
+              - text: Logged
+  - button "Open Next.js Dev Tools" [ref=e12116] [cursor=pointer]:
+    - img [ref=e12117]

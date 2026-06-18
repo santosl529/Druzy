@@ -132,6 +132,16 @@
 - **Heatmap binary for boolean fields:** `getCalendarData` now detects when a field is boolean (every logged value is true/false) and aggregates with OR semantics per day (any true → 1, else 0) using `Math.max`, instead of summing. This keeps true days at full intensity (max becomes 1, so true = full primary color) rather than scaling them down relative to multi-true days. Numeric fields still sum; non-numeric non-boolean fields still count entries
 - **Hydration mismatch fixed:** `@dnd-kit` `DndContext` auto-generated `aria-describedby` ids (`DndDescribedBy-0` vs `-1`) differed between server and client render. Passed a stable `id={`charts-${moduleId}`}` to `DndContext` in `components/charts/sortable-charts.tsx`
 
+### 18. Light/dark mode toggle (Settings)
+- New **Appearance** section on `/settings` with a button to switch between light and dark mode
+- Preference stored in `localStorage` (`druzy-color-scheme`); when unset, app follows system `prefers-color-scheme` (existing CSS behavior)
+- `lib/color-scheme.ts` applies `.light` / `.dark` on `<html>`; inline script in root layout prevents flash on load; `ColorSchemeProvider` syncs across tabs
+
+### 19. Next.js 16 proxy migration + Node 26 Tailwind fix
+- Renamed `middleware.ts` → `proxy.ts` (`export function proxy`) per Next.js 16.2 deprecation
+- Bumped `@tailwindcss/postcss` / `tailwindcss` to 4.3.1 — uses `module.registerHooks()` on Node 26+ instead of deprecated `module.register()` (DEP0205)
+- Proxy auth refresh failures fail open (transient Supabase network blips no longer log scary stack traces or redirect to login)
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI

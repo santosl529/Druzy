@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { Separator } from '@/components/ui/separator'
+import { SettingsColorScheme } from '@/components/settings-color-scheme'
 import { SettingsTimezone } from '@/components/settings-timezone'
 import { getProfile } from '@/app/actions/profile'
 
@@ -20,6 +21,14 @@ export default async function SettingsPage() {
           <h1 className="text-2xl font-semibold">Settings</h1>
           <p className="text-muted-foreground text-sm mt-1">{user.email}</p>
         </div>
+
+        <Separator />
+
+        {/* Appearance */}
+        <section className="space-y-4">
+          <h2 className="font-medium">Appearance</h2>
+          <SettingsColorScheme />
+        </section>
 
         <Separator />
 

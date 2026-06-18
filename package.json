@@ -36,14 +36,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.3.1",
     "typescript": "^5",
     "vitest": "^4.1.9"
   }

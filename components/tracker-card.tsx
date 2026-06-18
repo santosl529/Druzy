@@ -37,7 +37,7 @@ export function TrackerCard({ mod, hasEntryToday, today, openness, onMarkDone }:
     <div className="relative group">
       <Link href={`/modules/${mod.id}`} className="block">
         <Card
-          className="h-full transition-shadow group-hover:shadow-md"
+          className="h-full transition-shadow group-hover:shadow-md [--card-spacing:1.2rem]"
           style={{
             ...geodeVars(mod.crystal_type, openness),
             borderColor:
@@ -46,18 +46,18 @@ export function TrackerCard({ mod, hasEntryToday, today, openness, onMarkDone }:
               '0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 45%), transparent)',
           }}
         >
-          <CardHeader className="flex flex-row items-start gap-3">
-            <GeodeIcon crystalType={mod.crystal_type} openness={openness} className="size-10 shrink-0" />
+          <CardHeader className="flex flex-row items-start gap-3.5">
+            <GeodeIcon crystalType={mod.crystal_type} openness={openness} className="size-12 shrink-0" />
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-[1.2rem] flex items-center gap-2.5">
                 <span className="truncate">{mod.name}</span>
                 {isFormula && (
-                  <span className="text-[10px] font-medium uppercase tracking-wide rounded-full bg-muted px-2 py-0.5 text-muted-foreground shrink-0">
+                  <span className="text-xs font-medium uppercase tracking-wide rounded-full bg-muted px-2.5 py-0.5 text-muted-foreground shrink-0">
                     Formula
                   </span>
                 )}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-[1.05rem]">
                 {isFormula
                   ? 'Computed from other trackers'
                   : `${mod.fields.length} ${mod.fields.length === 1 ? 'field' : 'fields'}`}
@@ -68,7 +68,7 @@ export function TrackerCard({ mod, hasEntryToday, today, openness, onMarkDone }:
             {!isFormula && (
               <span
                 className={cn(
-                  'shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                  'shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
                   hasEntryToday
                     ? 'text-background'
                     : 'border border-border text-muted-foreground',
@@ -79,7 +79,7 @@ export function TrackerCard({ mod, hasEntryToday, today, openness, onMarkDone }:
                     : undefined
                 }
               >
-                {hasEntryToday ? <Check className="size-3" /> : null}
+                {hasEntryToday ? <Check className="size-3.5" /> : null}
                 {hasEntryToday ? 'Logged' : 'Today'}
               </span>
             )}
@@ -88,15 +88,15 @@ export function TrackerCard({ mod, hasEntryToday, today, openness, onMarkDone }:
       </Link>
 
       {!isFormula && !hasEntryToday && (
-        <div className="absolute bottom-3 right-3 z-10">
+        <div className="absolute bottom-3.5 right-3.5 z-10">
           <Button
             size="sm"
             variant="secondary"
-            className="h-7 px-2 text-xs sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            className="h-8 px-2.5 text-[0.9rem] sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={handleMarkGreen}
             disabled={isPending}
           >
-            <Check className="w-3 h-3 mr-1" />
+            <Check className="w-3.5 h-3.5 mr-1" />
             {isPending ? 'Saving…' : 'Mark done'}
           </Button>
         </div>

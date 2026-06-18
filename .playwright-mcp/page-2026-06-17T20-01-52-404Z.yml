@@ -1,0 +1,45 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e23] [cursor=pointer]:
+    - img [ref=e24]
+  - alert [ref=e27]
+  - generic [ref=e30]:
+    - banner [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - link "Druzy" [ref=e34] [cursor=pointer]:
+            - /url: /
+          - navigation [ref=e35]:
+            - link "Trackers" [ref=e36] [cursor=pointer]:
+              - /url: /
+            - link "Dashboard" [ref=e37] [cursor=pointer]:
+              - /url: /dashboard
+            - link "Assistant" [ref=e38] [cursor=pointer]:
+              - /url: /assistant
+            - link "Food" [ref=e39] [cursor=pointer]:
+              - /url: /food
+            - link "Journal" [ref=e40] [cursor=pointer]:
+              - /url: /journal
+            - link "Settings" [ref=e41] [cursor=pointer]:
+              - /url: /settings
+        - generic [ref=e42]:
+          - generic [ref=e43]: geodetest@example.com
+          - button "Sign out" [ref=e44]
+    - main [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - heading "Your trackers" [level=1] [ref=e48]
+          - paragraph [ref=e49]: Log and visualize anything that matters to you.
+        - generic [ref=e50]:
+          - link "Formula tracker" [ref=e51] [cursor=pointer]:
+            - /url: /modules/new/formula
+          - link "Build manually" [ref=e52] [cursor=pointer]:
+            - /url: /modules/new
+          - link "AI assistant" [ref=e53] [cursor=pointer]:
+            - /url: /assistant
+      - generic [ref=e54]:
+        - paragraph [ref=e55]: No trackers yet.
+        - generic [ref=e56]:
+          - link "Create with AI assistant" [ref=e57] [cursor=pointer]:
+            - /url: /assistant
+          - link "Build manually" [ref=e58] [cursor=pointer]:
+            - /url: /modules/new

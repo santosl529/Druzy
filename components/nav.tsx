@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useTransition } from 'react'
 import { MenuIcon, XIcon } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
   { href: '/', label: 'Trackers' },
@@ -16,7 +18,21 @@ const NAV_LINKS = [
   { href: '/settings', label: 'Settings' },
 ]
 
+function isNavActive(pathname: string, href: string) {
+  if (href === '/') return pathname === '/'
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+const navLinkClass = (active: boolean) =>
+  cn(
+    'transition-colors',
+    active
+      ? 'text-foreground font-semibold'
+      : 'text-foreground/80 font-medium hover:text-foreground',
+  )
+
 export function Nav({ email }: { email: string }) {
+  const pathname = usePathname()
   const [pending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
 
@@ -26,17 +42,21 @@ export function Nav({ email }: { email: string }) {
 
   return (
     <header className="border-b bg-background">
-      <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="font-semibold tracking-tight" onClick={() => setOpen(false)}>
+          <Link
+            href="/"
+            className="font-semibold tracking-tight shrink-0"
+            onClick={() => setOpen(false)}
+          >
             Druzy
           </Link>
-          <nav className="hidden md:flex items-center gap-4 text-sm">
+          <nav className="hidden md:flex items-center gap-6">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className={navLinkClass(isNavActive(pathname, link.href))}
               >
                 {link.label}
               </Link>
@@ -44,8 +64,8 @@ export function Nav({ email }: { email: string }) {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground hidden sm:block">{email}</span>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-sm text-foreground/70 hidden sm:block">{email}</span>
           <Button
             variant="outline"
             size="sm"
@@ -70,12 +90,12 @@ export function Nav({ email }: { email: string }) {
       {/* Mobile dropdown */}
       {open && (
         <div className="md:hidden border-t bg-background">
-          <nav className="max-w-4xl mx-auto px-4 py-3 flex flex-col">
+          <nav className="max-w-6xl mx-auto px-4 py-3 flex flex-col">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2.5 border-b border-border/50 last:border-0"
+                className={cn(navLinkClass(isNavActive(pathname, link.href)), 'py-2.5 border-b border-border/50 last:border-0')}
                 onClick={() => setOpen(false)}
               >
                 {link.label}
