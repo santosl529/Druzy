@@ -14,9 +14,27 @@ import {
 } from '@/components/ui/select'
 import { createModule, updateModule } from '@/app/actions/modules'
 import { CrystalPicker } from '@/components/crystal-picker'
-import { FIELD_TYPES } from '@/lib/types'
-import type { Module, ModuleField } from '@/lib/types'
+import { FIELD_TYPES, CARD_SUMMARY_MODES, CARD_TIME_WINDOWS } from '@/lib/types'
+import type { Module, ModuleField, CardSummaryMode, CardTimeWindow } from '@/lib/types'
 import type { CrystalKey } from '@/lib/crystals'
+
+const CARD_MODE_LABEL: Record<CardSummaryMode, string> = {
+  sum: 'Total (sum)',
+  avg: 'Average',
+  min: 'Minimum',
+  max: 'Maximum',
+  median: 'Median',
+  count: 'Count of entries',
+  latest: 'Latest value',
+}
+
+const CARD_WINDOW_LABEL: Record<CardTimeWindow, string> = {
+  today: 'Today',
+  week: 'This week',
+  all: 'All time',
+}
+
+const AUTO = '__auto__'
 
 interface Props {
   initial?: Module
@@ -36,6 +54,11 @@ export function ModuleBuilder({ initial }: Props) {
     initial?.fields ?? [{ key: '', label: '', type: 'text', required: false }]
   )
   const [crystalType, setCrystalType] = useState<CrystalKey>(initial?.crystal_type ?? 'amethyst')
+
+  // Card summary: which value the dashboard card shows. '' = automatic default.
+  const [cardField, setCardField] = useState<string>(initial?.card_config?.field ?? '')
+  const [cardMode, setCardMode] = useState<CardSummaryMode>(initial?.card_config?.mode ?? 'sum')
+  const [cardWindow, setCardWindow] = useState<CardTimeWindow>(initial?.card_config?.timeWindow ?? 'today')
 
   function addField() {
     setFields((f) => [...f, { key: '', label: '', type: 'text', required: false }])
@@ -61,6 +84,13 @@ export function ModuleBuilder({ initial }: Props) {
     fd.set('name', name)
     fd.set('fields', JSON.stringify(fields))
     fd.set('crystal_type', crystalType)
+    // Only persist a card_config that points at a field that still exists;
+    // otherwise leave it automatic (blank → null server-side).
+    const cardConfig =
+      cardField && fields.some((f) => f.key === cardField)
+        ? { field: cardField, mode: cardMode, timeWindow: cardWindow }
+        : null
+    fd.set('card_config', cardConfig ? JSON.stringify(cardConfig) : '')
 
     startTransition(async () => {
       const result = initial
@@ -175,6 +205,65 @@ export function ModuleBuilder({ initial }: Props) {
             )}
           </div>
         ))}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-medium">Card summary</h2>
+          <p className="text-sm text-muted-foreground">
+            The single value shown on this tracker&apos;s dashboard card. Leave automatic to pick a sensible default.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label>Value</Label>
+            <Select
+              value={cardField || AUTO}
+              onValueChange={(v) => setCardField(v === AUTO ? '' : (v ?? ''))}
+            >
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AUTO}>Automatic</SelectItem>
+                {fields
+                  .filter((f) => f.key)
+                  .map((f) => (
+                    <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {cardField && (
+            <>
+              <div className="space-y-1.5">
+                <Label>Summarize by</Label>
+                <Select value={cardMode} onValueChange={(v) => setCardMode((v ?? cardMode) as CardSummaryMode)}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CARD_SUMMARY_MODES.map((m) => (
+                      <SelectItem key={m} value={m}>{CARD_MODE_LABEL[m]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Over</Label>
+                <Select value={cardWindow} onValueChange={(v) => setCardWindow((v ?? cardWindow) as CardTimeWindow)}>
+                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CARD_TIME_WINDOWS.map((w) => (
+                      <SelectItem key={w} value={w}>{CARD_WINDOW_LABEL[w]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

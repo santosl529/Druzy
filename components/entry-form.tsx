@@ -22,11 +22,12 @@ interface Props {
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   savedTimezone?: string | null
   /**
-   * Called after a successful entry. When provided (e.g. the quick-log modal),
-   * the form does not reset — the caller closes the surface and updates
-   * optimistically. When omitted (module detail page), the form resets in place.
+   * Called after a successful entry, with the values the server parsed so the
+   * caller can update optimistically. When provided (e.g. the quick-log modal),
+   * the form does not reset — the caller closes the surface. When omitted
+   * (module detail page), the form resets in place.
    */
-  onSuccess?: () => void
+  onSuccess?: (logged: { values: Record<string, unknown>; entryDate: string }) => void
   /** Override the submit button label (defaults to "Log entry"). */
   submitLabel?: string
 }
@@ -47,10 +48,10 @@ export function EntryForm({ moduleId, fields, savedTimezone, onSuccess, submitLa
     }
     startTransition(async () => {
       const result = await createEntry(moduleId, fields, fd)
-      if (result?.error) {
+      if ('error' in result) {
         setError(result.error)
       } else if (onSuccess) {
-        onSuccess()
+        onSuccess(result)
       } else {
         formRef.current?.reset()
         setSelectValues({})

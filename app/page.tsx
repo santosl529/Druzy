@@ -6,6 +6,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
 import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import { computeOpenness } from '@/lib/openness'
+import type { CardEntry } from '@/lib/card-summary'
 import type { Module } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -34,13 +35,14 @@ export default async function DashboardPage() {
   const moduleIds = typedModules.map((m) => m.id)
   const since = daysAgoInTimezone(29, savedTimezone || 'UTC') // inclusive 30-day window
 
-  // One query: every entry (module_id, entry_date) for this user. At this scale
+  // One query: every entry for this user. We need values + created_at (beyond
+  // module_id/entry_date) so each card can compute its summary. At this scale
   // (tens of users, a handful of trackers) this is a cheap indexed read.
   const { data: allEntries } =
     moduleIds.length > 0
       ? await supabase
           .from('entries')
-          .select('module_id, entry_date')
+          .select('module_id, entry_date, values, created_at')
           .eq('user_id', user.id)
           .in('module_id', moduleIds)
       : { data: [] }
@@ -48,6 +50,8 @@ export default async function DashboardPage() {
   const nowMs = Date.parse(today + 'T00:00:00Z')
   const recentDaysByModule = new Map<string, Set<string>>()
   const totalByModule = new Map<string, number>()
+  // Per-module entries (summary-relevant columns only) for the card summaries.
+  const entriesByModule: Record<string, CardEntry[]> = {}
   for (const e of allEntries ?? []) {
     totalByModule.set(e.module_id, (totalByModule.get(e.module_id) ?? 0) + 1)
     if (e.entry_date >= since) {
@@ -55,6 +59,11 @@ export default async function DashboardPage() {
       set.add(e.entry_date)
       recentDaysByModule.set(e.module_id, set)
     }
+    ;(entriesByModule[e.module_id] ??= []).push({
+      entry_date: e.entry_date,
+      values: (e.values ?? {}) as Record<string, unknown>,
+      created_at: e.created_at,
+    })
   }
 
   const opennessByModule: Record<string, number> = {}
@@ -111,6 +120,7 @@ export default async function DashboardPage() {
           <TrackerGrid
             modules={typedModules}
             initialDoneToday={[...doneToday]}
+            entriesByModule={entriesByModule}
             serverDate={today}
             savedTimezone={savedTimezone}
             opennessByModule={opennessByModule}

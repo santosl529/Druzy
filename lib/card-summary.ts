@@ -10,6 +10,13 @@
 import type { CardConfig, CardSummaryMode, Entry, Module, ModuleField } from './types'
 import { applyAggregation } from './chart-data'
 
+/**
+ * The slice of an entry the card summary needs. Lets the dashboard ship only
+ * these columns to the client (and lets optimistic logs be built cheaply)
+ * without the full Entry (id/user_id/module_id).
+ */
+export type CardEntry = Pick<Entry, 'entry_date' | 'values' | 'created_at'>
+
 export interface CardSummary {
   /** Ready-to-render text, e.g. "1,847 kcal", "154 lbs", "Done", "Not logged". */
   text: string
@@ -69,7 +76,7 @@ function weekStart(today: string): string {
   return d.toISOString().split('T')[0]
 }
 
-function inWindow(entry: Entry, cfg: CardConfig, today: string): boolean {
+function inWindow(entry: CardEntry, cfg: CardConfig, today: string): boolean {
   switch (cfg.timeWindow) {
     case 'today': return entry.entry_date === today
     case 'week':  return entry.entry_date >= weekStart(today) && entry.entry_date <= today
@@ -78,12 +85,12 @@ function inWindow(entry: Entry, cfg: CardConfig, today: string): boolean {
 }
 
 /** Most-recent-first: latest entry_date wins, ties broken by created_at. */
-function byRecencyDesc(a: Entry, b: Entry): number {
+function byRecencyDesc(a: CardEntry, b: CardEntry): number {
   if (a.entry_date !== b.entry_date) return a.entry_date < b.entry_date ? 1 : -1
   return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
 }
 
-export function computeCardSummary(mod: Module, entries: Entry[], today: string): CardSummary {
+export function computeCardSummary(mod: Module, entries: CardEntry[], today: string): CardSummary {
   const cfg = resolveCardConfig(mod)
   const field = mod.fields.find((f) => f.key === cfg.field)
   const windowed = entries.filter((e) => inWindow(e, cfg, today))

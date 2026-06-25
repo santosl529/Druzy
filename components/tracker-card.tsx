@@ -9,26 +9,50 @@ import { GeodeIcon } from '@/components/geode-icon'
 import { QuickLogDialog } from '@/components/quick-log-dialog'
 import { geodeVars } from '@/lib/geode-style'
 import { getBinaryField } from '@/lib/card'
+import { computeCardSummary, resolveCardConfig, type CardEntry } from '@/lib/card-summary'
+import { cn } from '@/lib/utils'
 import { setBinaryToday } from '@/app/actions/entries'
-import type { Module } from '@/lib/types'
+import type { Module, CardSummaryMode, CardTimeWindow } from '@/lib/types'
+
+/** A successful log, carrying the parsed values so the card can update optimistically. */
+export type LoggedEntry = { values: Record<string, unknown>; entryDate: string }
 
 interface TrackerCardProps {
   mod: Module
   hasEntryToday: boolean
+  /** This module's entries (window filtering happens at compute time). */
+  entries: CardEntry[]
   /** Today's date (YYYY-MM-DD) resolved in the user's day-boundary timezone. */
   today: string
   openness: number
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   savedTimezone: string | null
-  /** Mark this tracker as logged today (optimistic). */
-  onLogged: (moduleId: string) => void
+  /** Mark this tracker as logged today (optimistic), carrying the logged values. */
+  onLogged: (moduleId: string, logged: LoggedEntry) => void
   /** Mark this tracker as not-logged today (optimistic; binary unmark). */
   onUnlogged: (moduleId: string) => void
+}
+
+const MODE_LABEL: Record<CardSummaryMode, string> = {
+  sum: 'Total',
+  avg: 'Avg',
+  min: 'Min',
+  max: 'Max',
+  median: 'Median',
+  count: 'Count',
+  latest: 'Latest',
+}
+
+const WINDOW_LABEL: Record<CardTimeWindow, string> = {
+  today: 'today',
+  week: 'this week',
+  all: 'all time',
 }
 
 export function TrackerCard({
   mod,
   hasEntryToday,
+  entries,
   today,
   openness,
   savedTimezone,
@@ -39,16 +63,32 @@ export function TrackerCard({
   const isFormula = mod.kind === 'formula'
   const binaryField = getBinaryField(mod)
 
+  const summary = computeCardSummary(mod, entries, today)
+  const cfg = resolveCardConfig(mod)
+  const summaryField = mod.fields.find((f) => f.key === cfg.field)
+  // A binary tracker's toggle already conveys its state, so only show a separate
+  // summary value there when the user has configured a non-default one.
+  const showSummary = !isFormula && (!binaryField || mod.card_config !== null)
+
+  const fieldLabel = summaryField?.label ?? cfg.field
+  const caption =
+    cfg.mode === 'count'
+      ? `Entries · ${WINDOW_LABEL[cfg.timeWindow]}`
+      : cfg.mode === 'latest'
+        ? `Latest ${fieldLabel} · ${WINDOW_LABEL[cfg.timeWindow]}`
+        : `${MODE_LABEL[cfg.mode]} ${fieldLabel} · ${WINDOW_LABEL[cfg.timeWindow]}`
+
   function handleToggle() {
     const next = !hasEntryToday
+    const logged: LoggedEntry = { values: { [binaryField!.key]: true }, entryDate: today }
     // Optimistic flip; revert on error.
-    if (next) onLogged(mod.id)
+    if (next) onLogged(mod.id, logged)
     else onUnlogged(mod.id)
     startTransition(async () => {
       const result = await setBinaryToday(mod.id, binaryField!.key, today, next)
       if (result?.error) {
         if (next) onUnlogged(mod.id)
-        else onLogged(mod.id)
+        else onLogged(mod.id, logged)
       }
     })
   }
@@ -94,10 +134,26 @@ export function TrackerCard({
         </Link>
       </CardHeader>
 
-      {/* Primary action: logging. Binary trackers get a one-tap toggle; everything
-          else opens the reused entry-form modal. Formula trackers can't be logged. */}
+      {/* Card summary value + primary logging action. Binary trackers get a
+          one-tap toggle; everything else opens the reused entry-form modal.
+          Formula trackers can't be logged. */}
       {!isFormula && (
-        <CardContent>
+        <CardContent className="space-y-3">
+          {showSummary && (
+            <div>
+              <div
+                className={cn(
+                  'font-semibold tabular-nums leading-tight',
+                  summary.empty ? 'text-lg text-muted-foreground' : 'text-2xl',
+                )}
+                style={summary.empty ? undefined : { color: 'var(--crystal-primary)' }}
+              >
+                {summary.text}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{caption}</p>
+            </div>
+          )}
+
           {binaryField ? (
             <Button
               className="w-full"
@@ -112,7 +168,11 @@ export function TrackerCard({
               {hasEntryToday ? 'Logged' : 'Log'}
             </Button>
           ) : (
-            <QuickLogDialog mod={mod} savedTimezone={savedTimezone} onLogged={() => onLogged(mod.id)}>
+            <QuickLogDialog
+              mod={mod}
+              savedTimezone={savedTimezone}
+              onLogged={(logged) => onLogged(mod.id, logged)}
+            >
               <Button
                 className="w-full"
                 style={

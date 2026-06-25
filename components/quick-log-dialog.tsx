@@ -16,8 +16,8 @@ interface Props {
   mod: Module
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   savedTimezone: string | null
-  /** Fired after a successful log so the card can update optimistically. */
-  onLogged: () => void
+  /** Fired after a successful log (with the logged values) so the card can update optimistically. */
+  onLogged: (logged: { values: Record<string, unknown>; entryDate: string }) => void
   /** The element that opens the modal (the card's primary "Log" action). */
   children: React.ReactNode
 }
@@ -44,9 +44,9 @@ export function QuickLogDialog({ mod, savedTimezone, onLogged, children }: Props
           fields={mod.fields}
           savedTimezone={savedTimezone}
           submitLabel="Log entry"
-          onSuccess={() => {
+          onSuccess={(logged) => {
             setOpen(false)
-            onLogged()
+            onLogged(logged)
           }}
         />
       </DialogContent>

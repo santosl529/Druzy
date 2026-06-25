@@ -9,7 +9,7 @@ export async function createEntry(
   moduleId: string,
   fields: ModuleField[],
   formData: FormData
-): Promise<{ error: string } | void> {
+): Promise<{ error: string } | { values: Record<string, unknown>; entryDate: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -48,6 +48,9 @@ export async function createEntry(
 
   revalidatePath('/')
   revalidatePath(`/modules/${moduleId}`)
+  // Returned so the quick-log card can update its summary optimistically with
+  // the same values the server parsed (no second parse on the client).
+  return { values, entryDate }
 }
 
 export async function updateEntry(
