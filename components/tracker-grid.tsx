@@ -42,8 +42,16 @@ export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverDate, savedTimezone])
 
-  function handleMarkDone(moduleId: string) {
+  function handleLogged(moduleId: string) {
     setDoneToday((prev) => new Set([...prev, moduleId]))
+  }
+
+  function handleUnlogged(moduleId: string) {
+    setDoneToday((prev) => {
+      const next = new Set(prev)
+      next.delete(moduleId)
+      return next
+    })
   }
 
   return (
@@ -55,7 +63,9 @@ export function TrackerGrid({ modules, initialDoneToday, serverDate, savedTimezo
           hasEntryToday={doneToday.has(mod.id)}
           today={today}
           openness={opennessByModule[mod.id] ?? 0}
-          onMarkDone={handleMarkDone}
+          savedTimezone={savedTimezone}
+          onLogged={handleLogged}
+          onUnlogged={handleUnlogged}
         />
       ))}
     </div>

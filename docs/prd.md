@@ -66,9 +66,22 @@ No team/shared-ownership relationships in MVP. Each user's data is fully siloed.
 Behavioral specs — visual/component choices are the agent's. Core unless marked.
 
 ### 5.1 Trackers `/`
-- **Purpose:** home; list of the user's trackers.
+- **Purpose:** home; list of the user's trackers — a place to log from and see at-a-glance without opening the full tracker.
 - **Elements/actions:** grid of module cards; entry points to create a new module (assistant or manual); quick link into each module.
 - **Empty state:** new-user prompt to create a first tracker.
+
+- **TODO — Quick-log from the grid (Commit 1):** each card is logging-first. The primary card action is "Log"; viewing the full tracker page is a secondary affordance (title / small "open" icon) so the two don't compete for the same click.
+  - **Modal log (default):** a "Log" action opens a lightweight popup containing that module's entry form. **Reuse the generic `EntryForm` renderer and the `createEntry` server action — no second form, no second write path.** Entry date defaults to today (computed via the user's `profiles.day_boundary_tz` day-boundary logic) and is editable for late logging.
+  - **Binary special case:** a tracker whose log reduces to a single boolean field skips the modal — the card shows a one-tap done/not-done toggle reflecting today's state. Tap creates today's entry (done); tap again removes today's entry (undone). All other trackers use the modal.
+  - **Optimistic update:** after a quick-log (modal or toggle) the card reflects the change immediately without a full reload.
+  - **Removes the "mark done" null-value hack** — the old button that wrote an empty/null entry just to mark something logged is deleted along with `markGreenForToday`.
+- **TODO — Configurable card summary (Commit 2):** each card shows one meaningful summary value, configured per tracker via `modules.cardConfig` ({ field, mode, timeWindow }; see §7/§9).
+  - Summary is computed in app code, **reusing the chart aggregation logic** (`lib/chart-data.ts`), scoped to the time window and read from `entry_date` (day-boundary rule). `mode: latest` returns the most recent entry's value (distinct from the aggregations). No new math, nothing sent to an LLM.
+  - Rendered with the field's unit if present (e.g. "1,847 kcal", "154 lbs"). Empty window → "Not logged".
+  - **Sensible default when unconfigured:** first numeric field with sum (or latest) over today; done/not-done for a single-boolean tracker. Config is an override, not a requirement.
+  - **Where configured:** a small "Card summary" section in the module edit / manual builder UI (pick field, mode, time window).
+  - After a quick-log (Commit 1) the summary updates optimistically.
+  - **Scope guardrail:** the summary shows one value, not a mini-chart. Quick-log is binary one-tap + reused-form modal only — no numeric steppers or bespoke per-type card inputs.
 
 ### 5.2a Dashboard `/dashboard`
 - **Purpose:** all charts across all modules in one view.
@@ -233,6 +246,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - `created_at` timestamptz
 - Index on `user_id`.
 - **Note:** `chart_config` was removed in v2.1; charts are now a separate `charts` table.
+- **TODO — `card_config` jsonb nullable (Commit 2):** declarative config for the trackers-grid card summary — `{ field, mode, timeWindow }` (see §9 for the shape). Null = use the sensible auto-default. Requires a migration adding the column.
 
 ### `charts`
 - `id` uuid PK
@@ -360,6 +374,20 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 **Design invariant:** chart config is purely declarative. No SQL, no JS expressions. All transforms (bucketing, aggregation, fill-forward) are computed in app code (`lib/chart-data.ts`), not stored in config.
 
+**Card summary config** (`modules.card_config` jsonb) — **TODO (Commit 2)**; declarative, computed in app code by reusing `lib/chart-data.ts` aggregation:
+
+| Field | Type | Notes |
+|---|---|---|
+| `field` | string | field key whose values the summary reads |
+| `mode` | `sum\|avg\|min\|max\|median\|count\|latest` | how to reduce the window. `latest` = most recent entry's value (distinct from the aggregations; right for Weight). The aggregation modes reuse `applyAggregation`. |
+| `timeWindow` | `today\|week\|all` | window to scope entries to (read from `entry_date`, day-boundary rule); default `today` |
+
+- Rendered with the field's `unit` if present (e.g. "1,847 kcal"). Empty window → "Not logged".
+- Null `card_config` falls back to a computed default (first numeric field summed/latest over today; done-state for a single-boolean tracker).
+- **Design invariant (mirrors chart config):** purely declarative, one value out, no SQL/expressions, all computation in app code. Not a chart builder.
+
+**Removed behavior:** the "mark done" affordance that wrote a null/empty entry to flag a tracker as logged is gone (replaced by Commit 1 quick-log + binary toggle). `markGreenForToday` and its callers are deleted.
+
 **Food macros** (fixed fields): `calories`, `protein_g`, `fat_g`, `carbs_g`
 
 **Journal extraction fields** — **user-defined** per the journal template (not fixed). Each field has a `type` ∈ `text | list | number`; number fields can optionally be wired to a tracker module's numeric field. Up to 20 fields per template.
@@ -411,6 +439,9 @@ Each step shippable and testable before the next. **Resist building schema/featu
 8. **Settings** — **built.** IANA timezone picker saved to `profiles.day_boundary_tz`; data & privacy disclosure section.
 9. **Food calorie tracking** — **built.** Photo flow (context input + explicit "Estimate calories" button) + manual flow; cloud vision → editable macros → save; daily totals; day navigation; "Also log to tracker" optional feature.
 10. **Journal transcription** — **built.** Browser-direct Ollama (no server involvement); user-defined extraction template; per-field tracker connections; manual fallback on Ollama error; photos never persisted. Default model: `qwen2.5vl`. Real-handwriting accuracy must be tested manually by the builder.
+
+11. **Quick-log from the trackers grid** — **TODO (Commit 1).** Card "Log" action opens the reused `EntryForm` in a modal (default for multi-field trackers); single-boolean trackers get a one-tap done/undone toggle. Logging is the primary card action; opening the tracker page is secondary. Optimistic card update. Removes the mark-done-null hack (`markGreenForToday`). **Checkpoint:** quick-log a multi-field tracker via the modal AND one-tap a binary tracker; confirm both write correct entries with the right date.
+12. **Configurable card summary** — **TODO (Commit 2).** `modules.card_config` ({ field, mode, timeWindow }); summary computed in app code reusing chart aggregation; rendered with unit; "Not logged" empty state; sensible auto-default when unconfigured; "Card summary" section in the module edit / builder UI. Card summary updates optimistically after a quick-log. **Checkpoint:** Nutrition → sum of calories today, Zetamac → max score today, Weight → latest; confirm each card shows the right value (and "Not logged" when empty).
 
 After step 2 especially: stop and actually use the manual version before adding AI on top.
 
