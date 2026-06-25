@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     .from('modules')
     .select('*')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+    .order('name', { ascending: true })
 
   const typedModules = (modules ?? []) as Module[]
 
