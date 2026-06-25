@@ -37,9 +37,12 @@ function entry(entry_date: string, values: Record<string, unknown>, created_at?:
   }
 }
 
-const num = (key: string, unit?: string): ModuleField => ({ key, label: key, type: 'number', required: false, unit })
-const bool = (key: string): ModuleField => ({ key, label: key, type: 'boolean', required: false })
-const text = (key: string): ModuleField => ({ key, label: key, type: 'text', required: false })
+// Labels are deliberately distinct from keys (capitalized) to verify the chip
+// caption uses the field's display name, not its key/slug.
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+const num = (key: string, unit?: string): ModuleField => ({ key, label: cap(key), type: 'number', required: false, unit })
+const bool = (key: string): ModuleField => ({ key, label: cap(key), type: 'boolean', required: false })
+const text = (key: string): ModuleField => ({ key, label: cap(key), type: 'text', required: false })
 
 // Convenience: the single summary for a one-item card.
 const one = (mod: Module, entries: Entry[], today = TODAY) => computeCardSummaries(mod, entries, today)[0]
@@ -48,13 +51,13 @@ describe('computeCardSummaries — configured single value', () => {
   it('sums a numeric field over today and renders the unit', () => {
     const mod = makeModule([num('calories', 'kcal')], cfg({ field: 'calories', mode: 'sum', timeWindow: 'today' }))
     const entries = [entry(TODAY, { calories: 800 }), entry(TODAY, { calories: 1047 })]
-    expect(one(mod, entries)).toEqual({ label: 'calories', text: '1,847 kcal', empty: false })
+    expect(one(mod, entries)).toEqual({ label: 'Calories', text: '1,847 kcal', empty: false })
   })
 
   it('renders the latest entry value (most recent entry_date), not an aggregate', () => {
     const mod = makeModule([num('weight', 'lbs')], cfg({ field: 'weight', mode: 'latest', timeWindow: 'all' }))
     const entries = [entry('2024-06-20', { weight: 156 }), entry('2024-06-24', { weight: 154 })]
-    expect(one(mod, entries)).toEqual({ label: 'weight', text: '154 lbs', empty: false })
+    expect(one(mod, entries)).toEqual({ label: 'Weight', text: '154 lbs', empty: false })
   })
 
   it('breaks latest ties on the same day by created_at', () => {
@@ -69,19 +72,19 @@ describe('computeCardSummaries — configured single value', () => {
   it('takes the max over today and labels it with the mode', () => {
     const mod = makeModule([num('score')], cfg({ field: 'score', mode: 'max', timeWindow: 'today' }))
     const entries = [entry(TODAY, { score: 42 }), entry(TODAY, { score: 51 }), entry(TODAY, { score: 47 })]
-    expect(one(mod, entries)).toEqual({ label: 'max score', text: '51', empty: false })
+    expect(one(mod, entries)).toEqual({ label: 'Max Score', text: '51', empty: false })
   })
 
   it('averages and rounds to one decimal', () => {
     const mod = makeModule([num('rating')], cfg({ field: 'rating', mode: 'avg', timeWindow: 'all' }))
     const e = [entry(TODAY, { rating: 1 }), entry(TODAY, { rating: 2 }), entry(TODAY, { rating: 2 })]
-    expect(one(mod, e)).toEqual({ label: 'avg rating', text: '1.7', empty: false })
+    expect(one(mod, e)).toEqual({ label: 'Avg Rating', text: '1.7', empty: false })
   })
 
   it('counts entries in the window (count is entries, not field values)', () => {
     const mod = makeModule([text('note')], cfg({ field: 'note', mode: 'count', timeWindow: 'today' }))
     const entries = [entry(TODAY, {}), entry(TODAY, { note: 'a' }), entry(TODAY, {})]
-    expect(one(mod, entries)).toEqual({ label: 'entries', text: '3', empty: false })
+    expect(one(mod, entries)).toEqual({ label: 'Entries', text: '3', empty: false })
   })
 
   it('scopes a week window to the last 7 days inclusive', () => {
@@ -97,13 +100,13 @@ describe('computeCardSummaries — configured single value', () => {
   it('shows "Not logged" when there are no entries in the window', () => {
     const mod = makeModule([num('calories', 'kcal')], cfg({ field: 'calories', mode: 'sum', timeWindow: 'today' }))
     const entries = [entry('2024-06-01', { calories: 500 })]
-    expect(one(mod, entries)).toEqual({ label: 'calories', text: 'Not logged', empty: true })
+    expect(one(mod, entries)).toEqual({ label: 'Calories', text: 'Not logged', empty: true })
   })
 
   it('shows "Not logged" when entries exist but the field has no numeric value', () => {
     const mod = makeModule([num('weight', 'lbs')], cfg({ field: 'weight', mode: 'latest', timeWindow: 'today' }))
     const entries = [entry(TODAY, {})]
-    expect(one(mod, entries)).toEqual({ label: 'weight', text: 'Not logged', empty: true })
+    expect(one(mod, entries)).toEqual({ label: 'Weight', text: 'Not logged', empty: true })
   })
 })
 
@@ -118,9 +121,9 @@ describe('computeCardSummaries — multiple values', () => {
     })
     const entries = [entry(TODAY, { calories: 1847, protein: 92, carbs: 210 })]
     expect(computeCardSummaries(mod, entries, TODAY)).toEqual([
-      { label: 'calories', text: '1,847 kcal', empty: false },
-      { label: 'protein', text: '92 g', empty: false },
-      { label: 'carbs', text: '210 g', empty: false },
+      { label: 'Calories', text: '1,847 kcal', empty: false },
+      { label: 'Protein', text: '92 g', empty: false },
+      { label: 'Carbs', text: '210 g', empty: false },
     ])
   })
 
@@ -133,8 +136,8 @@ describe('computeCardSummaries — multiple values', () => {
     })
     const entries = [entry(TODAY, { score: 40 }), entry(TODAY, { score: 60 }), entry('2024-01-01', { score: 20 })]
     const out = computeCardSummaries(mod, entries, TODAY)
-    expect(out[0]).toEqual({ label: 'max score', text: '60', empty: false }) // max today
-    expect(out[1]).toEqual({ label: 'avg score', text: '40', empty: false }) // avg all (40,60,20)
+    expect(out[0]).toEqual({ label: 'Max Score', text: '60', empty: false }) // max today
+    expect(out[1]).toEqual({ label: 'Avg Score', text: '40', empty: false }) // avg all (40,60,20)
   })
 
   it('drops items whose field no longer exists, keeping the valid ones', () => {
@@ -145,14 +148,14 @@ describe('computeCardSummaries — multiple values', () => {
       ],
     })
     const out = computeCardSummaries(mod, [entry(TODAY, { calories: 500 })], TODAY)
-    expect(out).toEqual([{ label: 'calories', text: '500 kcal', empty: false }])
+    expect(out).toEqual([{ label: 'Calories', text: '500 kcal', empty: false }])
   })
 })
 
 describe('computeCardSummaries — boolean done/not-done', () => {
   it('renders Done when the latest boolean is true', () => {
     const mod = makeModule([bool('done')], cfg({ field: 'done', mode: 'latest', timeWindow: 'today' }))
-    expect(one(mod, [entry(TODAY, { done: true })])).toEqual({ label: 'done', text: 'Done', empty: false })
+    expect(one(mod, [entry(TODAY, { done: true })])).toEqual({ label: 'Done', text: 'Done', empty: false })
   })
 
   it('renders Done for a presence-only (mark-done) entry with no field value', () => {
@@ -167,7 +170,7 @@ describe('computeCardSummaries — boolean done/not-done', () => {
 
   it('renders Not logged when there is no entry in the window', () => {
     const mod = makeModule([bool('done')], cfg({ field: 'done', mode: 'latest', timeWindow: 'today' }))
-    expect(one(mod, [])).toEqual({ label: 'done', text: 'Not logged', empty: true })
+    expect(one(mod, [])).toEqual({ label: 'Done', text: 'Not logged', empty: true })
   })
 })
 

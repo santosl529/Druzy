@@ -39,10 +39,10 @@ const MODE_TO_AGG: Record<Exclude<CardSummaryMode, 'latest' | 'count'>, 'sum' | 
 /** Prefix shown before the field name in a summary's label (blank where redundant). */
 const MODE_PREFIX: Record<CardSummaryMode, string> = {
   sum: '',
-  avg: 'avg ',
-  min: 'min ',
-  max: 'max ',
-  median: 'median ',
+  avg: 'Avg ',
+  min: 'Min ',
+  max: 'Max ',
+  median: 'Median ',
   count: '',
   latest: '',
 }
@@ -63,9 +63,10 @@ function formatNumber(n: number): string {
 }
 
 function labelFor(item: CardSummaryItem, field: ModuleField | undefined): string {
-  if (item.mode === 'count') return 'entries'
+  if (item.mode === 'count') return 'Entries'
+  // Use the field's display name (label) verbatim, never its key/slug.
   const fieldLabel = field?.label ?? item.field
-  return `${MODE_PREFIX[item.mode]}${fieldLabel}`.trim().toLowerCase()
+  return `${MODE_PREFIX[item.mode]}${fieldLabel}`.trim()
 }
 
 /**
