@@ -75,13 +75,14 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
   - **Binary special case:** a tracker whose log reduces to a single boolean field skips the modal — the card shows a one-tap done/not-done toggle reflecting today's state. Tap creates today's entry (done); tap again removes today's entry (undone). All other trackers use the modal.
   - **Optimistic update:** after a quick-log (modal or toggle) the card reflects the change immediately without a full reload.
   - **Removes the "mark done" null-value hack** — the old button that wrote an empty/null entry just to mark something logged is deleted along with `markGreenForToday`.
-- **Configurable card summary (built):** each card shows one meaningful summary value, configured per tracker via `modules.card_config` ({ field, mode, timeWindow }; see §7/§9).
+- **Configurable card summary (built):** each card shows one to four meaningful summary values, configured per tracker via `modules.card_config` ({ items: [{ field, mode, timeWindow }] }; see §7/§9).
   - Summary is computed in app code, **reusing the chart aggregation logic** (`lib/chart-data.ts`), scoped to the time window and read from `entry_date` (day-boundary rule). `mode: latest` returns the most recent entry's value (distinct from the aggregations). No new math, nothing sent to an LLM.
-  - Rendered with the field's unit if present (e.g. "1,847 kcal", "154 lbs"). Empty window → "Not logged".
-  - **Sensible default when unconfigured:** first numeric field with sum (or latest) over today; done/not-done for a single-boolean tracker. Config is an override, not a requirement.
-  - **Where configured:** a small "Card summary" section in the module edit / manual builder UI (pick field, mode, time window).
-  - After a quick-log (Commit 1) the summary updates optimistically.
-  - **Scope guardrail:** the summary shows one value, not a mini-chart. Quick-log is binary one-tap + reused-form modal only — no numeric steppers or bespoke per-type card inputs.
+  - Multiple values render as a compact two-column stat grid; the Log action is pinned to the bottom of every card so binary and multi-field cards keep a uniform height/layout.
+  - Each value rendered with the field's unit if present (e.g. "1,847 kcal", "154 lbs"). Empty window → "Not logged".
+  - **Sensible default when unconfigured:** first numeric field with sum over today; done/not-done for a single-boolean tracker; otherwise a count of today's entries. Config is an override, not a requirement.
+  - **Where configured:** a "Card summary" section in the module edit / manual builder UI — add up to 4 rows, each picking field, mode, time window. No rows = automatic.
+  - After a quick-log (Commit 1) the summaries update optimistically.
+  - **Scope guardrail:** the summary shows discrete values, not a mini-chart. Quick-log is binary one-tap + reused-form modal only — no numeric steppers or bespoke per-type card inputs.
 
 ### 5.2a Dashboard `/dashboard`
 - **Purpose:** all charts across all modules in one view.
@@ -246,7 +247,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - `created_at` timestamptz
 - Index on `user_id`.
 - **Note:** `chart_config` was removed in v2.1; charts are now a separate `charts` table.
-- `card_config` jsonb nullable — declarative config for the trackers-grid card summary: `{ field, mode, timeWindow }` (see §9 for the shape). Null = use the sensible auto-default. Added in migration `20240107000000_module_card_config.sql`.
+- `card_config` jsonb nullable — declarative config for the trackers-grid card summary: `{ items: [{ field, mode, timeWindow }] }`, 1–4 items (see §9 for the shape). Null = use the sensible auto-default. Added in migration `20240107000000_module_card_config.sql`.
 
 ### `charts`
 - `id` uuid PK
@@ -374,17 +375,19 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 **Design invariant:** chart config is purely declarative. No SQL, no JS expressions. All transforms (bucketing, aggregation, fill-forward) are computed in app code (`lib/chart-data.ts`), not stored in config.
 
-**Card summary config** (`modules.card_config` jsonb) — declarative, computed in app code (`lib/card-summary.ts`) by reusing `lib/chart-data.ts` aggregation:
+**Card summary config** (`modules.card_config` jsonb) — declarative, computed in app code (`lib/card-summary.ts`) by reusing `lib/chart-data.ts` aggregation. Shape: `{ items: CardSummaryItem[] }`, 1–4 items, each rendered as one stat on the card:
 
-| Field | Type | Notes |
+| `CardSummaryItem` field | Type | Notes |
 |---|---|---|
-| `field` | string | field key whose values the summary reads |
+| `field` | string | field key whose values the value reads |
 | `mode` | `sum\|avg\|min\|max\|median\|count\|latest` | how to reduce the window. `latest` = most recent entry's value (distinct from the aggregations; right for Weight). The aggregation modes reuse `applyAggregation`. |
 | `timeWindow` | `today\|week\|all` | window to scope entries to (read from `entry_date`, day-boundary rule); default `today` |
 
-- Rendered with the field's `unit` if present (e.g. "1,847 kcal"). Empty window → "Not logged".
-- Null `card_config` falls back to a computed default (first numeric field summed over today; latest done-state for a single-boolean tracker; otherwise a count of today's entries).
-- **Design invariant (mirrors chart config):** purely declarative, one value out, no SQL/expressions, all computation in app code. Not a chart builder.
+- Each item rendered with the field's `unit` if present (e.g. "1,847 kcal"). Empty window → "Not logged".
+- Items whose `field` no longer exists are dropped; if none remain valid the card falls back to the default.
+- Null `card_config` falls back to a single computed default (first numeric field summed over today; latest done-state for a single-boolean tracker; otherwise a count of today's entries).
+- **Reader tolerates the legacy single-object shape** (`{ field, mode, timeWindow }`) so pre-multi rows keep working without a data migration.
+- **Design invariant (mirrors chart config):** purely declarative, discrete values out, no SQL/expressions, all computation in app code. Not a chart builder.
 
 **Removed behavior:** the "mark done" affordance that wrote a null/empty entry to flag a tracker as logged is gone (replaced by Commit 1 quick-log + binary toggle). `markGreenForToday` and its callers are deleted.
 

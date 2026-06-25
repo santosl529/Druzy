@@ -151,16 +151,22 @@ export type CardSummaryMode = (typeof CARD_SUMMARY_MODES)[number]
 export const CARD_TIME_WINDOWS = ['today', 'week', 'all'] as const
 export type CardTimeWindow = (typeof CARD_TIME_WINDOWS)[number]
 
-/**
- * Declarative card-summary config. Optional on a module: when absent, the card
- * derives a sensible default automatically (see lib/card-summary.ts).
- */
-export interface CardConfig {
+/** One summary value shown on the card (a field reduced over a window). */
+export interface CardSummaryItem {
   /** Key of the field on this module whose values are summarized. */
   field: string
   mode: CardSummaryMode
   /** Default 'today'. */
   timeWindow: CardTimeWindow
+}
+
+/**
+ * Declarative card-summary config: an ordered list of values to show on the
+ * card (max 4). Optional on a module — when absent, the card derives a single
+ * sensible default automatically (see lib/card-summary.ts).
+ */
+export interface CardConfig {
+  items: CardSummaryItem[]
 }
 
 // ----------------------------------------------------------------

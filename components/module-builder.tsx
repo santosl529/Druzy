@@ -15,8 +15,10 @@ import {
 import { createModule, updateModule } from '@/app/actions/modules'
 import { CrystalPicker } from '@/components/crystal-picker'
 import { FIELD_TYPES, CARD_SUMMARY_MODES, CARD_TIME_WINDOWS } from '@/lib/types'
-import type { Module, ModuleField, CardSummaryMode, CardTimeWindow } from '@/lib/types'
+import type { Module, ModuleField, CardSummaryMode, CardTimeWindow, CardSummaryItem } from '@/lib/types'
 import type { CrystalKey } from '@/lib/crystals'
+
+const MAX_CARD_ITEMS = 4
 
 const CARD_MODE_LABEL: Record<CardSummaryMode, string> = {
   sum: 'Total (sum)',
@@ -34,14 +36,21 @@ const CARD_WINDOW_LABEL: Record<CardTimeWindow, string> = {
   all: 'All time',
 }
 
-const AUTO = '__auto__'
-
 interface Props {
   initial?: Module
 }
 
 function makeKey(label: string) {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+}
+
+/** Read the initial summary items, tolerating the legacy single-object shape. */
+function initialCardItems(initial?: Module): CardSummaryItem[] {
+  const cfg = initial?.card_config as unknown
+  if (!cfg || typeof cfg !== 'object') return []
+  if (Array.isArray((cfg as { items?: unknown }).items)) return (cfg as { items: CardSummaryItem[] }).items
+  if (typeof (cfg as CardSummaryItem).field === 'string') return [cfg as CardSummaryItem]
+  return []
 }
 
 export function ModuleBuilder({ initial }: Props) {
@@ -55,10 +64,25 @@ export function ModuleBuilder({ initial }: Props) {
   )
   const [crystalType, setCrystalType] = useState<CrystalKey>(initial?.crystal_type ?? 'amethyst')
 
-  // Card summary: which value the dashboard card shows. '' = automatic default.
-  const [cardField, setCardField] = useState<string>(initial?.card_config?.field ?? '')
-  const [cardMode, setCardMode] = useState<CardSummaryMode>(initial?.card_config?.mode ?? 'sum')
-  const [cardWindow, setCardWindow] = useState<CardTimeWindow>(initial?.card_config?.timeWindow ?? 'today')
+  // Card summary: the values shown on the dashboard card. Empty = automatic default.
+  const [cardItems, setCardItems] = useState<CardSummaryItem[]>(initialCardItems(initial))
+
+  function addCardItem() {
+    const firstField = fields.find((f) => f.key)?.key ?? ''
+    setCardItems((items) => [...items, { field: firstField, mode: 'sum', timeWindow: 'today' }])
+  }
+
+  function removeCardItem(i: number) {
+    setCardItems((items) => items.filter((_, idx) => idx !== i))
+  }
+
+  function updateCardItem<K extends keyof CardSummaryItem>(i: number, key: K, value: CardSummaryItem[K]) {
+    setCardItems((items) => {
+      const next = [...items]
+      next[i] = { ...next[i], [key]: value }
+      return next
+    })
+  }
 
   function addField() {
     setFields((f) => [...f, { key: '', label: '', type: 'text', required: false }])
@@ -84,13 +108,10 @@ export function ModuleBuilder({ initial }: Props) {
     fd.set('name', name)
     fd.set('fields', JSON.stringify(fields))
     fd.set('crystal_type', crystalType)
-    // Only persist a card_config that points at a field that still exists;
-    // otherwise leave it automatic (blank → null server-side).
-    const cardConfig =
-      cardField && fields.some((f) => f.key === cardField)
-        ? { field: cardField, mode: cardMode, timeWindow: cardWindow }
-        : null
-    fd.set('card_config', cardConfig ? JSON.stringify(cardConfig) : '')
+    // Only persist summary items that point at a field that still exists;
+    // no items → automatic (blank → null server-side).
+    const validItems = cardItems.filter((it) => it.field && fields.some((f) => f.key === it.field))
+    fd.set('card_config', validItems.length ? JSON.stringify({ items: validItems }) : '')
 
     startTransition(async () => {
       const result = initial
@@ -213,57 +234,68 @@ export function ModuleBuilder({ initial }: Props) {
         <div>
           <h2 className="font-medium">Card summary</h2>
           <p className="text-sm text-muted-foreground">
-            The single value shown on this tracker&apos;s dashboard card. Leave automatic to pick a sensible default.
+            The values shown on this tracker&apos;s dashboard card (up to {MAX_CARD_ITEMS}). Leave empty to pick a sensible default automatically.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5">
-            <Label>Value</Label>
-            <Select
-              value={cardField || AUTO}
-              onValueChange={(v) => setCardField(v === AUTO ? '' : (v ?? ''))}
-            >
-              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={AUTO}>Automatic</SelectItem>
-                {fields
-                  .filter((f) => f.key)
-                  .map((f) => (
-                    <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+        {cardItems.map((item, i) => (
+          <div key={i} className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1.5">
+              <Label>Value</Label>
+              <Select value={item.field} onValueChange={(v) => updateCardItem(i, 'field', v ?? '')}>
+                <SelectTrigger className="w-48"><SelectValue placeholder="Pick a field" /></SelectTrigger>
+                <SelectContent>
+                  {fields
+                    .filter((f) => f.key)
+                    .map((f) => (
+                      <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Summarize by</Label>
+              <Select value={item.mode} onValueChange={(v) => updateCardItem(i, 'mode', (v ?? item.mode) as CardSummaryMode)}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CARD_SUMMARY_MODES.map((m) => (
+                    <SelectItem key={m} value={m}>{CARD_MODE_LABEL[m]}</SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Over</Label>
+              <Select value={item.timeWindow} onValueChange={(v) => updateCardItem(i, 'timeWindow', (v ?? item.timeWindow) as CardTimeWindow)}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CARD_TIME_WINDOWS.map((w) => (
+                    <SelectItem key={w} value={w}>{CARD_WINDOW_LABEL[w]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              type="button" variant="ghost" size="icon"
+              className="shrink-0 text-muted-foreground"
+              onClick={() => removeCardItem(i)}
+              aria-label="Remove value"
+            >
+              <Trash2Icon />
+            </Button>
           </div>
+        ))}
 
-          {cardField && (
-            <>
-              <div className="space-y-1.5">
-                <Label>Summarize by</Label>
-                <Select value={cardMode} onValueChange={(v) => setCardMode((v ?? cardMode) as CardSummaryMode)}>
-                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CARD_SUMMARY_MODES.map((m) => (
-                      <SelectItem key={m} value={m}>{CARD_MODE_LABEL[m]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Over</Label>
-                <Select value={cardWindow} onValueChange={(v) => setCardWindow((v ?? cardWindow) as CardTimeWindow)}>
-                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CARD_TIME_WINDOWS.map((w) => (
-                      <SelectItem key={w} value={w}>{CARD_WINDOW_LABEL[w]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-        </div>
+        <Button
+          type="button" variant="outline" size="sm"
+          onClick={addCardItem}
+          disabled={cardItems.length >= MAX_CARD_ITEMS || !fields.some((f) => f.key)}
+        >
+          <PlusIcon /> {cardItems.length === 0 ? 'Add summary value' : 'Add another'}
+        </Button>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -9,10 +9,10 @@ import { GeodeIcon } from '@/components/geode-icon'
 import { QuickLogDialog } from '@/components/quick-log-dialog'
 import { geodeVars } from '@/lib/geode-style'
 import { getBinaryField } from '@/lib/card'
-import { computeCardSummary, resolveCardConfig, type CardEntry } from '@/lib/card-summary'
+import { computeCardSummaries, type CardEntry } from '@/lib/card-summary'
 import { cn } from '@/lib/utils'
 import { setBinaryToday } from '@/app/actions/entries'
-import type { Module, CardSummaryMode, CardTimeWindow } from '@/lib/types'
+import type { Module } from '@/lib/types'
 
 /** A successful log, carrying the parsed values so the card can update optimistically. */
 export type LoggedEntry = { values: Record<string, unknown>; entryDate: string }
@@ -33,22 +33,6 @@ interface TrackerCardProps {
   onUnlogged: (moduleId: string) => void
 }
 
-const MODE_LABEL: Record<CardSummaryMode, string> = {
-  sum: 'Total',
-  avg: 'Avg',
-  min: 'Min',
-  max: 'Max',
-  median: 'Median',
-  count: 'Count',
-  latest: 'Latest',
-}
-
-const WINDOW_LABEL: Record<CardTimeWindow, string> = {
-  today: 'today',
-  week: 'this week',
-  all: 'all time',
-}
-
 export function TrackerCard({
   mod,
   hasEntryToday,
@@ -63,20 +47,7 @@ export function TrackerCard({
   const isFormula = mod.kind === 'formula'
   const binaryField = getBinaryField(mod)
 
-  const summary = computeCardSummary(mod, entries, today)
-  const cfg = resolveCardConfig(mod)
-  const summaryField = mod.fields.find((f) => f.key === cfg.field)
-  // A binary tracker's toggle already conveys its state, so only show a separate
-  // summary value there when the user has configured a non-default one.
-  const showSummary = !isFormula && (!binaryField || mod.card_config !== null)
-
-  const fieldLabel = summaryField?.label ?? cfg.field
-  const caption =
-    cfg.mode === 'count'
-      ? `Entries · ${WINDOW_LABEL[cfg.timeWindow]}`
-      : cfg.mode === 'latest'
-        ? `Latest ${fieldLabel} · ${WINDOW_LABEL[cfg.timeWindow]}`
-        : `${MODE_LABEL[cfg.mode]} ${fieldLabel} · ${WINDOW_LABEL[cfg.timeWindow]}`
+  const summaries = computeCardSummaries(mod, entries, today)
 
   function handleToggle() {
     const next = !hasEntryToday
@@ -95,7 +66,7 @@ export function TrackerCard({
 
   return (
     <Card
-      className="h-full transition-shadow hover:shadow-md [--card-spacing:1.2rem]"
+      className="h-full flex flex-col transition-shadow hover:shadow-md [--card-spacing:1.2rem]"
       style={{
         ...geodeVars(mod.crystal_type, openness),
         borderColor:
@@ -134,47 +105,34 @@ export function TrackerCard({
         </Link>
       </CardHeader>
 
-      {/* Card summary value + primary logging action. Binary trackers get a
-          one-tap toggle; everything else opens the reused entry-form modal.
-          Formula trackers can't be logged. */}
+      {/* Summary chips fill the body; the logging action is pinned to the bottom
+          so every card (binary or not) shares the same vertical rhythm. Formula
+          trackers can't be logged. */}
       {!isFormula && (
-        <CardContent className="space-y-3">
-          {showSummary && (
-            <div>
-              <div
-                className={cn(
-                  'font-semibold tabular-nums leading-tight',
-                  summary.empty ? 'text-lg text-muted-foreground' : 'text-2xl',
-                )}
-                style={summary.empty ? undefined : { color: 'var(--crystal-primary)' }}
-              >
-                {summary.text}
+        <CardContent className="flex flex-1 flex-col gap-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            {summaries.map((s, i) => (
+              <div key={i} className="min-w-0">
+                <div
+                  className={cn(
+                    'font-semibold tabular-nums leading-tight truncate',
+                    s.empty ? 'text-base text-muted-foreground' : 'text-xl',
+                  )}
+                  style={s.empty ? undefined : { color: 'var(--crystal-primary)' }}
+                >
+                  {s.text}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{s.label}</div>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{caption}</p>
-            </div>
-          )}
+            ))}
+          </div>
 
-          {binaryField ? (
-            <Button
-              className="w-full"
-              onClick={handleToggle}
-              disabled={isPending}
-              style={
-                hasEntryToday
-                  ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
-                  : undefined
-              }
-            >
-              {hasEntryToday ? 'Logged' : 'Log'}
-            </Button>
-          ) : (
-            <QuickLogDialog
-              mod={mod}
-              savedTimezone={savedTimezone}
-              onLogged={(logged) => onLogged(mod.id, logged)}
-            >
+          <div className="mt-auto">
+            {binaryField ? (
               <Button
                 className="w-full"
+                onClick={handleToggle}
+                disabled={isPending}
                 style={
                   hasEntryToday
                     ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
@@ -183,8 +141,25 @@ export function TrackerCard({
               >
                 {hasEntryToday ? 'Logged' : 'Log'}
               </Button>
-            </QuickLogDialog>
-          )}
+            ) : (
+              <QuickLogDialog
+                mod={mod}
+                savedTimezone={savedTimezone}
+                onLogged={(logged) => onLogged(mod.id, logged)}
+              >
+                <Button
+                  className="w-full"
+                  style={
+                    hasEntryToday
+                      ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
+                      : undefined
+                  }
+                >
+                  {hasEntryToday ? 'Logged' : 'Log'}
+                </Button>
+              </QuickLogDialog>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>

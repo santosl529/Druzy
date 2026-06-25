@@ -1,13 +1,14 @@
 // ----------------------------------------------------------------
-// Card summary — the single value shown on a tracker's dashboard card.
+// Card summary — the values shown on a tracker's dashboard card.
 //
 // Pure, client-safe computation: given a module, its entries, and "today"
 // (already resolved in the user's day-boundary timezone), produce the display
-// text. All windowing reads entry_date; the aggregation math is reused from
-// chart-data.ts (applyAggregation) — no new math, nothing sent to an LLM.
+// text for each configured value. All windowing reads entry_date; the
+// aggregation math is reused from chart-data.ts (applyAggregation) — no new
+// math, nothing sent to an LLM.
 // ----------------------------------------------------------------
 
-import type { CardConfig, CardSummaryMode, Entry, Module, ModuleField } from './types'
+import type { CardSummaryItem, CardSummaryMode, Entry, Module, ModuleField } from './types'
 import { applyAggregation } from './chart-data'
 
 /**
@@ -18,13 +19,13 @@ import { applyAggregation } from './chart-data'
 export type CardEntry = Pick<Entry, 'entry_date' | 'values' | 'created_at'>
 
 export interface CardSummary {
-  /** Ready-to-render text, e.g. "1,847 kcal", "154 lbs", "Done", "Not logged". */
+  /** Short caption under the value, e.g. "calories", "max score", "entries". */
+  label: string
+  /** Ready-to-render value, e.g. "1,847 kcal", "154 lbs", "Done", "Not logged". */
   text: string
   /** True when there is nothing to show in the window (the "Not logged" state). */
   empty: boolean
 }
-
-const EMPTY: CardSummary = { text: 'Not logged', empty: true }
 
 /** Maps a card mode to the chart aggregation. `latest`/`count` are handled separately. */
 const MODE_TO_AGG: Record<Exclude<CardSummaryMode, 'latest' | 'count'>, 'sum' | 'avg' | 'min' | 'max' | 'median'> = {
@@ -33,6 +34,17 @@ const MODE_TO_AGG: Record<Exclude<CardSummaryMode, 'latest' | 'count'>, 'sum' | 
   min: 'min',
   max: 'max',
   median: 'median',
+}
+
+/** Prefix shown before the field name in a summary's label (blank where redundant). */
+const MODE_PREFIX: Record<CardSummaryMode, string> = {
+  sum: '',
+  avg: 'avg ',
+  min: 'min ',
+  max: 'max ',
+  median: 'median ',
+  count: '',
+  latest: '',
 }
 
 function isNumericField(f: ModuleField): boolean {
@@ -50,23 +62,44 @@ function formatNumber(n: number): string {
   return rounded.toLocaleString('en-US', { maximumFractionDigits: 1 })
 }
 
+function labelFor(item: CardSummaryItem, field: ModuleField | undefined): string {
+  if (item.mode === 'count') return 'entries'
+  const fieldLabel = field?.label ?? item.field
+  return `${MODE_PREFIX[item.mode]}${fieldLabel}`.trim().toLowerCase()
+}
+
 /**
- * The effective config for a module: its explicit card_config when valid, else
- * an auto-derived default — first numeric field summed over today, latest for a
- * single boolean tracker, otherwise a count of entries today.
+ * Normalize whatever is stored in card_config into a list of items. Tolerates
+ * the legacy single-object shape ({ field, mode, timeWindow }) so old rows keep
+ * working without a data migration.
  */
-export function resolveCardConfig(mod: Module): CardConfig {
-  const cfg = mod.card_config
-  if (cfg && mod.fields.some((f) => f.key === cfg.field)) return cfg
+function rawItems(mod: Module): CardSummaryItem[] {
+  const cfg = mod.card_config as unknown
+  if (!cfg || typeof cfg !== 'object') return []
+  if (Array.isArray((cfg as { items?: unknown }).items)) {
+    return (cfg as { items: CardSummaryItem[] }).items
+  }
+  if (typeof (cfg as CardSummaryItem).field === 'string') return [cfg as CardSummaryItem]
+  return []
+}
+
+/**
+ * The effective summary items for a module: its explicit, still-valid config,
+ * else a single auto-derived default — first numeric field summed over today,
+ * latest for a single boolean tracker, otherwise a count of entries today.
+ */
+export function resolveCardItems(mod: Module): CardSummaryItem[] {
+  const valid = rawItems(mod).filter((it) => mod.fields.some((f) => f.key === it.field))
+  if (valid.length > 0) return valid
 
   const firstNumeric = mod.fields.find(isNumericField)
-  if (firstNumeric) return { field: firstNumeric.key, mode: 'sum', timeWindow: 'today' }
+  if (firstNumeric) return [{ field: firstNumeric.key, mode: 'sum', timeWindow: 'today' }]
 
   if (mod.fields.length === 1 && mod.fields[0].type === 'boolean') {
-    return { field: mod.fields[0].key, mode: 'latest', timeWindow: 'today' }
+    return [{ field: mod.fields[0].key, mode: 'latest', timeWindow: 'today' }]
   }
 
-  return { field: mod.fields[0]?.key ?? '', mode: 'count', timeWindow: 'today' }
+  return [{ field: mod.fields[0]?.key ?? '', mode: 'count', timeWindow: 'today' }]
 }
 
 /** Inclusive start date of a `week` window: today and the 6 prior days. */
@@ -76,8 +109,8 @@ function weekStart(today: string): string {
   return d.toISOString().split('T')[0]
 }
 
-function inWindow(entry: CardEntry, cfg: CardConfig, today: string): boolean {
-  switch (cfg.timeWindow) {
+function inWindow(entry: CardEntry, item: CardSummaryItem, today: string): boolean {
+  switch (item.timeWindow) {
     case 'today': return entry.entry_date === today
     case 'week':  return entry.entry_date >= weekStart(today) && entry.entry_date <= today
     case 'all':   return true
@@ -90,38 +123,43 @@ function byRecencyDesc(a: CardEntry, b: CardEntry): number {
   return a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
 }
 
-export function computeCardSummary(mod: Module, entries: CardEntry[], today: string): CardSummary {
-  const cfg = resolveCardConfig(mod)
-  const field = mod.fields.find((f) => f.key === cfg.field)
-  const windowed = entries.filter((e) => inWindow(e, cfg, today))
+function computeItem(item: CardSummaryItem, mod: Module, entries: CardEntry[], today: string): CardSummary {
+  const field = mod.fields.find((f) => f.key === item.field)
+  const label = labelFor(item, field)
+  const windowed = entries.filter((e) => inWindow(e, item, today))
 
-  if (windowed.length === 0) return EMPTY
+  if (windowed.length === 0) return { label, text: 'Not logged', empty: true }
 
   // count reflects entries (including presence-only "mark-done" rows), not field values.
-  if (cfg.mode === 'count') return { text: String(windowed.length), empty: false }
+  if (item.mode === 'count') return { label, text: String(windowed.length), empty: false }
 
   // A single boolean field shows Done / Not done from the most recent entry.
   // Presence-only rows (empty values) count as Done — matching mark-done semantics.
-  if (field?.type === 'boolean' && cfg.mode === 'latest') {
+  if (field?.type === 'boolean' && item.mode === 'latest') {
     const latest = [...windowed].sort(byRecencyDesc)[0]
-    const v = latest.values[cfg.field]
-    return { text: v === false ? 'Not done' : 'Done', empty: false }
+    const v = latest.values[item.field]
+    return { label, text: v === false ? 'Not done' : 'Done', empty: false }
   }
 
   const unit = field?.unit ? ` ${field.unit}` : ''
 
-  if (cfg.mode === 'latest') {
-    const latest = [...windowed].sort(byRecencyDesc).find((e) => toNumber(e.values[cfg.field]) !== null)
-    const v = latest ? toNumber(latest.values[cfg.field]) : null
-    if (v === null) return EMPTY
-    return { text: `${formatNumber(v)}${unit}`, empty: false }
+  if (item.mode === 'latest') {
+    const latest = [...windowed].sort(byRecencyDesc).find((e) => toNumber(e.values[item.field]) !== null)
+    const v = latest ? toNumber(latest.values[item.field]) : null
+    if (v === null) return { label, text: 'Not logged', empty: true }
+    return { label, text: `${formatNumber(v)}${unit}`, empty: false }
   }
 
   const values = windowed.flatMap((e) => {
-    const n = toNumber(e.values[cfg.field])
+    const n = toNumber(e.values[item.field])
     return n !== null ? [n] : []
   })
-  if (values.length === 0) return EMPTY
+  if (values.length === 0) return { label, text: 'Not logged', empty: true }
 
-  return { text: `${formatNumber(applyAggregation(values, MODE_TO_AGG[cfg.mode]))}${unit}`, empty: false }
+  return { label, text: `${formatNumber(applyAggregation(values, MODE_TO_AGG[item.mode]))}${unit}`, empty: false }
+}
+
+/** One summary per resolved item, in order. */
+export function computeCardSummaries(mod: Module, entries: CardEntry[], today: string): CardSummary[] {
+  return resolveCardItems(mod).map((item) => computeItem(item, mod, entries, today))
 }

@@ -6,10 +6,14 @@ import { CRYSTAL_KEYS } from './crystals'
 export const crystalTypeSchema = z.enum(CRYSTAL_KEYS)
 
 /** Card summary config (matches CardConfig in lib/types.ts). */
-export const cardConfigSchema = z.object({
+export const cardSummaryItemSchema = z.object({
   field: z.string().min(1),
   mode: z.enum(CARD_SUMMARY_MODES),
   timeWindow: z.enum(CARD_TIME_WINDOWS),
+})
+
+export const cardConfigSchema = z.object({
+  items: z.array(cardSummaryItemSchema).min(1, 'Add at least one value').max(4, 'At most 4 values'),
 })
 
 export const moduleFieldSchema = z.object({
@@ -31,9 +35,18 @@ export const moduleSchema = z
     card_config: cardConfigSchema.nullable().optional(),
   })
   .superRefine((mod, ctx) => {
-    // A configured card summary must point at a field that actually exists.
-    if (mod.card_config && !mod.fields.some((f) => f.key === mod.card_config!.field)) {
-      ctx.addIssue({ code: 'custom', message: 'Card summary references an unknown field', path: ['card_config'] })
+    // Every configured card-summary value must point at a field that exists.
+    if (mod.card_config) {
+      const keys = new Set(mod.fields.map((f) => f.key))
+      mod.card_config.items.forEach((it, i) => {
+        if (!keys.has(it.field)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Card summary references an unknown field',
+            path: ['card_config', 'items', i, 'field'],
+          })
+        }
+      })
     }
   })
 
