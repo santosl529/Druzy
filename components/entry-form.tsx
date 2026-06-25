@@ -21,9 +21,17 @@ interface Props {
   fields: ModuleField[]
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   savedTimezone?: string | null
+  /**
+   * Called after a successful entry. When provided (e.g. the quick-log modal),
+   * the form does not reset — the caller closes the surface and updates
+   * optimistically. When omitted (module detail page), the form resets in place.
+   */
+  onSuccess?: () => void
+  /** Override the submit button label (defaults to "Log entry"). */
+  submitLabel?: string
 }
 
-export function EntryForm({ moduleId, fields, savedTimezone }: Props) {
+export function EntryForm({ moduleId, fields, savedTimezone, onSuccess, submitLabel }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selectValues, setSelectValues] = useState<Record<string, string>>({})
@@ -41,6 +49,8 @@ export function EntryForm({ moduleId, fields, savedTimezone }: Props) {
       const result = await createEntry(moduleId, fields, fd)
       if (result?.error) {
         setError(result.error)
+      } else if (onSuccess) {
+        onSuccess()
       } else {
         formRef.current?.reset()
         setSelectValues({})
@@ -142,7 +152,7 @@ export function EntryForm({ moduleId, fields, savedTimezone }: Props) {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Saving…' : 'Log entry'}
+        {pending ? 'Saving…' : (submitLabel ?? 'Log entry')}
       </Button>
     </form>
   )

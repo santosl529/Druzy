@@ -46,6 +46,7 @@ export async function createEntry(
 
   if (error) return { error: error.message }
 
+  revalidatePath('/')
   revalidatePath(`/modules/${moduleId}`)
 }
 
@@ -117,9 +118,22 @@ export async function getTodayEntryStatus(moduleIds: string[], date: string): Pr
   return (data ?? []).map((e) => e.module_id as string)
 }
 
-// entryDate is the browser-local date (YYYY-MM-DD) supplied by the client,
-// matching the same convention as createEntry which reads entry_date from FormData.
-export async function markGreenForToday(moduleId: string, entryDate: string): Promise<{ error: string } | void> {
+/**
+ * One-tap done/undone toggle for a binary tracker (a standard module whose
+ * log reduces to a single boolean field). Used by the trackers-grid card.
+ *
+ * `done = true`  → ensure today's entry exists with { [fieldKey]: true }.
+ * `done = false` → remove today's entries for this module (unmark).
+ *
+ * entryDate is the browser-local date (YYYY-MM-DD) supplied by the client,
+ * matching the same convention as createEntry which reads entry_date from FormData.
+ */
+export async function setBinaryToday(
+  moduleId: string,
+  fieldKey: string,
+  entryDate: string,
+  done: boolean,
+): Promise<{ error: string } | void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -129,6 +143,17 @@ export async function markGreenForToday(moduleId: string, entryDate: string): Pr
   if (!mod) return { error: 'Tracker not found.' }
   if (mod.kind === 'formula') return { error: 'Formula trackers are computed automatically and cannot be marked manually.' }
 
+  if (!done) {
+    const { error } = await supabase
+      .from('entries').delete()
+      .eq('module_id', moduleId).eq('user_id', user.id).eq('entry_date', entryDate)
+    if (error) return { error: error.message }
+    revalidatePath('/')
+    revalidatePath(`/modules/${moduleId}`)
+    return
+  }
+
+  // done = true: only insert when there's no entry for today yet (idempotent tap).
   const { data: existing } = await supabase
     .from('entries').select('id')
     .eq('module_id', moduleId).eq('user_id', user.id).eq('entry_date', entryDate)
@@ -139,7 +164,7 @@ export async function markGreenForToday(moduleId: string, entryDate: string): Pr
   const { error } = await supabase.from('entries').insert({
     module_id: moduleId,
     user_id: user.id,
-    values: {},
+    values: { [fieldKey]: true },
     entry_date: entryDate,
   })
 
