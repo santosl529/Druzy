@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import Link from 'next/link'
-import { Check, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GeodeIcon } from '@/components/geode-icon'
@@ -100,27 +100,30 @@ export function TrackerCard({
         <CardContent>
           {binaryField ? (
             <Button
-              variant={hasEntryToday ? 'default' : 'outline'}
               className="w-full"
               onClick={handleToggle}
               disabled={isPending}
-              style={hasEntryToday ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' } : undefined}
+              style={
+                hasEntryToday
+                  ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
+                  : undefined
+              }
             >
-              <Check className="size-4 mr-1.5" />
-              {hasEntryToday ? 'Done today' : 'Mark done'}
+              {hasEntryToday ? 'Logged' : 'Log'}
             </Button>
           ) : (
-            <div className="space-y-2">
-              {hasEntryToday && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Check className="size-3.5" style={{ color: 'var(--crystal-primary)' }} />
-                  Logged today
-                </p>
-              )}
-              <QuickLogDialog mod={mod} savedTimezone={savedTimezone} onLogged={() => onLogged(mod.id)}>
-                <Button className="w-full">{hasEntryToday ? 'Log again' : 'Log'}</Button>
-              </QuickLogDialog>
-            </div>
+            <QuickLogDialog mod={mod} savedTimezone={savedTimezone} onLogged={() => onLogged(mod.id)}>
+              <Button
+                className="w-full"
+                style={
+                  hasEntryToday
+                    ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
+                    : undefined
+                }
+              >
+                {hasEntryToday ? 'Logged' : 'Log'}
+              </Button>
+            </QuickLogDialog>
           )}
         </CardContent>
       )}
