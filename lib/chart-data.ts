@@ -71,7 +71,7 @@ function getBucketKey(dateStr: string, bucketBy: BucketBy): string {
   }
 }
 
-function applyAggregation(values: number[], agg: Aggregation = 'none'): number {
+export function applyAggregation(values: number[], agg: Aggregation = 'none'): number {
   if (values.length === 0) return 0
   switch (agg) {
     case 'sum':    return values.reduce((a, b) => a + b, 0)

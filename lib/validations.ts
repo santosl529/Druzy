@@ -1,9 +1,16 @@
 import { z } from 'zod'
-import { FIELD_TYPES, CHART_TYPES, JOURNAL_FIELD_TYPES } from './types'
+import { FIELD_TYPES, CHART_TYPES, JOURNAL_FIELD_TYPES, CARD_SUMMARY_MODES, CARD_TIME_WINDOWS } from './types'
 import { validateExpression } from './formula'
 import { CRYSTAL_KEYS } from './crystals'
 
 export const crystalTypeSchema = z.enum(CRYSTAL_KEYS)
+
+/** Card summary config (matches CardConfig in lib/types.ts). */
+export const cardConfigSchema = z.object({
+  field: z.string().min(1),
+  mode: z.enum(CARD_SUMMARY_MODES),
+  timeWindow: z.enum(CARD_TIME_WINDOWS),
+})
 
 export const moduleFieldSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
@@ -16,11 +23,19 @@ export const moduleFieldSchema = z.object({
 })
 
 // chart_config removed from modules; charts are their own table now
-export const moduleSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
-  crystal_type: crystalTypeSchema,
-})
+export const moduleSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required'),
+    fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
+    crystal_type: crystalTypeSchema,
+    card_config: cardConfigSchema.nullable().optional(),
+  })
+  .superRefine((mod, ctx) => {
+    // A configured card summary must point at a field that actually exists.
+    if (mod.card_config && !mod.fields.some((f) => f.key === mod.card_config!.field)) {
+      ctx.addIssue({ code: 'custom', message: 'Card summary references an unknown field', path: ['card_config'] })
+    }
+  })
 
 export type ModuleFormValues = z.infer<typeof moduleSchema>
 

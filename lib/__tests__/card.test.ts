@@ -11,6 +11,7 @@ function mod(fields: ModuleField[], kind: Module['kind'] = 'standard'): Module {
     kind,
     formula_config: null,
     crystal_type: 'amethyst',
+    card_config: null,
     is_builtin: false,
     shared: false,
     created_at: '2026-01-01T00:00:00Z',

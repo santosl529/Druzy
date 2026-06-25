@@ -7,6 +7,12 @@ import { moduleSchema } from '@/lib/validations'
 import { createDefaultChart } from '@/app/actions/charts'
 import type { ModuleField } from '@/lib/types'
 
+/** Parse the optional card_config form field. Absent/blank → null (auto default). */
+function parseCardConfig(raw: FormDataEntryValue | null): unknown {
+  if (typeof raw !== 'string' || raw === '') return null
+  return JSON.parse(raw)
+}
+
 export async function createModule(formData: FormData): Promise<{ error: string } | never> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,6 +22,7 @@ export async function createModule(formData: FormData): Promise<{ error: string 
     name: formData.get('name') as string,
     fields: JSON.parse(formData.get('fields') as string) as ModuleField[],
     crystal_type: formData.get('crystal_type') as string,
+    card_config: parseCardConfig(formData.get('card_config')),
   }
 
   const parsed = moduleSchema.safeParse(raw)
@@ -23,7 +30,13 @@ export async function createModule(formData: FormData): Promise<{ error: string 
 
   const { data, error } = await supabase
     .from('modules')
-    .insert({ user_id: user.id, name: parsed.data.name, fields: parsed.data.fields, crystal_type: parsed.data.crystal_type })
+    .insert({
+      user_id: user.id,
+      name: parsed.data.name,
+      fields: parsed.data.fields,
+      crystal_type: parsed.data.crystal_type,
+      card_config: parsed.data.card_config ?? null,
+    })
     .select('id')
     .single()
 
@@ -44,6 +57,7 @@ export async function updateModule(id: string, formData: FormData): Promise<{ er
     name: formData.get('name') as string,
     fields: JSON.parse(formData.get('fields') as string) as ModuleField[],
     crystal_type: formData.get('crystal_type') as string,
+    card_config: parseCardConfig(formData.get('card_config')),
   }
 
   const parsed = moduleSchema.safeParse(raw)
@@ -51,7 +65,12 @@ export async function updateModule(id: string, formData: FormData): Promise<{ er
 
   const { error } = await supabase
     .from('modules')
-    .update({ name: parsed.data.name, fields: parsed.data.fields, crystal_type: parsed.data.crystal_type })
+    .update({
+      name: parsed.data.name,
+      fields: parsed.data.fields,
+      crystal_type: parsed.data.crystal_type,
+      card_config: parsed.data.card_config ?? null,
+    })
     .eq('id', id)
     .eq('user_id', user.id)
 

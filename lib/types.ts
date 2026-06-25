@@ -135,6 +135,35 @@ export interface ChartConfig {
 }
 
 // ----------------------------------------------------------------
+// Card summary — the single value shown on a tracker's dashboard card
+// ----------------------------------------------------------------
+
+/**
+ * How to reduce the field's values in the window to one number.
+ * `latest` (most recent entry's value) is distinct from the aggregations —
+ * it's the right choice for things like Weight where the current value matters,
+ * not a roll-up.
+ */
+export const CARD_SUMMARY_MODES = ['sum', 'avg', 'min', 'max', 'median', 'count', 'latest'] as const
+export type CardSummaryMode = (typeof CARD_SUMMARY_MODES)[number]
+
+/** Window the summary is scoped to, read from entry_date (day-boundary aware). */
+export const CARD_TIME_WINDOWS = ['today', 'week', 'all'] as const
+export type CardTimeWindow = (typeof CARD_TIME_WINDOWS)[number]
+
+/**
+ * Declarative card-summary config. Optional on a module: when absent, the card
+ * derives a sensible default automatically (see lib/card-summary.ts).
+ */
+export interface CardConfig {
+  /** Key of the field on this module whose values are summarized. */
+  field: string
+  mode: CardSummaryMode
+  /** Default 'today'. */
+  timeWindow: CardTimeWindow
+}
+
+// ----------------------------------------------------------------
 // Domain objects
 // ----------------------------------------------------------------
 
@@ -213,6 +242,8 @@ export interface Module {
   formula_config: FormulaConfig | null
   /** User-chosen crystal that themes this tracker's geode card. */
   crystal_type: CrystalType
+  /** Which value shows on the dashboard card. Null = auto-derived default. */
+  card_config: CardConfig | null
   is_builtin: boolean
   shared: boolean
   created_at: string
