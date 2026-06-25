@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Check } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GeodeIcon } from '@/components/geode-icon'
@@ -76,7 +76,8 @@ export function TrackerCard({
       }}
     >
       <CardHeader className="flex flex-row items-start gap-3.5">
-        <GeodeIcon crystalType={mod.crystal_type} openness={openness} className="size-12 shrink-0" />
+        {/* Icon floats freely — no background container, premium seamless feel */}
+        <GeodeIcon crystalType={mod.crystal_type} openness={openness} className="size-12 shrink-0 -ml-0.5" />
         <div className="flex-1 min-w-0">
           <CardTitle className="text-[1.2rem] flex items-center gap-2.5">
             <Link href={`/modules/${mod.id}`} className="truncate hover:underline">
@@ -130,16 +131,23 @@ export function TrackerCard({
           <div className="mt-auto">
             {binaryField ? (
               <Button
-                className="w-full"
+                className={cn(
+                  'w-full transition-all duration-200',
+                  hasEntryToday
+                    ? 'border-0'
+                    : 'bg-white/5 hover:bg-white/10 border border-white/15 text-foreground/80 hover:text-foreground backdrop-blur-sm',
+                )}
                 onClick={handleToggle}
                 disabled={isPending}
                 style={
                   hasEntryToday
-                    ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
+                    ? { backgroundColor: 'var(--crystal-primary)', color: 'white' }
                     : undefined
                 }
               >
-                {hasEntryToday ? 'Logged' : 'Log'}
+                {hasEntryToday ? (
+                  <><Check className="size-3.5 mr-1.5" />Logged</>
+                ) : 'Log'}
               </Button>
             ) : (
               <QuickLogDialog
@@ -148,14 +156,21 @@ export function TrackerCard({
                 onLogged={(logged) => onLogged(mod.id, logged)}
               >
                 <Button
-                  className="w-full"
+                  className={cn(
+                    'w-full transition-all duration-200',
+                    hasEntryToday
+                      ? 'border-0'
+                      : 'bg-white/5 hover:bg-white/10 border border-white/15 text-foreground/80 hover:text-foreground backdrop-blur-sm',
+                  )}
                   style={
                     hasEntryToday
-                      ? { backgroundColor: 'var(--crystal-primary)', color: 'var(--background)' }
+                      ? { backgroundColor: 'var(--crystal-primary)', color: 'white' }
                       : undefined
                   }
                 >
-                  {hasEntryToday ? 'Logged' : 'Log'}
+                  {hasEntryToday ? (
+                    <><Check className="size-3.5 mr-1.5" />Logged</>
+                  ) : 'Log'}
                 </Button>
               </QuickLogDialog>
             )}

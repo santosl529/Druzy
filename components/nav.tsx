@@ -43,10 +43,10 @@ export function Nav({ email }: { email: string }) {
   return (
     <header className="border-b bg-background">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-8">
           <Link
             href="/"
-            className="font-semibold tracking-tight shrink-0"
+            className="text-[1.05rem] font-bold tracking-tight shrink-0 text-foreground"
             onClick={() => setOpen(false)}
           >
             Druzy

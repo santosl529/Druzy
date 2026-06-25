@@ -104,7 +104,8 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
         Each chunk translates outward past the 0.55 threshold.
         Reference (frame 2): faceted grey stone with wavy/chunky silhouette.
       */}
-      <g fill="#9a98a0" stroke="rgba(0,0,0,0.85)" strokeWidth="1.3" strokeLinejoin="round">
+      <g fill="#9a98a0" stroke="rgba(0,0,0,0.85)" strokeWidth="1.3" strokeLinejoin="round"
+        style={{ opacity: 'calc(max(1 - max(var(--openness) - 0.65, 0) * 5, 0))' }}>
         {/* Each chunk flies outward AND shrinks past the 0.55 split threshold,
             so by full bloom they read as small rock fragments in the corners
             (frame 10) instead of large slabs that cover the crystal. The scale
