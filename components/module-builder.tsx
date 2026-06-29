@@ -62,6 +62,9 @@ export function ModuleBuilder({ initial }: Props) {
   const [fields, setFields] = useState<ModuleField[]>(
     initial?.fields ?? [{ key: '', label: '', type: 'text', required: false }]
   )
+  // Raw text buffer for options inputs — parsed into field.options only on blur
+  // so the user can freely type commas while editing.
+  const [rawOptions, setRawOptions] = useState<Record<number, string>>({})
   const [crystalType, setCrystalType] = useState<CrystalKey>(initial?.crystal_type ?? 'amethyst')
 
   // Card summary: the values shown on the dashboard card. Empty = automatic default.
@@ -69,7 +72,7 @@ export function ModuleBuilder({ initial }: Props) {
 
   // Dashboard config state
   type GoalOp = 'gte' | 'lte' | 'eq' | 'between'
-  const [dashMode, setDashMode] = useState<'auto' | 'binary' | 'goal' | 'gradient'>(
+  const [dashMode, setDashMode] = useState<'auto' | 'binary' | 'goal' | 'gradient' | 'category'>(
     initial?.dashboard_config?.mode ?? 'auto'
   )
   const [goalConditions, setGoalConditions] = useState<GoalCondition[]>(
@@ -108,6 +111,15 @@ export function ModuleBuilder({ initial }: Props) {
 
   function removeField(i: number) {
     setFields((f) => f.filter((_, idx) => idx !== i))
+    setRawOptions((prev) => {
+      const next: Record<number, string> = {}
+      for (const k of Object.keys(prev)) {
+        const idx = Number(k)
+        if (idx < i) next[idx] = prev[idx]
+        else if (idx > i) next[idx - 1] = prev[idx]
+      }
+      return next
+    })
   }
 
   function updateField<K extends keyof ModuleField>(i: number, key: K, value: ModuleField[K]) {
@@ -256,10 +268,14 @@ export function ModuleBuilder({ initial }: Props) {
               <div className="space-y-1.5">
                 <Label>Options (comma-separated)</Label>
                 <Input
-                  value={field.options?.join(', ') ?? ''}
-                  onChange={(e) =>
-                    updateField(i, 'options', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))
-                  }
+                  value={rawOptions[i] ?? field.options?.join(', ') ?? ''}
+                  onChange={(e) => setRawOptions((prev) => ({ ...prev, [i]: e.target.value }))}
+                  onBlur={() => {
+                    const raw = rawOptions[i]
+                    if (raw === undefined) return
+                    updateField(i, 'options', raw.split(',').map((s) => s.trim()).filter(Boolean))
+                    setRawOptions((prev) => { const next = { ...prev }; delete next[i]; return next })
+                  }}
                   placeholder="e.g. Good, Neutral, Bad"
                 />
               </div>

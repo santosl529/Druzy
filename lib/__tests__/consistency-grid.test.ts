@@ -361,3 +361,16 @@ describe('buildGridData', () => {
     expect(cell27.intensity).toBeCloseTo(1)
   })
 })
+
+// ── category mode types (compile-time smoke) ─────────────────────
+
+describe('category mode config shape', () => {
+  it('DashboardConfig accepts category mode shape', () => {
+    const cfg: import('../types').DashboardConfig = {
+      mode: 'category',
+      categoryField: 'session_type',
+      categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+    }
+    expect(cfg.mode).toBe('category')
+  })
+})

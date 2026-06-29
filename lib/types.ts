@@ -173,7 +173,7 @@ export interface CardConfig {
 // Consistency grid dashboard config
 // ----------------------------------------------------------------
 
-export type DashboardMode = 'binary' | 'goal' | 'gradient'
+export type DashboardMode = 'binary' | 'goal' | 'gradient' | 'category'
 
 export type GoalOp = 'gte' | 'lte' | 'eq' | 'between'
 
@@ -212,6 +212,13 @@ export interface DashboardConfig {
    * Omit for auto-fit (min/max across the visible window).
    */
   gradientRange?: { min: number; max: number }
+  /** Required when mode = 'category' */
+  categoryField?: string
+  /**
+   * Maps each select-option value to a crystal. Options not listed here
+   * fall back to the module's own crystal at render time.
+   */
+  categoryColors?: Record<string, CrystalKey>
 }
 
 // ----------------------------------------------------------------

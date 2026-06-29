@@ -154,6 +154,11 @@ export function computeCellState(
       )
       return { state: 'done', intensity, rawValue }
     }
+
+    case 'category': {
+      // Category mode: any logged entry = done.
+      return { state: 'done', intensity: 1 }
+    }
   }
 }
 

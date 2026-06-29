@@ -50,6 +50,11 @@ export const dashboardConfigSchema = z.discriminatedUnion('mode', [
       .refine((r) => r.max > r.min, 'Max must be greater than min')
       .optional(),
   }),
+  z.object({
+    mode: z.literal('category'),
+    categoryField: z.string().min(1, 'Pick a select field'),
+    categoryColors: z.record(z.string(), crystalTypeSchema).optional(),
+  }),
 ])
 
 export const moduleFieldSchema = z.object({
