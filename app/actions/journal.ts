@@ -27,16 +27,24 @@ export async function getJournalTemplate(): Promise<JournalTemplate | null> {
   return (data as JournalTemplate | null) ?? null
 }
 
+// Sentinel used to distinguish "caller did not pass binaryModuleId" from
+// "caller explicitly wants to clear binary_module_id". This prevents a future
+// call that only updates fields from silently clearing the saved connection.
+const UNSET = Symbol('UNSET')
+
 /**
  * Upsert the user's extraction template.
  * Only number fields with both targetModuleId and targetFieldKey are kept
  * as mapped; any other combination is stripped server-side.
  * binaryModuleId is validated server-side: must belong to the user and be a
  * standard module with a single boolean field.
+ *
+ * Pass `null` to explicitly clear the binary module connection.
+ * Omit the argument (default UNSET) to leave the existing connection untouched.
  */
 export async function saveJournalTemplate(
   fields: JournalField[],
-  binaryModuleId?: string | null,
+  binaryModuleId: string | null | typeof UNSET = UNSET,
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const {
@@ -57,37 +65,42 @@ export async function saveJournalTemplate(
 
   const parsed = journalTemplateSchema.safeParse({
     fields: sanitized,
-    binaryModuleId: binaryModuleId ?? undefined,
+    binaryModuleId: binaryModuleId !== UNSET ? (binaryModuleId ?? undefined) : undefined,
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid template' }
   }
 
-  // Validate binaryModuleId ownership + shape server-side.
-  let resolvedBinaryModuleId: string | null = null
-  if (parsed.data.binaryModuleId) {
-    const { data: mod } = await supabase
-      .from('modules')
-      .select('kind, fields')
-      .eq('id', parsed.data.binaryModuleId)
-      .eq('user_id', user.id)
-      .single()
+  const updatePayload: Record<string, unknown> = {
+    user_id: user.id,
+    fields: parsed.data.fields,
+  }
 
-    if (!mod) return { error: 'Selected tracker not found.' }
-    if (mod.kind !== 'standard') return { error: 'Only standard trackers can be used as the journal marker.' }
-    const modFields = mod.fields as Array<{ type: string }>
-    if (modFields.length !== 1 || modFields[0].type !== 'boolean') {
-      return { error: 'The journal tracker must have exactly one boolean field.' }
+  // Only update binary_module_id when the caller explicitly provided a value.
+  if (binaryModuleId !== UNSET) {
+    // Validate binaryModuleId ownership + shape server-side.
+    let resolvedBinaryModuleId: string | null = null
+    if (parsed.data.binaryModuleId) {
+      const { data: mod } = await supabase
+        .from('modules')
+        .select('kind, fields')
+        .eq('id', parsed.data.binaryModuleId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!mod) return { error: 'Selected tracker not found.' }
+      if (mod.kind !== 'standard') return { error: 'Only standard trackers can be used as the journal marker.' }
+      const modFields = mod.fields as Array<{ type: string }>
+      if (modFields.length !== 1 || modFields[0].type !== 'boolean') {
+        return { error: 'The journal tracker must have exactly one boolean field.' }
+      }
+      resolvedBinaryModuleId = parsed.data.binaryModuleId
     }
-    resolvedBinaryModuleId = parsed.data.binaryModuleId
+    updatePayload.binary_module_id = resolvedBinaryModuleId
   }
 
   const { error } = await supabase.from('journal_templates').upsert(
-    {
-      user_id: user.id,
-      fields: parsed.data.fields,
-      binary_module_id: resolvedBinaryModuleId,
-    },
+    updatePayload,
     { onConflict: 'user_id' }
   )
 
@@ -224,13 +237,24 @@ export async function createJournalEntry(
         (f) => f.type === 'boolean'
       )
       if (boolField) {
-        const binaryResult = await createEntryInModule(
-          template.binary_module_id,
-          parsed.data.entry_date,
-          { [boolField.key]: true }
-        )
-        if (!binaryResult.error && binaryMod.name) {
-          loggedModules.push(binaryMod.name as string)
+        // Check for existing entry — skip insert to avoid duplicates on same day
+        const { data: existing } = await supabase
+          .from('entries')
+          .select('id')
+          .eq('module_id', template.binary_module_id)
+          .eq('entry_date', parsed.data.entry_date)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!existing) {
+          const binaryResult = await createEntryInModule(
+            template.binary_module_id,
+            parsed.data.entry_date,
+            { [boolField.key]: true }
+          )
+          if (!binaryResult.error && binaryMod.name) {
+            loggedModules.push(binaryMod.name as string)
+          }
         }
       }
     }
