@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { CRYSTAL_KEYS, CRYSTALS, getCrystal } from '../crystals'
 
 describe('crystals', () => {
-  it('has exactly the 8 expected keys', () => {
+  it('has exactly the 18 expected keys', () => {
     expect([...CRYSTAL_KEYS].sort()).toEqual(
-      ['amethyst', 'aquamarine', 'carnelian', 'citrine', 'labradorite', 'malachite', 'obsidian', 'rose_quartz'].sort()
+      ['amethyst', 'aquamarine', 'carnelian', 'citrine', 'emerald', 'garnet', 'labradorite', 'malachite', 'moonstone', 'obsidian', 'opal', 'onyx', 'rose_quartz', 'ruby', 'sapphire', 'sunstone', 'topaz', 'turquoise'].sort()
     )
   })
 
