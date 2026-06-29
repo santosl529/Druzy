@@ -170,6 +170,51 @@ export interface CardConfig {
 }
 
 // ----------------------------------------------------------------
+// Consistency grid dashboard config
+// ----------------------------------------------------------------
+
+export type DashboardMode = 'binary' | 'goal' | 'gradient'
+
+export type GoalOp = 'gte' | 'lte' | 'eq' | 'between'
+
+/**
+ * One condition in a goal rule. op 'between' uses min+max; all others use value.
+ * A future AI tool can populate this declaratively by writing to modules.dashboard_config.
+ */
+export interface GoalCondition {
+  field: string
+  op: GoalOp
+  /** Used for op ∈ gte | lte | eq */
+  value?: number
+  /** Used for op = between (inclusive) */
+  min?: number
+  max?: number
+}
+
+export interface GoalConfig {
+  conditions: GoalCondition[]
+  combine: 'all'  // AND logic; reserved for future 'any' (OR)
+}
+
+/**
+ * Declarative consistency grid config per module. Stored in modules.dashboard_config.
+ * Null = auto-derived default (binary for standard modules, gradient for formula).
+ * An AI tool can write this shape directly to configure a tracker's grid behavior.
+ */
+export interface DashboardConfig {
+  mode: DashboardMode
+  /** Required when mode = 'goal' */
+  goal?: GoalConfig
+  /** Field key whose value drives gradient intensity. Required when mode = 'gradient'. */
+  gradientField?: string
+  /**
+   * Fixed normalization range for gradient mode.
+   * Omit for auto-fit (min/max across the visible window).
+   */
+  gradientRange?: { min: number; max: number }
+}
+
+// ----------------------------------------------------------------
 // Domain objects
 // ----------------------------------------------------------------
 
@@ -250,6 +295,8 @@ export interface Module {
   crystal_type: CrystalType
   /** Which value shows on the dashboard card. Null = auto-derived default. */
   card_config: CardConfig | null
+  /** Consistency grid config. Null = auto-derived default. */
+  dashboard_config: DashboardConfig | null
   is_builtin: boolean
   shared: boolean
   created_at: string

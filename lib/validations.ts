@@ -16,6 +16,42 @@ export const cardConfigSchema = z.object({
   items: z.array(cardSummaryItemSchema).min(1, 'Add at least one value').max(4, 'At most 4 values'),
 })
 
+// ----------------------------------------------------------------
+// Dashboard config schema (matches DashboardConfig in lib/types.ts)
+// ----------------------------------------------------------------
+
+const goalConditionSchema = z.union([
+  z.object({
+    field: z.string().min(1),
+    op: z.enum(['gte', 'lte', 'eq']),
+    value: z.number(),
+  }),
+  z.object({
+    field: z.string().min(1),
+    op: z.literal('between'),
+    min: z.number(),
+    max: z.number(),
+  }),
+])
+
+const goalConfigSchema = z.object({
+  conditions: z.array(goalConditionSchema).min(1, 'Add at least one condition').max(10),
+  combine: z.literal('all'),
+})
+
+export const dashboardConfigSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('binary') }),
+  z.object({ mode: z.literal('goal'), goal: goalConfigSchema }),
+  z.object({
+    mode: z.literal('gradient'),
+    gradientField: z.string().min(1, 'Pick a field for gradient intensity'),
+    gradientRange: z
+      .object({ min: z.number(), max: z.number() })
+      .refine((r) => r.max > r.min, 'Max must be greater than min')
+      .optional(),
+  }),
+])
+
 export const moduleFieldSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
   label: z.string().min(1),
@@ -33,6 +69,7 @@ export const moduleSchema = z
     fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
     crystal_type: crystalTypeSchema,
     card_config: cardConfigSchema.nullable().optional(),
+    dashboard_config: dashboardConfigSchema.nullable().optional(),
   })
   .superRefine((mod, ctx) => {
     // Every configured card-summary value must point at a field that exists.

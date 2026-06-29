@@ -83,6 +83,9 @@
   --sidebar-ring: oklch(0.708 0 0);
   --stone-surface: var(--card);
   --stone-border: var(--border);
+  /* Consistency grid cell backgrounds */
+  --grid-done: var(--card);       /* light mode: white card for done cells */
+  --grid-notdone: var(--muted);   /* light mode: light gray for not-done cells */
 }
 
 .dark {
@@ -119,6 +122,9 @@
   --sidebar-ring: oklch(0.556 0 0);
   --stone-surface: var(--card);
   --stone-border: var(--border);
+  /* Consistency grid cell backgrounds */
+  --grid-done: color-mix(in oklch, var(--foreground) 85%, var(--background) 15%);  /* ~L0.81 light neutral */
+  --grid-notdone: var(--muted);   /* dark gray, one step above background */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -133,6 +139,8 @@
     --input: oklch(0.27 0.02 295);
     --stone-surface: var(--card);
     --stone-border: var(--border);
+    --grid-done: color-mix(in oklch, var(--foreground) 85%, var(--background) 15%);
+    --grid-notdone: var(--muted);
   }
 }
 

@@ -14,6 +14,7 @@ function makeModule(fields: ModuleField[], card_config: CardConfig | null = null
     formula_config: null,
     crystal_type: 'amethyst',
     card_config,
+    dashboard_config: null,
     is_builtin: false,
     shared: false,
     created_at: '2024-01-01T00:00:00Z',
