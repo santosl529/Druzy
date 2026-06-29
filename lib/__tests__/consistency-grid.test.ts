@@ -197,6 +197,72 @@ describe('computeCellState', () => {
     const cell = computeCellState(mod, [{ score: 150 }], '2026-06-28', { min: 0, max: 100 })
     expect(cell.intensity).toBe(1)
   })
+
+  it('category mode, no entry → not-done', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    const cell = computeCellState(mod, [], '2026-06-28', null)
+    expect(cell.state).toBe('not-done')
+    expect(cell.intensity).toBe(0)
+  })
+
+  it('category mode, entry with mapped category → done with crystalOverride and label', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    const cell = computeCellState(mod, [{ session_type: 'Rest' }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.intensity).toBe(1)
+    expect(cell.crystalOverride).toBe('obsidian')
+    expect(cell.categoryLabel).toBe('Rest')
+  })
+
+  it('category mode, entry with unmapped category → done, no crystalOverride', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst' },
+      },
+    })
+    // 'Rest' has no mapping → crystalOverride undefined
+    const cell = computeCellState(mod, [{ session_type: 'Rest' }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.crystalOverride).toBeUndefined()
+    expect(cell.categoryLabel).toBe('Rest')
+  })
+
+  it('category mode, multiple entries → last entry wins for category', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    // dayEntries order: first entry is Lift, second (last) is Rest
+    const cell = computeCellState(
+      mod,
+      [{ session_type: 'Lift' }, { session_type: 'Rest' }],
+      '2026-06-28',
+      null,
+    )
+    expect(cell.crystalOverride).toBe('obsidian')
+    expect(cell.categoryLabel).toBe('Rest')
+  })
 })
 
 // ── computeColumnStats ──────────────────────────────────────────

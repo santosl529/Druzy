@@ -1,4 +1,5 @@
 import type { DashboardConfig, DashboardMode, GoalCondition, GoalConfig, Module, Entry } from './types'
+import type { CrystalKey } from './crystals'
 import { getBinaryField } from './card'
 
 // ----------------------------------------------------------------
@@ -13,6 +14,10 @@ export interface GridCell {
   intensity: number
   /** The day's summed field value (gradient mode only, for hover display). */
   rawValue?: number
+  /** Category mode: crystal to use instead of the module's own crystal. */
+  crystalOverride?: CrystalKey
+  /** Category mode: the raw option value logged that day, for hover/aria. */
+  categoryLabel?: string
 }
 
 export interface GridData {
@@ -156,8 +161,14 @@ export function computeCellState(
     }
 
     case 'category': {
-      // Category mode: any logged entry = done.
-      return { state: 'done', intensity: 1 }
+      if (dayEntries.length === 0) return { state: 'not-done', intensity: 0 }
+      const fieldKey = config?.categoryField ?? ''
+      const lastEntry = dayEntries[dayEntries.length - 1]
+      const label = fieldKey ? String(lastEntry[fieldKey] ?? '') : ''
+      const crystalOverride = label && config?.categoryColors
+        ? (config.categoryColors[label] as CrystalKey | undefined)
+        : undefined
+      return { state: 'done', intensity: 1, categoryLabel: label || undefined, crystalOverride }
     }
   }
 }
