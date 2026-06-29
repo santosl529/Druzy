@@ -2,9 +2,12 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { ConsistencyGrid } from '@/components/consistency-grid'
+import type { ModuleStage } from '@/components/consistency-grid'
 import { buildGridData } from '@/lib/consistency-grid'
 import { withFormulaEntries } from '@/lib/formula'
-import { todayInTimezone } from '@/lib/date'
+import { computeOpenness } from '@/lib/openness'
+import { daysUntilNextStage } from '@/lib/stages'
+import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import type { Module, Entry } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -38,6 +41,47 @@ export default async function DashboardPage() {
 
   const gridData = buildGridData(typedModules, allEntries, today)
 
+  // Geode openness + "days to next stage" per module. Computed from the REAL
+  // entries (not synthetic formula ones), mirroring the trackers grid.
+  const since = daysAgoInTimezone(29, savedTimezone ?? 'UTC') // inclusive 30-day window
+  const nowMs = Date.parse(today + 'T00:00:00Z')
+  const recentDaysByModule = new Map<string, Set<string>>()
+  const totalByModule = new Map<string, number>()
+  for (const e of rawEntries) {
+    totalByModule.set(e.module_id, (totalByModule.get(e.module_id) ?? 0) + 1)
+    if (e.entry_date >= since) {
+      const set = recentDaysByModule.get(e.module_id) ?? new Set<string>()
+      set.add(e.entry_date)
+      recentDaysByModule.set(e.module_id, set)
+    }
+  }
+
+  const stageByModule: Record<string, ModuleStage> = {}
+  for (const m of typedModules) {
+    const isFormula = m.kind === 'formula'
+    const recentDates = recentDaysByModule.get(m.id) ?? new Set<string>()
+    const totalEntries = totalByModule.get(m.id) ?? 0
+    const daysSinceCreated = Math.max(0, Math.round((nowMs - Date.parse(m.created_at)) / 86400000))
+    const openness = computeOpenness({
+      recentDays: recentDates.size,
+      totalEntries,
+      daysSinceCreated,
+      isFormula,
+    })
+    const next = daysUntilNextStage({
+      loggedDates: [...recentDates],
+      totalEntries,
+      daysSinceCreated,
+      isFormula,
+      today,
+    })
+    stageByModule[m.id] = {
+      openness,
+      nextStageName: next?.name ?? null,
+      daysToNext: next?.days ?? null,
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav email={user.email ?? ''} />
@@ -52,7 +96,7 @@ export default async function DashboardPage() {
             No trackers yet. Create one to see your consistency grid.
           </div>
         ) : (
-          <ConsistencyGrid gridData={gridData} today={today} />
+          <ConsistencyGrid gridData={gridData} today={today} stageByModule={stageByModule} />
         )}
       </main>
     </div>

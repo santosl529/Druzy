@@ -3,15 +3,28 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { GeodeIcon } from '@/components/geode-icon'
 import { computeColumnStats } from '@/lib/consistency-grid'
 import { getCrystal } from '@/lib/crystals'
 import { cn } from '@/lib/utils'
 import type { GridData, GridCell, ColumnStats } from '@/lib/consistency-grid'
 import type { CrystalKey } from '@/lib/crystals'
 
+/** Geode progression info shown in a tracker's column header. */
+export interface ModuleStage {
+  /** Current openness (0–1) driving the GeodeIcon. */
+  openness: number
+  /** Name of the next stage, or null when already at the final stage. */
+  nextStageName: string | null
+  /** Days of daily logging until the next stage; null when not soon / maxed. */
+  daysToNext: number | null
+}
+
 interface ConsistencyGridProps {
   gridData: GridData
   today: string
+  /** Per-module geode openness + next-stage countdown, keyed by module id. */
+  stageByModule: Record<string, ModuleStage>
 }
 
 type WindowMode = '90' | 'all'
@@ -74,7 +87,7 @@ function CrystalCell({ cell, crystalType }: CrystalCellProps) {
   )
 }
 
-export function ConsistencyGrid({ gridData, today }: ConsistencyGridProps) {
+export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyGridProps) {
   const [windowMode, setWindowMode] = useState<WindowMode>('90')
 
   const { modules, dates, cells } = gridData
@@ -130,25 +143,27 @@ export function ConsistencyGrid({ gridData, today }: ConsistencyGridProps) {
           <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b border-border">
               {/* Date column header */}
-              <th className="text-left py-3 pr-3 pl-3 min-w-[80px] align-bottom" aria-label="Date" />
+              <th className="text-left py-3 pr-3 pl-3 min-w-[80px] align-top" aria-label="Date" />
 
               {modules.map((mod, mi) => {
                 const stats = columnStats[mi]
+                const stage = stageByModule[mod.id]
                 const crystal = getCrystal(mod.crystal_type)
                 return (
                   <th
                     key={mod.id}
-                    className="px-1 pt-2 pb-3 text-center min-w-[3rem] align-bottom"
+                    className="px-1 pt-2 pb-3 text-center min-w-[3rem] align-top"
                   >
                     <Link
                       href={`/modules/${mod.id}`}
                       className="flex flex-col items-center gap-1 group cursor-pointer"
                       title={mod.name}
                     >
-                      {/* Tiny crystal glyph to identify the tracker */}
-                      <div
-                        className="w-4 h-4 rotate-45 rounded-[2px] shrink-0"
-                        style={{ backgroundColor: crystal.primary }}
+                      {/* The tracker's actual geode, opening with its consistency */}
+                      <GeodeIcon
+                        crystalType={mod.crystal_type}
+                        openness={stage?.openness ?? 0}
+                        className="size-10 shrink-0"
                       />
                       {/* Tracker name — truncated, underlines on hover */}
                       <span
@@ -163,6 +178,16 @@ export function ConsistencyGrid({ gridData, today }: ConsistencyGridProps) {
                       >
                         {mod.name}
                       </span>
+                      {/* Next-stage countdown (assumes daily logging) */}
+                      {stage && (
+                        <div className="text-[10px] leading-none font-medium" style={{ color: crystal.primary }}>
+                          {stage.nextStageName === null
+                            ? 'Bloomed'
+                            : stage.daysToNext === null
+                              ? `${stage.nextStageName} far off`
+                              : `${stage.daysToNext}d to ${stage.nextStageName}`}
+                        </div>
+                      )}
                       {/* Stats */}
                       <div className="text-[10px] text-muted-foreground leading-snug text-center">
                         {stats.currentStreak > 0 && (
