@@ -87,6 +87,16 @@ export function ModuleBuilder({ initial }: Props) {
   const [gradientMax, setGradientMax] = useState(
     initial?.dashboard_config?.gradientRange?.max?.toString() ?? ''
   )
+  const [categoryField, setCategoryField] = useState(
+    initial?.dashboard_config?.mode === 'category'
+      ? (initial.dashboard_config.categoryField ?? '')
+      : ''
+  )
+  const [categoryColors, setCategoryColors] = useState<Record<string, CrystalKey>>(
+    initial?.dashboard_config?.mode === 'category'
+      ? (initial.dashboard_config.categoryColors ?? {})
+      : {}
+  )
 
   function addCardItem() {
     const firstField = fields.find((f) => f.key)?.key ?? ''
@@ -155,14 +165,20 @@ export function ModuleBuilder({ initial }: Props) {
           ? { min: Number(gradientMin), max: Number(gradientMax) }
           : undefined
       dashConfig = { mode: 'gradient', gradientField, gradientRange: range }
+    } else if (dashMode === 'category' && categoryField) {
+      dashConfig = { mode: 'category', categoryField, categoryColors }
     }
-    // Warn when goal/gradient config is incomplete (would silently save as auto/binary)
+    // Warn when goal/gradient/category config is incomplete (would silently save as auto/binary)
     if (dashMode === 'goal' && goalConditions.length === 0) {
       setError('Dashboard goal mode requires at least one condition. Add a condition or choose a different mode.')
       return
     }
     if (dashMode === 'gradient' && !gradientField) {
       setError('Dashboard gradient mode requires a field selection. Pick a field or choose a different mode.')
+      return
+    }
+    if (dashMode === 'category' && !categoryField) {
+      setError('Category mode requires a select field. Pick one or choose a different mode.')
       return
     }
 
@@ -375,6 +391,7 @@ export function ModuleBuilder({ initial }: Props) {
               <SelectItem value="binary">Binary (logged / not logged)</SelectItem>
               <SelectItem value="goal">Goal (conditions must be met)</SelectItem>
               <SelectItem value="gradient">Gradient (intensity by value)</SelectItem>
+              <SelectItem value="category">Category (color by select field)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -515,6 +532,50 @@ export function ModuleBuilder({ initial }: Props) {
             </div>
           </div>
         )}
+
+        {/* Category mode: select field picker + per-option crystal assignment */}
+        {dashMode === 'category' && (() => {
+          const selectFields = fields.filter((f) => f.type === 'select' && f.key)
+          const activeField = selectFields.find((f) => f.key === categoryField)
+          const options = activeField?.options ?? []
+          return (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-1 block">Category field</Label>
+                <Select value={categoryField} onValueChange={(v) => {
+                  setCategoryField(v ?? '')
+                  setCategoryColors({})
+                }}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Pick a select field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectFields.map((f) => (
+                      <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectFields.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Add a select field above to use category mode.</p>
+                )}
+              </div>
+              {options.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs block">Crystal per option</Label>
+                  {options.map((opt) => (
+                    <div key={opt} className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">{opt}</p>
+                      <CrystalPicker
+                        value={categoryColors[opt] ?? crystalType}
+                        onChange={(key) => setCategoryColors((prev) => ({ ...prev, [opt]: key }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
