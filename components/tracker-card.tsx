@@ -135,7 +135,7 @@ export function TrackerCard({
                   'w-full transition-all duration-200',
                   hasEntryToday
                     ? 'border-0'
-                    : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black backdrop-blur-sm',
+                    : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/15 dark:text-white backdrop-blur-sm',
                 )}
                 onClick={handleToggle}
                 disabled={isPending}
@@ -160,7 +160,7 @@ export function TrackerCard({
                     'w-full transition-all duration-200',
                     hasEntryToday
                       ? 'border-0'
-                      : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black backdrop-blur-sm',
+                      : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/15 dark:text-white backdrop-blur-sm',
                   )}
                   style={
                     hasEntryToday
