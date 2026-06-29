@@ -84,11 +84,23 @@ Behavioral specs — visual/component choices are the agent's. Core unless marke
   - After a quick-log (Commit 1) the summaries update optimistically.
   - **Scope guardrail:** the summary shows discrete values, not a mini-chart. Quick-log is binary one-tap + reused-form modal only — no numeric steppers or bespoke per-type card inputs.
 
-### 5.2a Dashboard `/dashboard`
-- **Purpose:** all charts across all modules in one view.
-- **Elements/actions:** 2-column grid of every chart the user has created, across all modules; module name shown as context above each chart; no curation — shows everything.
-- **Empty state:** prompt to add a chart to a tracker.
-- **Note:** Per-dashboard chart curation/arrangement (a separate ordering independent of module ordering) is explicitly out of scope for now — see §10.
+### 5.2a Dashboard `/dashboard` — **Consistency Grid**
+- **Purpose:** At-a-glance habit tracking: how consistent am I across all trackers over time?
+- **Layout:** Trackers = columns, days = rows (newest day at top). Sticky column headers stay visible while scrolling down. Default window: last 90 days; a control expands to all-time.
+- **Header per column:** Tracker name (links to `/modules/[id]` with clear hover affordance), current streak, completion % over the visible window, longest streak. Uses the same consecutive-date streak logic as `lib/analytics.ts computeStreak`.
+- **Row per day:** Date label + "X of N done" count for at-a-glance daily reads.
+- **Cell modes (per tracker, configured in `modules.dashboard_config`):**
+  - `binary` — cell = did an entry exist? For single-boolean trackers, checks the boolean value; for others, checks entry existence. Default for unconfigured standard modules.
+  - `goal` — cell = all conditions met? Config: `{ conditions: [{ field, op, value }], combine: 'all' }` where `op ∈ gte | lte | eq | between` (`between` uses `min`/`max`). Multiple conditions are ANDed.
+  - `gradient` — crystal scales in size/glow with the day's value (auto-fit to window min/max, or fixed range). Default for formula modules. Config: `{ gradientField, gradientRange? }`.
+- **Cell states (three, visually distinct):**
+  - Done — `bg-[var(--grid-done)]`: light neutral (dark: ~L0.81 from `color-mix(foreground 85%, background 15%)`; light: `--card` white) + crystal glyph in tracker color + `ring-1 ring-border/60` in light mode.
+  - Not done — `bg-[var(--grid-notdone)]` = `--muted` in both modes. No crystal.
+  - Inactive (before module existed) — transparent. No crystal.
+- **Crystal glyph:** A small rotated `<div>` (CSS diamond, 6–14 px) in the tracker's `crystal_type` primary color. In gradient mode the size scales with intensity; a glow appears above 40% intensity.
+- **Performance:** 90 days × ~9 trackers ≈ 810 cells; all-time can be thousands. Data loads in 2 batched queries (modules + entries). Cell computation is a pure in-memory pass (O(entries + modules × dates)). No per-cell async work.
+- **Per-chart deep-dives** remain on each tracker's `/modules/[id]` page — not duplicated here.
+- **Note:** The previous all-charts grid dashboard was removed when the consistency grid was added (build step 13 below).
 
 ### 5.2 Assistant `/assistant` (core) — **`createModule` tool built**
 - **Purpose:** the conversational interface — create modules, ask analytics questions, change theme.
@@ -248,6 +260,7 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 - Index on `user_id`.
 - **Note:** `chart_config` was removed in v2.1; charts are now a separate `charts` table.
 - `card_config` jsonb nullable — declarative config for the trackers-grid card summary: `{ items: [{ field, mode, timeWindow }] }`, 1–4 items (see §9 for the shape). Null = use the sensible auto-default. Added in migration `20240107000000_module_card_config.sql`.
+- `dashboard_config` jsonb nullable — declarative consistency grid config: `{ mode: 'binary'|'goal'|'gradient', goal?: GoalConfig, gradientField?: string, gradientRange?: { min, max } }`. Null = auto-default (binary for standard, gradient for formula). An AI tool can populate this declaratively. Added in migration `20240108000000_module_dashboard_config.sql`.
 
 ### `charts`
 - `id` uuid PK
@@ -391,6 +404,17 @@ Conventions: UUID primary keys; `timestamptz` for times; `jsonb` for flexible/va
 
 **Removed behavior:** the "mark done" affordance that wrote a null/empty entry to flag a tracker as logged is gone (replaced by Commit 1 quick-log + binary toggle). `markGreenForToday` and its callers are deleted.
 
+**Dashboard grid config** (`modules.dashboard_config` jsonb) — declarative; all cell evaluation runs in `lib/consistency-grid.ts`:
+
+| `DashboardConfig` field | Type | Notes |
+|---|---|---|
+| `mode` | `'binary'\|'goal'\|'gradient'` | required |
+| `goal` | `GoalConfig?` | required when mode = 'goal' |
+| `gradientField` | `string?` | field key; required when mode = 'gradient' |
+| `gradientRange` | `{ min, max }?` | optional fixed normalization range for gradient |
+
+**`GoalConfig`:** `{ conditions: GoalCondition[], combine: 'all' }`. Each `GoalCondition`: `{ field, op, value? (gte/lte/eq), min?/max? (between) }`. `op ∈ gte | lte | eq | between`. `combine: 'all'` = AND logic (reserved: future `'any'` for OR). Multi-entry days sum field values before checking conditions (e.g. total daily calories).
+
 **Food macros** (fixed fields): `calories`, `protein_g`, `fat_g`, `carbs_g`
 
 **Journal extraction fields** — **user-defined** per the journal template (not fixed). Each field has a `type` ∈ `text | list | number`; number fields can optionally be wired to a tracker module's numeric field. Up to 20 fields per template.
@@ -407,7 +431,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 
 - **Runtime code-generation of novel chart types.** Charts come only from the fixed enum in §9. No executing AI-generated component code (and therefore no sandboxing work).
 - ~~**Multi-module charts.**~~ **Built.** Multi-series charts across modules are active. Line, bar, and area charts support 2+ series from different modules, joined by date, with optional dual Y-axes.
-- **Curated/saved custom dashboards.** `/dashboard` shows all charts in a flat grid. A "My Dashboard" with per-user curation, arrangement, or a separate ordering join table is future work.
+- **Curated/saved custom dashboards.** The all-charts grid that previously lived at `/dashboard` was **removed** in step 13 and replaced by the consistency grid. Per-tracker chart deep-dives remain on `/modules/[id]`. A "My Dashboard" with per-user curation, arrangement, or a separate ordering join table is future work.
 - **Social / sharing / comparison between friends.** Each user is siloed. (`modules.shared` column exists but stays unused.)
 - **Polished/custom UI design.** shadcn defaults only.
 - **Mobile/native app.** Responsive web is enough.
@@ -445,6 +469,8 @@ Each step shippable and testable before the next. **Resist building schema/featu
 
 11. **Quick-log from the trackers grid** — **Done (Commit 1).** Card "Log" action opens the reused `EntryForm` in a modal (default for multi-field trackers); single-boolean trackers get a one-tap done/undone toggle. Logging is the primary card action; opening the tracker page is secondary. Optimistic card update. Removes the mark-done-null hack (`markGreenForToday`). **Checkpoint:** quick-log a multi-field tracker via the modal AND one-tap a binary tracker; confirm both write correct entries with the right date.
 12. **Configurable card summary** — **Done (Commit 2).** `modules.card_config` ({ field, mode, timeWindow }); summary computed in app code (`lib/card-summary.ts`) reusing chart aggregation; rendered with unit; "Not logged" empty state; sensible auto-default when unconfigured; "Card summary" section in the module edit / builder UI. Card summary updates optimistically after a quick-log. **Checkpoint:** Nutrition → sum of calories today, Zetamac → max score today, Weight → latest; confirm each card shows the right value (and "Not logged" when empty).
+
+13. **Consistency Grid Dashboard** — **Done.** Replaced `/dashboard` all-charts grid with a habit-tracking consistency matrix (trackers × days). `dashboard_config` column on `modules` stores mode/goal/gradient config (Zod-validated, editable in module builder). `lib/consistency-grid.ts` handles all cell evaluation. Per-chart deep-dives remain on tracker pages.
 
 After step 2 especially: stop and actually use the manual version before adding AI on top.
 
