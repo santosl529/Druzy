@@ -95,16 +95,23 @@ function getFirstNumericFieldKey(mod: Module): string | null {
  * @param date          - The day (YYYY-MM-DD).
  * @param gradientRange - Normalization range for gradient mode.
  *                        Pass null to produce intensity=0 (caller handles auto-fit).
+ * @param effectiveStart - First day of the tracker's active period (YYYY-MM-DD).
+ *                        Days before this are inactive (pre-tracking). Defaults to
+ *                        the module's creation date; pass an earlier date when the
+ *                        module has backdated/imported entries that predate creation.
  */
 export function computeCellState(
   mod: Module,
   dayEntries: Record<string, unknown>[],
   date: string,
   gradientRange: { min: number; max: number } | null,
+  effectiveStart?: string,
 ): GridCell {
-  // Days before the module existed are inactive (not failures).
-  const createdDate = mod.created_at.split('T')[0]
-  if (date < createdDate) return { state: 'inactive', intensity: 0 }
+  // Days before the tracker's active period are inactive (not failures). The
+  // active period starts at the earliest of creation date and earliest entry —
+  // backdated/imported data counts as real tracking, not a pre-tracking blank.
+  const startDate = effectiveStart ?? mod.created_at.split('T')[0]
+  if (date < startDate) return { state: 'inactive', intensity: 0 }
 
   const config = mod.dashboard_config
   const mode = getEffectiveMode(mod, config)
@@ -238,13 +245,29 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
     if (min <= max && isFinite(min) && isFinite(max)) gradientRanges.set(mod.id, { min, max })
   }
 
-  // 4. Build cells[moduleIdx][dateIdx]
+  // 4. Effective start per module = earliest of (creation date, earliest entry).
+  // Backdated/imported entries before the module row was created are real
+  // tracking, so days from the first data point onward are active (not blank).
+  const effectiveStart = new Map<string, string>()
+  for (const mod of modules) {
+    let start = mod.created_at.split('T')[0]
+    const byDate = index.get(mod.id)
+    if (byDate) {
+      for (const d of byDate.keys()) {
+        if (d < start) start = d
+      }
+    }
+    effectiveStart.set(mod.id, start)
+  }
+
+  // 5. Build cells[moduleIdx][dateIdx]
   const cells: GridCell[][] = modules.map((mod) => {
     const byDate = index.get(mod.id)
     const range = gradientRanges.get(mod.id) ?? null
+    const start = effectiveStart.get(mod.id)
     return dates.map((date) => {
       const dayEntries = byDate?.get(date) ?? []
-      return computeCellState(mod, dayEntries, date, range)
+      return computeCellState(mod, dayEntries, date, range, start)
     })
   })
 

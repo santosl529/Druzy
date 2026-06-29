@@ -305,6 +305,22 @@ describe('buildGridData', () => {
     expect(grid.cells[0][idx].state).toBe('inactive')
   })
 
+  it('entry predating module creation is active, not inactive (backdated/imported data)', () => {
+    // Module row created 2026-06-09, but the user bulk-imported history back to
+    // 2026-05-20. Those imported days are real tracking, not pre-tracking blanks.
+    const mod = makeMod({ id: 'mod-1', created_at: '2026-06-09T00:00:00Z' })
+    const entries = [makeEntry('mod-1', '2026-05-20', { done: true })]
+    const grid = buildGridData([mod], entries, '2026-06-28')
+    const idx = grid.dates.indexOf('2026-05-20')
+    expect(idx).toBeGreaterThan(-1)
+    // The day with imported data must show its real state, never inactive.
+    expect(grid.cells[0][idx].state).toBe('done')
+    // A day before the earliest data (and before creation) is still inactive.
+    const preIdx = grid.dates.indexOf('2026-05-19')
+    expect(preIdx).toBeGreaterThan(-1)
+    expect(grid.cells[0][preIdx].state).toBe('inactive')
+  })
+
   it('dates are in descending order (newest first)', () => {
     const mod = makeMod({ id: 'mod-1' })
     const entries = [
