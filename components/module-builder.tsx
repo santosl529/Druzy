@@ -440,7 +440,7 @@ export function ModuleBuilder({ initial }: Props) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setGoalConditions([...goalConditions, { field: fields.find((f) => f.type === 'number')?.key ?? '', op: 'gte', value: 0 }])}
+              onClick={() => setGoalConditions([...goalConditions, { field: fields.find((f) => f.type === 'number' || f.type === 'rating')?.key ?? '', op: 'gte', value: 0 }])}
               disabled={fields.filter((f) => f.type === 'number' || f.type === 'rating').length === 0}
             >
               <PlusIcon className="size-4 mr-1" /> Add condition
