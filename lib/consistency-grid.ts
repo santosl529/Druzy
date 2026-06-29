@@ -126,7 +126,7 @@ export function computeCellState(
     }
 
     case 'goal': {
-      if (!config?.goal) return { state: 'done', intensity: 1 }
+      if (!config?.goal) return { state: 'not-done', intensity: 0 }
       const done = evaluateGoal(config.goal, dayEntries)
       return { state: done ? 'done' : 'not-done', intensity: done ? 1 : 0 }
     }
@@ -196,6 +196,14 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
     // are not shown beyond the lookback window.
     if (dayBefore >= lookbackFloorStr && dayBefore < earliest) earliest = dayBefore
   }
+
+  // Guarantee at least 90 days of dates so the default window is always full.
+  const ninetyDaysAgo = (() => {
+    const d = new Date(today + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() - 89)
+    return d.toISOString().split('T')[0]
+  })()
+  if (ninetyDaysAgo < earliest) earliest = ninetyDaysAgo
 
   // 2. Generate descending date list from today back to earliest
   const dates: string[] = []

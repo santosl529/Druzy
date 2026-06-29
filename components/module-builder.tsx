@@ -144,6 +144,16 @@ export function ModuleBuilder({ initial }: Props) {
           : undefined
       dashConfig = { mode: 'gradient', gradientField, gradientRange: range }
     }
+    // Warn when goal/gradient config is incomplete (would silently save as auto/binary)
+    if (dashMode === 'goal' && goalConditions.length === 0) {
+      setError('Dashboard goal mode requires at least one condition. Add a condition or choose a different mode.')
+      return
+    }
+    if (dashMode === 'gradient' && !gradientField) {
+      setError('Dashboard gradient mode requires a field selection. Pick a field or choose a different mode.')
+      return
+    }
+
     fd.set('dashboard_config', dashConfig ? JSON.stringify(dashConfig) : '')
 
     startTransition(async () => {

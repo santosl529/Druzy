@@ -312,8 +312,19 @@ describe('buildGridData', () => {
       makeEntry('mod-1', '2026-06-28'),
     ]
     const grid = buildGridData([mod], entries, '2026-06-28')
+    expect(grid.dates[0]).toBe('2026-06-28')  // newest is today
+    expect(grid.dates.length).toBeGreaterThanOrEqual(90)  // at least 90 days
+    // Dates are in descending order
+    for (let i = 1; i < grid.dates.length; i++) {
+      expect(grid.dates[i] < grid.dates[i - 1]).toBe(true)
+    }
+  })
+
+  it('always generates at least 90 dates even with no entries', () => {
+    const mod = makeMod({ id: 'mod-1' })
+    const grid = buildGridData([mod], [], '2026-06-28')
+    expect(grid.dates.length).toBeGreaterThanOrEqual(90)
     expect(grid.dates[0]).toBe('2026-06-28')
-    expect(grid.dates[grid.dates.length - 1]).toBe('2026-06-26')
   })
 
   it('gradient mode auto-fits range to window data', () => {

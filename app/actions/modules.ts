@@ -10,7 +10,11 @@ import type { ModuleField } from '@/lib/types'
 /** Parse the optional card_config form field. Absent/blank → null (auto default). */
 function parseOptionalJson(raw: FormDataEntryValue | null): unknown {
   if (typeof raw !== 'string' || raw === '') return null
-  return JSON.parse(raw)
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null  // let Zod safeParse reject it cleanly
+  }
 }
 
 export async function createModule(formData: FormData): Promise<{ error: string } | never> {
