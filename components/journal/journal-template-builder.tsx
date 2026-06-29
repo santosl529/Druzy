@@ -26,7 +26,10 @@ function makeKey(label: string): string {
 
 interface Props {
   initial: JournalField[]
+  initialBinaryModuleId?: string | null
   trackerModules: TrackerModule[]
+  /** Binary (single-boolean) tracker modules the user can connect to mark "journaled". */
+  binaryModules: Array<{ id: string; name: string }>
 }
 
 const FIELD_TYPE_LABELS: Record<JournalFieldType, string> = {
@@ -35,12 +38,13 @@ const FIELD_TYPE_LABELS: Record<JournalFieldType, string> = {
   number: 'Number — numeric value (can connect to a tracker)',
 }
 
-export function JournalTemplateBuilder({ initial, trackerModules }: Props) {
+export function JournalTemplateBuilder({ initial, initialBinaryModuleId, trackerModules, binaryModules }: Props) {
   const [fields, setFields] = useState<JournalField[]>(
     initial.length > 0
       ? initial
       : [{ key: 'transcription_notes', label: 'Notes', type: 'text' }]
   )
+  const [binaryModuleId, setBinaryModuleId] = useState<string>(initialBinaryModuleId ?? '')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -106,7 +110,7 @@ export function JournalTemplateBuilder({ initial, trackerModules }: Props) {
     setError(null)
     setSaved(false)
     startTransition(async () => {
-      const result = await saveJournalTemplate(fields)
+      const result = await saveJournalTemplate(fields, binaryModuleId || null)
       if (result.error) {
         setError(result.error)
       } else {
@@ -298,6 +302,40 @@ export function JournalTemplateBuilder({ initial, trackerModules }: Props) {
         <PlusIcon className="h-4 w-4" />
         Add field
       </Button>
+
+      <Separator />
+
+      {/* Binary tracker connection */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Mark as journaled (optional)</p>
+        <p className="text-xs text-muted-foreground">
+          When saving a journal capture entry, automatically mark this binary tracker as done.
+          This is what makes the consistency grid show the journal day as complete.
+          Only trackers with a single on/off field appear here.
+        </p>
+        {binaryModules.length > 0 ? (
+          <Select
+            value={binaryModuleId}
+            onValueChange={(v) => setBinaryModuleId(v ?? '')}
+          >
+            <SelectTrigger className="h-9 text-sm max-w-xs">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">(none)</SelectItem>
+              {binaryModules.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            No binary trackers found. Create a tracker with a single on/off field to use this feature.
+          </p>
+        )}
+      </div>
 
       <Separator />
 

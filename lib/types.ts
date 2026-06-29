@@ -402,6 +402,12 @@ export interface JournalTemplate {
   id: string
   user_id: string
   fields: JournalField[]
+  /**
+   * Optional ID of a binary (single-boolean) tracker module to mark as done
+   * whenever a journal capture entry is saved. Lets the consistency grid
+   * reflect journal saves without requiring a number field connection.
+   */
+  binary_module_id: string | null
   created_at: string
 }
 

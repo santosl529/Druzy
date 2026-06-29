@@ -31,9 +31,12 @@ export async function getJournalTemplate(): Promise<JournalTemplate | null> {
  * Upsert the user's extraction template.
  * Only number fields with both targetModuleId and targetFieldKey are kept
  * as mapped; any other combination is stripped server-side.
+ * binaryModuleId is validated server-side: must belong to the user and be a
+ * standard module with a single boolean field.
  */
 export async function saveJournalTemplate(
-  fields: JournalField[]
+  fields: JournalField[],
+  binaryModuleId?: string | null,
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const {
@@ -52,13 +55,39 @@ export async function saveJournalTemplate(
     return f
   })
 
-  const parsed = journalTemplateSchema.safeParse({ fields: sanitized })
+  const parsed = journalTemplateSchema.safeParse({
+    fields: sanitized,
+    binaryModuleId: binaryModuleId ?? undefined,
+  })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid template' }
   }
 
+  // Validate binaryModuleId ownership + shape server-side.
+  let resolvedBinaryModuleId: string | null = null
+  if (parsed.data.binaryModuleId) {
+    const { data: mod } = await supabase
+      .from('modules')
+      .select('kind, fields')
+      .eq('id', parsed.data.binaryModuleId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!mod) return { error: 'Selected tracker not found.' }
+    if (mod.kind !== 'standard') return { error: 'Only standard trackers can be used as the journal marker.' }
+    const modFields = mod.fields as Array<{ type: string }>
+    if (modFields.length !== 1 || modFields[0].type !== 'boolean') {
+      return { error: 'The journal tracker must have exactly one boolean field.' }
+    }
+    resolvedBinaryModuleId = parsed.data.binaryModuleId
+  }
+
   const { error } = await supabase.from('journal_templates').upsert(
-    { user_id: user.id, fields: parsed.data.fields },
+    {
+      user_id: user.id,
+      fields: parsed.data.fields,
+      binary_module_id: resolvedBinaryModuleId,
+    },
     { onConflict: 'user_id' }
   )
 
@@ -178,6 +207,33 @@ export async function createJournalEntry(
       if (mod?.name) loggedModules.push(mod.name as string)
     }
     // Non-fatal: journal entry already saved; log errors are surfaced via loggedModules absence.
+  }
+
+  // If the template has a binary module connected, write {<booleanField>: true} to it.
+  // This is what makes the consistency grid show "journaled" on the day a capture entry is saved.
+  if (template?.binary_module_id) {
+    const { data: binaryMod } = await supabase
+      .from('modules')
+      .select('fields, name')
+      .eq('id', template.binary_module_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (binaryMod) {
+      const boolField = (binaryMod.fields as Array<{ key: string; type: string }>).find(
+        (f) => f.type === 'boolean'
+      )
+      if (boolField) {
+        const binaryResult = await createEntryInModule(
+          template.binary_module_id,
+          parsed.data.entry_date,
+          { [boolField.key]: true }
+        )
+        if (!binaryResult.error && binaryMod.name) {
+          loggedModules.push(binaryMod.name as string)
+        }
+      }
+    }
   }
 
   revalidatePath('/journal')

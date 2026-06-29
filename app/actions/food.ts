@@ -126,13 +126,42 @@ export async function getTrackerModules(): Promise<TrackerModule[]> {
 }
 
 /**
+ * Returns all of the user's standard modules that have exactly one boolean
+ * field — i.e. "binary" trackers whose card shows a done/undone toggle.
+ * Used by the journal template to offer "mark this tracker as journaled."
+ */
+export async function getBinaryTrackerModules(): Promise<Array<{ id: string; name: string }>> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data } = await supabase
+    .from('modules')
+    .select('id, name, fields')
+    .eq('user_id', user.id)
+    .eq('kind', 'standard')
+    .order('name', { ascending: true })
+
+  if (!data) return []
+
+  return data
+    .filter((m) => {
+      const fields = m.fields as Array<{ type: string }>
+      return fields.length === 1 && fields[0].type === 'boolean'
+    })
+    .map((m) => ({ id: m.id as string, name: m.name as string }))
+}
+
+/**
  * Creates an entry in an arbitrary standard module from a plain values object.
  * Used when the user opts to push food photo results into a tracker.
  */
 export async function createEntryInModule(
   moduleId: string,
   entry_date: string,
-  values: Record<string, number | null>
+  values: Record<string, number | boolean | null>
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const {

@@ -256,6 +256,11 @@ export const journalFieldSchema = z
 export const journalTemplateSchema = z
   .object({
     fields: z.array(journalFieldSchema).max(20, 'Templates can have at most 20 fields'),
+    /**
+     * Optional binary tracker to mark as done when a journal entry is saved.
+     * Server-side validated against the user's actual modules.
+     */
+    binaryModuleId: z.string().uuid().optional(),
   })
   .superRefine((t, ctx) => {
     const keys = t.fields.map((f) => f.key)

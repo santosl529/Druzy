@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Nav } from '@/components/nav'
 import { JournalTemplateBuilder } from '@/components/journal/journal-template-builder'
 import { getJournalTemplate } from '@/app/actions/journal'
-import { getTrackerModules } from '@/app/actions/food'
+import { getTrackerModules, getBinaryTrackerModules } from '@/app/actions/food'
 
 export default async function JournalTemplatePage() {
   const supabase = await createClient()
@@ -12,9 +12,10 @@ export default async function JournalTemplatePage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [template, trackerModules] = await Promise.all([
+  const [template, trackerModules, binaryModules] = await Promise.all([
     getJournalTemplate(),
     getTrackerModules(),
+    getBinaryTrackerModules(),
   ])
 
   return (
@@ -36,7 +37,9 @@ export default async function JournalTemplatePage() {
         </div>
         <JournalTemplateBuilder
           initial={template?.fields ?? []}
+          initialBinaryModuleId={template?.binary_module_id ?? null}
           trackerModules={trackerModules}
+          binaryModules={binaryModules}
         />
       </main>
     </div>
