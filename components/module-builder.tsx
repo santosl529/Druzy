@@ -15,7 +15,7 @@ import {
 import { createModule, updateModule } from '@/app/actions/modules'
 import { CrystalPicker } from '@/components/crystal-picker'
 import { FIELD_TYPES, CARD_SUMMARY_MODES, CARD_TIME_WINDOWS } from '@/lib/types'
-import type { Module, ModuleField, CardSummaryMode, CardTimeWindow, CardSummaryItem } from '@/lib/types'
+import type { Module, ModuleField, CardSummaryMode, CardTimeWindow, CardSummaryItem, GoalCondition } from '@/lib/types'
 import type { CrystalKey } from '@/lib/crystals'
 
 const MAX_CARD_ITEMS = 4
@@ -67,6 +67,24 @@ export function ModuleBuilder({ initial }: Props) {
   // Card summary: the values shown on the dashboard card. Empty = automatic default.
   const [cardItems, setCardItems] = useState<CardSummaryItem[]>(initialCardItems(initial))
 
+  // Dashboard config state
+  type GoalOp = 'gte' | 'lte' | 'eq' | 'between'
+  const [dashMode, setDashMode] = useState<'auto' | 'binary' | 'goal' | 'gradient'>(
+    initial?.dashboard_config?.mode ?? 'auto'
+  )
+  const [goalConditions, setGoalConditions] = useState<GoalCondition[]>(
+    initial?.dashboard_config?.goal?.conditions ?? []
+  )
+  const [gradientField, setGradientField] = useState(
+    initial?.dashboard_config?.gradientField ?? ''
+  )
+  const [gradientMin, setGradientMin] = useState(
+    initial?.dashboard_config?.gradientRange?.min?.toString() ?? ''
+  )
+  const [gradientMax, setGradientMax] = useState(
+    initial?.dashboard_config?.gradientRange?.max?.toString() ?? ''
+  )
+
   function addCardItem() {
     const firstField = fields.find((f) => f.key)?.key ?? ''
     setCardItems((items) => [...items, { field: firstField, mode: 'sum', timeWindow: 'today' }])
@@ -112,6 +130,21 @@ export function ModuleBuilder({ initial }: Props) {
     // no items → automatic (blank → null server-side).
     const validItems = cardItems.filter((it) => it.field && fields.some((f) => f.key === it.field))
     fd.set('card_config', validItems.length ? JSON.stringify({ items: validItems }) : '')
+
+    // Build dashboard_config
+    let dashConfig: unknown = null
+    if (dashMode === 'binary') {
+      dashConfig = { mode: 'binary' }
+    } else if (dashMode === 'goal' && goalConditions.length > 0) {
+      dashConfig = { mode: 'goal', goal: { conditions: goalConditions, combine: 'all' } }
+    } else if (dashMode === 'gradient' && gradientField) {
+      const range =
+        gradientMin !== '' && gradientMax !== ''
+          ? { min: Number(gradientMin), max: Number(gradientMax) }
+          : undefined
+      dashConfig = { mode: 'gradient', gradientField, gradientRange: range }
+    }
+    fd.set('dashboard_config', dashConfig ? JSON.stringify(dashConfig) : '')
 
     startTransition(async () => {
       const result = initial
@@ -296,6 +329,166 @@ export function ModuleBuilder({ initial }: Props) {
         >
           <PlusIcon /> {cardItems.length === 0 ? 'Add summary value' : 'Add another'}
         </Button>
+      </div>
+
+      <Separator />
+      <div>
+        <h2 className="text-base font-semibold mb-1">Dashboard mode</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          How this tracker appears in the consistency grid.
+        </p>
+
+        <div className="mb-3">
+          <Label className="text-xs mb-1 block">Mode</Label>
+          <Select value={dashMode} onValueChange={(v) => setDashMode(v as typeof dashMode)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto (sensible default)</SelectItem>
+              <SelectItem value="binary">Binary (logged / not logged)</SelectItem>
+              <SelectItem value="goal">Goal (conditions must be met)</SelectItem>
+              <SelectItem value="gradient">Gradient (intensity by value)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Goal mode: condition builder */}
+        {dashMode === 'goal' && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">All conditions must be met for the cell to show as done.</p>
+            {goalConditions.map((cond, i) => (
+              <div key={i} className="flex gap-2 items-center flex-wrap">
+                {/* Field */}
+                <Select
+                  value={cond.field}
+                  onValueChange={(v) => {
+                    const next = [...goalConditions]; next[i] = { ...next[i], field: v ?? '' }; setGoalConditions(next)
+                  }}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fields.filter((f) => f.type === 'number' || f.type === 'rating').map((f) => (
+                      <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Op */}
+                <Select
+                  value={cond.op}
+                  onValueChange={(v) => {
+                    const next = [...goalConditions]; next[i] = { ...next[i], op: v as GoalOp }; setGoalConditions(next)
+                  }}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gte">≥ (at least)</SelectItem>
+                    <SelectItem value="lte">≤ (at most)</SelectItem>
+                    <SelectItem value="eq">= (exactly)</SelectItem>
+                    <SelectItem value="between">between</SelectItem>
+                  </SelectContent>
+                </Select>
+                {/* Value(s) */}
+                {cond.op === 'between' ? (
+                  <>
+                    <Input
+                      type="number"
+                      placeholder="min"
+                      className="w-20"
+                      value={cond.min ?? ''}
+                      onChange={(e) => {
+                        const next = [...goalConditions]; next[i] = { ...next[i], min: Number(e.target.value) }; setGoalConditions(next)
+                      }}
+                    />
+                    <span className="text-xs text-muted-foreground">–</span>
+                    <Input
+                      type="number"
+                      placeholder="max"
+                      className="w-20"
+                      value={cond.max ?? ''}
+                      onChange={(e) => {
+                        const next = [...goalConditions]; next[i] = { ...next[i], max: Number(e.target.value) }; setGoalConditions(next)
+                      }}
+                    />
+                  </>
+                ) : (
+                  <Input
+                    type="number"
+                    placeholder="value"
+                    className="w-24"
+                    value={cond.value ?? ''}
+                    onChange={(e) => {
+                      const next = [...goalConditions]; next[i] = { ...next[i], value: Number(e.target.value) }; setGoalConditions(next)
+                    }}
+                  />
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setGoalConditions(goalConditions.filter((_, j) => j !== i))}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setGoalConditions([...goalConditions, { field: fields.find((f) => f.type === 'number')?.key ?? '', op: 'gte', value: 0 }])}
+              disabled={fields.filter((f) => f.type === 'number' || f.type === 'rating').length === 0}
+            >
+              <PlusIcon className="size-4 mr-1" /> Add condition
+            </Button>
+            {fields.filter((f) => f.type === 'number' || f.type === 'rating').length === 0 && (
+              <p className="text-xs text-muted-foreground">Add a number or rating field to use goal mode.</p>
+            )}
+          </div>
+        )}
+
+        {/* Gradient mode: field + optional range */}
+        {dashMode === 'gradient' && (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs mb-1 block">Value field</Label>
+              <Select value={gradientField} onValueChange={(v) => setGradientField(v ?? '')}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Pick a field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fields.filter((f) => f.type === 'number' || f.type === 'rating').map((f) => (
+                    <SelectItem key={f.key} value={f.key}>{f.label || f.key}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Fixed range (optional — leave blank for auto)</Label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number"
+                  placeholder="Min"
+                  className="w-24"
+                  value={gradientMin}
+                  onChange={(e) => setGradientMin(e.target.value)}
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <Input
+                  type="number"
+                  placeholder="Max"
+                  className="w-24"
+                  value={gradientMax}
+                  onChange={(e) => setGradientMax(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
