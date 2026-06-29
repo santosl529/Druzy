@@ -166,7 +166,13 @@ export function ModuleBuilder({ initial }: Props) {
           : undefined
       dashConfig = { mode: 'gradient', gradientField, gradientRange: range }
     } else if (dashMode === 'category' && categoryField) {
-      dashConfig = { mode: 'category', categoryField, categoryColors }
+      const activeField = fields.find((f) => f.key === categoryField && f.type === 'select')
+      const allOptions = activeField?.options ?? []
+      const fullCategoryColors: Record<string, CrystalKey> = {}
+      for (const opt of allOptions) {
+        fullCategoryColors[opt] = categoryColors[opt] ?? crystalType
+      }
+      dashConfig = { mode: 'category', categoryField, categoryColors: fullCategoryColors }
     }
     // Warn when goal/gradient/category config is incomplete (would silently save as auto/binary)
     if (dashMode === 'goal' && goalConditions.length === 0) {

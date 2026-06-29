@@ -90,6 +90,24 @@ export const moduleSchema = z
         }
       })
     }
+    // Validate categoryField points at a select field
+    if (mod.dashboard_config?.mode === 'category' && mod.dashboard_config.categoryField) {
+      const catConfig = mod.dashboard_config
+      const target = mod.fields.find((f) => f.key === catConfig.categoryField)
+      if (!target) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['dashboard_config', 'categoryField'],
+          message: `Field "${catConfig.categoryField}" does not exist on this module`,
+        })
+      } else if (target.type !== 'select') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['dashboard_config', 'categoryField'],
+          message: `Field "${catConfig.categoryField}" must be a select field`,
+        })
+      }
+    }
   })
 
 export type ModuleFormValues = z.infer<typeof moduleSchema>

@@ -198,7 +198,7 @@ describe('computeCellState', () => {
     expect(cell.intensity).toBe(1)
   })
 
-  it('category mode, no entry → not-done', () => {
+  it('category mode, no entry → not-done (handled by shared early-return above switch)', () => {
     const mod = makeMod({
       fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
       dashboard_config: {

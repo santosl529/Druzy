@@ -161,7 +161,6 @@ export function computeCellState(
     }
 
     case 'category': {
-      if (dayEntries.length === 0) return { state: 'not-done', intensity: 0 }
       const fieldKey = config?.categoryField ?? ''
       const lastEntry = dayEntries[dayEntries.length - 1]
       const label = fieldKey ? String(lastEntry[fieldKey] ?? '') : ''
