@@ -34,13 +34,13 @@ function CrystalCell({ cell, crystalType }: CrystalCellProps) {
   const crystal = getCrystal(crystalType)
 
   if (cell.state === 'inactive') {
-    return <div className="w-8 h-8 rounded-sm" aria-label="inactive" />
+    return <div className="w-8 h-8 rounded-sm mx-auto" aria-label="inactive" />
   }
 
   if (cell.state === 'not-done') {
     return (
       <div
-        className="w-8 h-8 rounded-sm flex items-center justify-center bg-[var(--grid-notdone)]"
+        className="w-8 h-8 rounded-sm flex items-center justify-center bg-[var(--grid-notdone)] mx-auto"
         aria-label="not done"
       />
     )
@@ -57,6 +57,7 @@ function CrystalCell({ cell, crystalType }: CrystalCellProps) {
         'bg-[var(--grid-done)]',
         // Light mode: add a subtle ring so done cells pop against the card background
         'ring-1 ring-border/60 dark:ring-0',
+        'mx-auto',
       )}
       aria-label={cell.rawValue !== undefined ? `done (${Math.round(cell.rawValue)})` : 'done'}
     >
@@ -117,13 +118,19 @@ export function ConsistencyGrid({ gridData, today }: ConsistencyGridProps) {
       </div>
 
       {/* Grid */}
-      <div className="overflow-auto max-h-[calc(100vh-14rem)] rounded-lg border border-border">
-        <table className="border-collapse w-auto">
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="border-collapse table-fixed w-full">
+          <colgroup>
+            <col className="w-[80px]" />
+            {modules.map((mod) => (
+              <col key={mod.id} />
+            ))}
+          </colgroup>
           {/* Sticky header row */}
           <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b border-border">
               {/* Date column header */}
-              <th className="text-left py-3 pr-3 pl-3 min-w-[80px]" aria-label="Date" />
+              <th className="text-left py-3 pr-3 pl-3 min-w-[80px] align-bottom" aria-label="Date" />
 
               {modules.map((mod, mi) => {
                 const stats = columnStats[mi]
@@ -131,7 +138,7 @@ export function ConsistencyGrid({ gridData, today }: ConsistencyGridProps) {
                 return (
                   <th
                     key={mod.id}
-                    className="px-1 pt-2 pb-3 text-center min-w-[3rem]"
+                    className="px-1 pt-2 pb-3 text-center min-w-[3rem] align-bottom"
                   >
                     <Link
                       href={`/modules/${mod.id}`}
