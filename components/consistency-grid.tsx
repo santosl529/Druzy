@@ -44,7 +44,7 @@ interface CrystalCellProps {
 }
 
 function CrystalCell({ cell, crystalType }: CrystalCellProps) {
-  const crystal = getCrystal(crystalType)
+  const crystal = getCrystal(cell.crystalOverride ?? crystalType)
 
   if (cell.state === 'inactive') {
     return <div className="w-8 h-8 rounded-sm mx-auto" aria-label="inactive" />
@@ -63,6 +63,12 @@ function CrystalCell({ cell, crystalType }: CrystalCellProps) {
   const size = Math.round(6 + cell.intensity * 8) // 6–14 px
   const glow = cell.intensity > 0.4 ? `0 0 ${Math.round(cell.intensity * 8)}px ${crystal.glow}` : undefined
 
+  const ariaLabel = cell.categoryLabel
+    ? `done (${cell.categoryLabel})`
+    : cell.rawValue !== undefined
+    ? `done (${Math.round(cell.rawValue)})`
+    : 'done'
+
   return (
     <div
       className={cn(
@@ -72,7 +78,7 @@ function CrystalCell({ cell, crystalType }: CrystalCellProps) {
         'ring-1 ring-border/60 dark:ring-0',
         'mx-auto',
       )}
-      aria-label={cell.rawValue !== undefined ? `done (${Math.round(cell.rawValue)})` : 'done'}
+      aria-label={ariaLabel}
     >
       <div
         className="rotate-45 rounded-[2px] transition-all duration-200"
