@@ -196,9 +196,7 @@ export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyG
                       )}
                       {/* Stats */}
                       <div className="text-[10px] text-muted-foreground leading-snug text-center">
-                        {stats.currentStreak > 0 && (
-                          <div>{stats.currentStreak}d streak</div>
-                        )}
+                        <div>{stats.currentStreak}d streak</div>
                         <div>{stats.completionPct}%</div>
                         {stats.longestStreak > 0 && (
                           <div className="text-muted-foreground/60">{stats.longestStreak} best</div>

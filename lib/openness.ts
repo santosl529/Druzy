@@ -12,8 +12,10 @@ export interface OpennessInput {
 export function computeOpenness(input: OpennessInput): number {
   if (input.isFormula) return 1
 
+  // Full bloom (openness = 1.0) at 80% of the 30-day window (24/30 days).
+  // Lifetime bonus gives up to a 25% reduction in the required recent %.
   const recentScore = input.recentDays / 30
   const lifetimeScore = Math.min(input.totalEntries / Math.max(input.daysSinceCreated, 1), 1)
-  const openness = recentScore * (1 + lifetimeScore * 0.5)
-  return Math.min(Math.max(openness, 0), 1)
+  const raw = (recentScore / 0.8) * (1 + lifetimeScore * 0.25)
+  return Math.min(Math.max(raw, 0), 1)
 }

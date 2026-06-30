@@ -105,7 +105,7 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
         Reference (frame 2): faceted grey stone with wavy/chunky silhouette.
       */}
       <g fill="#9a98a0" stroke="rgba(0,0,0,0.85)" strokeWidth="1.3" strokeLinejoin="round"
-        style={{ opacity: 'calc(max(1 - max(var(--openness) - 0.65, 0) * 5, 0))' }}>
+        style={{ opacity: 'calc(max(1 - max(var(--openness) - 0.55, 0) * 5, 0))' }}>
         {/* Each chunk flies outward AND shrinks past the 0.55 split threshold,
             so by full bloom they read as small rock fragments in the corners
             (frame 10) instead of large slabs that cover the crystal. The scale
@@ -191,9 +191,9 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
         <path d="M14 32 L32 32 L50 32" strokeWidth="0.8" />
       </g>
 
-      {/* === LAYER 5: Burst rays + sparkles — bloom only (gated past ~0.8), on top === */}
+      {/* === LAYER 5: Burst rays + sparkles — bloom only (gated past ~0.65), on top === */}
       <g stroke="var(--crystal-primary)" strokeWidth="1.7" strokeLinecap="round"
-         style={{ opacity: 'calc(max(var(--openness) - 0.8, 0) * 5)' }}>
+         style={{ opacity: 'calc(min(max(var(--openness) - 0.65, 0) * 5, 1))' }}>
         {/* Cardinal rays */}
         <line x1="32" y1="1" x2="32" y2="9" />
         <line x1="63" y1="32" x2="55" y2="32" />
@@ -215,7 +215,7 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
         <line x1="2" y1="44" x2="9" y2="42" />
       </g>
       {/* Sparkle stars at bloom */}
-      <g fill="white" style={{ opacity: 'calc(max(var(--openness) - 0.82, 0) * 6)' }}>
+      <g fill="white" style={{ opacity: 'calc(min(max(var(--openness) - 0.70, 0) * 6, 1))' }}>
         {/* 4-point star at top */}
         <path d="M32 10 L33 13 L36 14 L33 15 L32 18 L31 15 L28 14 L31 13 Z" />
         {/* 4-point star left */}
@@ -226,7 +226,7 @@ export function GeodeIcon({ crystalType, openness, className }: Props) {
 
       {/* === LAYER 6: Splatter dots — late bloom accent === */}
       <g fill="var(--crystal-primary)"
-         style={{ opacity: 'calc(max(var(--openness) - 0.85, 0) * 7)' }}>
+         style={{ opacity: 'calc(min(max(var(--openness) - 0.72, 0) * 7, 1))' }}>
         <circle cx="16" cy="12" r="1.2" />
         <circle cx="48" cy="12" r="0.9" />
         <circle cx="12" cy="48" r="1" />

@@ -70,9 +70,9 @@ describe('daysUntilNextStage', () => {
   })
 
   it('next stage name is the immediate successor of the current stage', () => {
-    // ~17 distinct recent days, low lifetime ratio → openness ~0.57 → Cracking, next Breaking.
+    // ~12 distinct recent days, low lifetime ratio → openness ~0.51 → Cracking, next Breaking.
     const loggedDates: string[] = []
-    for (let i = 0; i < 17; i++) {
+    for (let i = 0; i < 12; i++) {
       const d = new Date('2026-06-29T00:00:00Z')
       d.setUTCDate(d.getUTCDate() - i)
       loggedDates.push(d.toISOString().split('T')[0])
