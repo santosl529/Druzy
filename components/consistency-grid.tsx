@@ -142,14 +142,14 @@ export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyG
           <colgroup>
             <col className="w-[80px]" />
             {modules.map((mod) => (
-              <col key={mod.id} />
+              <col key={mod.id} className="w-16" />
             ))}
           </colgroup>
           {/* Sticky header row */}
           <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b border-border">
-              {/* Date column header */}
-              <th className="text-left py-3 pr-3 pl-3 min-w-[80px] align-top" aria-label="Date" />
+              {/* Date column header — sticky left so it stays visible during horizontal scroll */}
+              <th className="text-left py-3 pr-3 pl-3 min-w-[80px] align-top sticky left-0 z-20 bg-background border-r border-border" aria-label="Date" />
 
               {modules.map((mod, mi) => {
                 const stats = columnStats[mi]
@@ -221,8 +221,8 @@ export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyG
                   key={date}
                   className="border-b border-border/30 last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  {/* Date label */}
-                  <td className="py-0.5 pl-3 pr-3 text-left align-middle">
+                  {/* Date label — sticky left so it follows horizontal scroll */}
+                  <td className="py-0.5 pl-3 pr-3 text-left align-middle sticky left-0 z-[1] bg-background border-r border-border/40">
                     <div className="text-xs text-muted-foreground whitespace-nowrap leading-tight">
                       {formatDate(date)}
                     </div>
