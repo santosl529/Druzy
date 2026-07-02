@@ -406,8 +406,3 @@ export function getListData(entries: Entry[], config: ChartConfig, timezone = 'U
 
   return result
 }
-
-// ----------------------------------------------------------------
-// Helpers used externally (e.g. ModuleChart, dashboard)
-// ----------------------------------------------------------------
-

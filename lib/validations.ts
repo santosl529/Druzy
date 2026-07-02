@@ -213,7 +213,7 @@ export const chartConfigSchema = z.object({
   secondaryField: z.string().optional(),
 })
 
-const chartSchema = z.object({
+export const chartSchema = z.object({
   module_id: z.string().uuid(),
   config: chartConfigSchema,
   position: z.number().int().min(0).optional(),
@@ -222,7 +222,7 @@ const chartSchema = z.object({
 export type ChartFormValues = z.infer<typeof chartSchema>
 
 // ----------------------------------------------------------------
-// Bulk import schemas (matches ImportMapping in lib/import.ts)
+// Bulk import row schema
 // ----------------------------------------------------------------
 
 const importRowSchema = z.object({

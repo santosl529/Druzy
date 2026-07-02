@@ -207,7 +207,6 @@ function evaluateAst(node: AstNode, scope: Record<string, number>): number {
   }
 }
 
-
 // ----------------------------------------------------------------
 // Compute-on-read daily series
 // ----------------------------------------------------------------
