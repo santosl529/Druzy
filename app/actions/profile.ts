@@ -1,21 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser, getAuthContext } from '@/lib/supabase/auth'
-import type { Profile } from '@/lib/types'
-
-export async function getProfile(): Promise<Profile | null> {
-  const { supabase, user } = await getAuthContext()
-  if (!user) return null
-
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  return (data as Profile | null)
-}
+import { requireUser } from '@/lib/supabase/auth'
 
 export async function updateDayBoundaryTz(timezone: string): Promise<{ error: string } | void> {
   const { supabase, user } = await requireUser()

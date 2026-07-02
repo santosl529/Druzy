@@ -11,7 +11,7 @@
 // ----------------------------------------------------------------
 
 import { computeOpenness } from './openness'
-import { isoDate } from './date'
+import { addDaysISO } from './date'
 
 export interface Stage {
   name: string
@@ -67,11 +67,6 @@ export interface NextStage {
 /** Past this many days of projection we stop and report "not soon". */
 const MAX_PROJECTION_DAYS = 60
 
-function addDays(date: string, n: number): string {
-  const d = new Date(date + 'T00:00:00Z')
-  d.setUTCDate(d.getUTCDate() + n)
-  return isoDate(d)
-}
 
 function recentDaysWithin(logged: Set<string>, windowStart: string, windowEnd: string): number {
   let count = 0
@@ -90,7 +85,7 @@ export function daysUntilNextStage(input: NextStageInput): NextStage | null {
   if (input.isFormula) return null
 
   // Current openness → current stage → next threshold.
-  const windowStartNow = addDays(input.today, -29)
+  const windowStartNow = addDaysISO(input.today, -29)
   const loggedNow = new Set(input.loggedDates)
   const recentNow = recentDaysWithin(loggedNow, windowStartNow, input.today)
   const currentOpenness = computeOpenness({
@@ -107,12 +102,12 @@ export function daysUntilNextStage(input: NextStageInput): NextStage | null {
   const logged = new Set(input.loggedDates)
   let total = input.totalEntries
   for (let n = 1; n <= MAX_PROJECTION_DAYS; n++) {
-    const simDay = addDays(input.today, n - 1)
+    const simDay = addDaysISO(input.today, n - 1)
     if (!logged.has(simDay)) {
       logged.add(simDay)
       total += 1
     }
-    const recent = recentDaysWithin(logged, addDays(simDay, -29), simDay)
+    const recent = recentDaysWithin(logged, addDaysISO(simDay, -29), simDay)
     const openness = computeOpenness({
       recentDays: recent,
       totalEntries: total,

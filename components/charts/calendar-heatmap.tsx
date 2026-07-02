@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { clientEffectiveTimezone, todayInTimezone, isoDate } from '@/lib/date'
+import { clientEffectiveTimezone, todayInTimezone, isoDate, addDaysISO } from '@/lib/date'
 
 interface Props {
   data: Record<string, number>
@@ -14,12 +14,6 @@ interface Props {
 const DAYS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-// Add days to a YYYY-MM-DD string using UTC arithmetic to avoid DST skips
-function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + 'T00:00:00Z')
-  d.setUTCDate(d.getUTCDate() + n)
-  return isoDate(d)
-}
 
 function getIntensity(value: number, max: number): number {
   if (max === 0 || value === 0) return 0
@@ -39,11 +33,11 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
 
     // Walk back to the preceding Sunday so the grid aligns on week boundaries
     const startDayOfWeek = firstOfStartMonth.getUTCDay() // 0=Sun
-    const startStr = addDays(firstOfStartStr, -startDayOfWeek)
+    const startStr = addDaysISO(firstOfStartStr, -startDayOfWeek)
 
     // Total days from that Sunday through today's Sunday + rest of week
     const todayDayOfWeek = todayUTC.getUTCDay()
-    const endStr = addDays(todayStr, 6 - todayDayOfWeek) // end of today's week
+    const endStr = addDaysISO(todayStr, 6 - todayDayOfWeek) // end of today's week
     const msPerDay = 86400000
     const totalDays =
       Math.round((new Date(endStr + 'T00:00:00Z').getTime() - new Date(startStr + 'T00:00:00Z').getTime()) / msPerDay) + 1
@@ -51,7 +45,7 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
     const days: Array<{ date: string; value: number; inFuture: boolean }> = []
 
     for (let i = 0; i < totalDays; i++) {
-      const dateStr = addDays(startStr, i)
+      const dateStr = addDaysISO(startStr, i)
       days.push({
         date: dateStr,
         value: data[dateStr] ?? 0,
