@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { clientEffectiveTimezone, todayInTimezone } from '@/lib/date'
+import { clientEffectiveTimezone, todayInTimezone, isoDate } from '@/lib/date'
 
 interface Props {
   data: Record<string, number>
@@ -18,7 +18,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().split('T')[0]
+  return isoDate(d)
 }
 
 function getIntensity(value: number, max: number): number {
@@ -35,7 +35,7 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
     const startMonthYear = todayUTC.getUTCFullYear()
     const startMonthIdx = todayUTC.getUTCMonth() - (months - 1)
     const firstOfStartMonth = new Date(Date.UTC(startMonthYear, startMonthIdx, 1))
-    const firstOfStartStr = firstOfStartMonth.toISOString().split('T')[0]
+    const firstOfStartStr = isoDate(firstOfStartMonth)
 
     // Walk back to the preceding Sunday so the grid aligns on week boundaries
     const startDayOfWeek = firstOfStartMonth.getUTCDay() // 0=Sun

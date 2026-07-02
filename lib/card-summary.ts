@@ -10,6 +10,7 @@
 
 import type { CardSummaryItem, CardSummaryMode, Entry, Module, ModuleField } from './types'
 import { applyAggregation } from './chart-data'
+import { isoDate } from './date'
 
 /**
  * The slice of an entry the card summary needs. Lets the dashboard ship only
@@ -107,7 +108,7 @@ export function resolveCardItems(mod: Module): CardSummaryItem[] {
 function weekStart(today: string): string {
   const d = new Date(today + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() - 6)
-  return d.toISOString().split('T')[0]
+  return isoDate(d)
 }
 
 function inWindow(entry: CardEntry, item: CardSummaryItem, today: string): boolean {

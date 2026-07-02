@@ -44,3 +44,24 @@ export function daysAgoInTimezone(n: number, tz: string): string {
   d.setUTCDate(d.getUTCDate() - n)
   return d.toISOString().split('T')[0]
 }
+
+/** UTC YYYY-MM-DD of a Date (replaces the hand-rolled toISOString().split('T')[0] pattern). */
+export function isoDate(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
+/** Date-string arithmetic in UTC — no timezone drift for pure YYYY-MM-DD values. */
+export function addDaysISO(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return isoDate(d)
+}
+
+/**
+ * Display-format a YYYY-MM-DD string. Parses as a local-calendar date (no UTC
+ * shift), so "2026-07-02" renders as July 2 in every host timezone.
+ */
+export function formatDisplayDate(dateStr: string, options: Intl.DateTimeFormatOptions): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', options)
+}

@@ -20,27 +20,12 @@ import {
   deleteFoodEntry,
   updateFoodEntry,
 } from '@/app/actions/food'
-import { clientToday } from '@/lib/date'
+import { clientToday, formatDisplayDate, addDaysISO } from '@/lib/date'
 import type { FoodEntry, DailyTotals, MacroEstimate, TrackerModule } from '@/lib/types'
 
 // ----------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------
-
-function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-}
-
-function offsetDate(dateStr: string, days: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(y, m - 1, d + days)
-  const yy = date.getFullYear()
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  return `${yy}-${mm}-${dd}`
-}
 
 /**
  * Smart-match a module field to one of the four food macros.
@@ -828,13 +813,13 @@ export function FoodLog({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigateDate(offsetDate(date, -1))}
+          onClick={() => navigateDate(addDaysISO(date, -1))}
           disabled={loadingDate}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="text-center">
-          <h2 className="font-medium">{formatDate(date)}</h2>
+          <h2 className="font-medium">{formatDisplayDate(date, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
           {!isToday && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
@@ -847,7 +832,7 @@ export function FoodLog({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigateDate(offsetDate(date, 1))}
+          onClick={() => navigateDate(addDaysISO(date, 1))}
           disabled={loadingDate || isToday}
         >
           <ChevronRight className="h-4 w-4" />

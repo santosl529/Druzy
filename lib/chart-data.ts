@@ -1,5 +1,5 @@
 import type { Entry, Module, ModuleField, ChartConfig, ChartFilter, BucketBy, Aggregation } from './types'
-import { todayInTimezone, daysAgoInTimezone } from './date'
+import { todayInTimezone, daysAgoInTimezone, isoDate } from './date'
 
 // ----------------------------------------------------------------
 // Output shapes
@@ -63,7 +63,7 @@ function getBucketKey(dateStr: string, bucketBy: BucketBy): string {
       const diff = day === 0 ? -6 : 1 - day // shift to Monday
       const monday = new Date(d)
       monday.setUTCDate(d.getUTCDate() + diff)
-      return monday.toISOString().split('T')[0]
+      return isoDate(monday)
     }
     case 'month': return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
     case 'year':  return `${d.getUTCFullYear()}-01-01`
@@ -200,7 +200,7 @@ export function getTimeSeries(entries: Entry[], config: ChartConfig, timezone = 
     const end = new Date(today + 'T00:00:00Z')
 
     while (cursor <= end) {
-      const ds = cursor.toISOString().split('T')[0]
+      const ds = isoDate(cursor)
       if (valueByDate[ds] !== undefined) last = valueByDate[ds]
       if (last !== null) result.push({ date: ds, value: last })
       cursor.setUTCDate(cursor.getUTCDate() + 1)

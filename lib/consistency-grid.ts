@@ -1,6 +1,7 @@
 import type { DashboardConfig, DashboardMode, GoalCondition, GoalConfig, Module, Entry } from './types'
 import type { CrystalKey } from './crystals'
 import { getBinaryField } from './card'
+import { isoDate } from './date'
 
 // ----------------------------------------------------------------
 // Output types
@@ -207,12 +208,12 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
   const MAX_LOOKBACK_DAYS = 60
   const lookbackFloor = new Date(today + 'T00:00:00Z')
   lookbackFloor.setUTCDate(lookbackFloor.getUTCDate() - MAX_LOOKBACK_DAYS)
-  const lookbackFloorStr = lookbackFloor.toISOString().split('T')[0]
+  const lookbackFloorStr = isoDate(lookbackFloor)
   for (const mod of modules) {
     const created = mod.created_at.split('T')[0]
     const dayBeforeCreation = new Date(created + 'T00:00:00Z')
     dayBeforeCreation.setUTCDate(dayBeforeCreation.getUTCDate() - 1)
-    const dayBefore = dayBeforeCreation.toISOString().split('T')[0]
+    const dayBefore = isoDate(dayBeforeCreation)
     // Only extend the window if the module was created recently enough
     // (i.e., within MAX_LOOKBACK_DAYS of today). Old modules' inactive zones
     // are not shown beyond the lookback window.
@@ -223,7 +224,7 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
   const ninetyDaysAgo = (() => {
     const d = new Date(today + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - 89)
-    return d.toISOString().split('T')[0]
+    return isoDate(d)
   })()
   if (ninetyDaysAgo < earliest) earliest = ninetyDaysAgo
 
@@ -232,7 +233,7 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
   const cursor = new Date(today + 'T00:00:00Z')
   const end = new Date(earliest + 'T00:00:00Z')
   while (cursor >= end) {
-    dates.push(cursor.toISOString().split('T')[0])
+    dates.push(isoDate(cursor))
     cursor.setUTCDate(cursor.getUTCDate() - 1)
   }
 
@@ -319,14 +320,14 @@ export function computeColumnStats(
   const yesterday = (() => {
     const d = new Date(today + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - 1)
-    return d.toISOString().split('T')[0]
+    return isoDate(d)
   })()
 
   let currentStreak = 0
   if (doneDateSet.has(today) || doneDateSet.has(yesterday)) {
     const start = doneDateSet.has(today) ? today : yesterday
     const cur = new Date(start + 'T00:00:00Z')
-    while (doneDateSet.has(cur.toISOString().split('T')[0])) {
+    while (doneDateSet.has(isoDate(cur))) {
       currentStreak++
       cur.setUTCDate(cur.getUTCDate() - 1)
     }

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { GeodeIcon } from '@/components/geode-icon'
 import { computeColumnStats } from '@/lib/consistency-grid'
 import { getCrystal } from '@/lib/crystals'
+import { formatDisplayDate } from '@/lib/date'
 import { cn } from '@/lib/utils'
 import type { GridData, GridCell, ColumnStats } from '@/lib/consistency-grid'
 import type { CrystalKey } from '@/lib/crystals'
@@ -28,15 +29,6 @@ interface ConsistencyGridProps {
 }
 
 type WindowMode = '90' | 'all'
-
-/** Format a YYYY-MM-DD date as "Jun 28" (UTC, no timezone shift). */
-function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00Z').toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  })
-}
 
 interface CrystalCellProps {
   cell: GridCell
@@ -224,7 +216,7 @@ export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyG
                   {/* Date label — sticky left so it follows horizontal scroll */}
                   <td className="py-0.5 pl-3 pr-3 text-left align-middle sticky left-0 z-[1] bg-background border-r border-border/40">
                     <div className="text-xs text-muted-foreground whitespace-nowrap leading-tight">
-                      {formatDate(date)}
+                      {formatDisplayDate(date, { month: 'short', day: 'numeric' })}
                     </div>
                     {activeCount > 0 && (
                       <div className="text-[10px] text-muted-foreground/50 leading-none mt-0.5">

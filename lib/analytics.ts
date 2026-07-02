@@ -1,5 +1,5 @@
 import type { Entry } from './types'
-import { todayInTimezone } from './date'
+import { todayInTimezone, isoDate } from './date'
 
 // ----------------------------------------------------------------
 // Output shapes
@@ -279,7 +279,7 @@ export function computeStreak(entries: Entry[], timezone = 'UTC'): StreakResult 
   const yesterday = (() => {
     const d = new Date(today + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - 1)
-    return d.toISOString().split('T')[0]
+    return isoDate(d)
   })()
 
   const lastDate = dates[dates.length - 1]

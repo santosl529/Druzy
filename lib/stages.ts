@@ -11,6 +11,7 @@
 // ----------------------------------------------------------------
 
 import { computeOpenness } from './openness'
+import { isoDate } from './date'
 
 export interface Stage {
   name: string
@@ -69,7 +70,7 @@ const MAX_PROJECTION_DAYS = 60
 function addDays(date: string, n: number): string {
   const d = new Date(date + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().split('T')[0]
+  return isoDate(d)
 }
 
 function recentDaysWithin(logged: Set<string>, windowStart: string, windowEnd: string): number {

@@ -4,17 +4,8 @@ import { useState, useTransition } from 'react'
 import { Trash2Icon, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { deleteJournalEntry } from '@/app/actions/journal'
+import { formatDisplayDate } from '@/lib/date'
 import type { JournalEntry, JournalTemplate } from '@/lib/types'
-
-function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function renderFieldValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
@@ -69,7 +60,7 @@ function EntryRow({ entry, template, onDeleted }: EntryRowProps) {
           ) : (
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="text-sm font-medium shrink-0">{formatDate(entry.entry_date)}</span>
+          <span className="text-sm font-medium shrink-0">{formatDisplayDate(entry.entry_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
           {!expanded && fieldSummary.length > 0 && (
             <span className="text-xs text-muted-foreground truncate">
               {fieldSummary
