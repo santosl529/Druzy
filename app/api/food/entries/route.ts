@@ -1,11 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthContext } from '@/lib/supabase/auth'
 import type { FoodEntry, DailyTotals } from '@/lib/types'
 
 export async function GET(req: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
   const { searchParams } = new URL(req.url)

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser, getAuthContext } from '@/lib/supabase/auth'
 import { formulaModuleSchema, crystalTypeSchema } from '@/lib/validations'
 import { FORMULA_VALUE_FIELD } from '@/lib/formula'
 import { createDefaultChart } from '@/app/actions/charts'
@@ -50,9 +51,7 @@ function parseForm(formData: FormData) {
 }
 
 export async function createFormulaModule(formData: FormData): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const parsed = parseForm(formData)
   if (!parsed.success) return { error: parsed.error.issues[0].message }
@@ -94,8 +93,7 @@ export async function createFormulaModuleFromProposal(
   config: FormulaConfig,
   crystalType: string,
 ): Promise<{ error: string } | { id: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return { error: 'Not authenticated. Please sign in and try again.' }
 
   const parsed = formulaModuleSchema.safeParse({ name, config })
@@ -131,9 +129,7 @@ export async function updateFormulaModule(
   id: string,
   formData: FormData
 ): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const parsed = parseForm(formData)
   if (!parsed.success) return { error: parsed.error.issues[0].message }

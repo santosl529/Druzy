@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser, getAuthContext } from '@/lib/supabase/auth'
 import { chartConfigSchema } from '@/lib/validations'
 import type { ChartConfig, ModuleField } from '@/lib/types'
 
@@ -50,9 +51,7 @@ export async function createDefaultChart(moduleId: string, fields: ModuleField[]
 }
 
 export async function createChart(formData: FormData): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const moduleId = formData.get('module_id') as string
   const parsed = chartConfigSchema.safeParse(JSON.parse(formData.get('config') as string))
@@ -78,9 +77,7 @@ export async function createChart(formData: FormData): Promise<{ error: string }
 export async function updateChart(
   chartId: string, moduleId: string, formData: FormData
 ): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const parsed = chartConfigSchema.safeParse(JSON.parse(formData.get('config') as string))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
@@ -98,9 +95,7 @@ export async function updateChart(
 }
 
 export async function deleteChart(chartId: string, moduleId: string): Promise<void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   await supabase.from('charts').delete().eq('id', chartId).eq('user_id', user.id)
   revalidatePath(`/modules/${moduleId}`)
@@ -115,8 +110,7 @@ export async function addChartFromProposal(
   config: ChartConfig,
   moduleId: string
 ): Promise<{ error: string } | { id: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return { error: 'Not authenticated.' }
 
   const parsed = chartConfigSchema.safeParse(config)
@@ -149,8 +143,7 @@ export async function addChartFromProposal(
 }
 
 export async function reorderCharts(updates: { id: string; position: number }[]): Promise<void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return
 
   await Promise.all(

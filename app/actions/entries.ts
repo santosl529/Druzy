@@ -1,8 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser, getAuthContext } from '@/lib/supabase/auth'
 import type { ModuleField } from '@/lib/types'
 
 export async function createEntry(
@@ -10,9 +9,7 @@ export async function createEntry(
   fields: ModuleField[],
   formData: FormData
 ): Promise<{ error: string } | { values: Record<string, unknown>; entryDate: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   // Formula modules are computed from other trackers — never logged directly.
   const { data: mod } = await supabase
@@ -59,9 +56,7 @@ export async function updateEntry(
   fields: ModuleField[],
   formData: FormData
 ): Promise<{ error: string } | void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   // Guard: formula modules cannot be edited directly.
   const { data: mod } = await supabase
@@ -97,9 +92,7 @@ export async function updateEntry(
 }
 
 export async function deleteEntry(id: string, moduleId: string): Promise<void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id)
 
@@ -107,8 +100,7 @@ export async function deleteEntry(id: string, moduleId: string): Promise<void> {
 }
 
 export async function getTodayEntryStatus(moduleIds: string[], date: string): Promise<string[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user || moduleIds.length === 0) return []
 
   const { data } = await supabase
@@ -137,9 +129,7 @@ export async function setBinaryToday(
   entryDate: string,
   done: boolean,
 ): Promise<{ error: string } | void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data: mod } = await supabase
     .from('modules').select('kind').eq('id', moduleId).eq('user_id', user.id).single()

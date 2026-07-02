@@ -1,16 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import type { FoodEntry, DailyTotals, TrackerModule } from '@/lib/types'
 
 export async function getFoodEntriesForDate(date: string): Promise<FoodEntry[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data, error } = await supabase
     .from('food_entries')
@@ -46,11 +41,7 @@ export interface SaveFoodEntryInput {
 export async function createFoodEntry(
   input: SaveFoodEntryInput
 ): Promise<{ error?: string; id?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data, error } = await supabase
     .from('food_entries')
@@ -77,11 +68,7 @@ export async function updateFoodEntry(
   id: string,
   input: Partial<Omit<SaveFoodEntryInput, 'source'>>
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { error } = await supabase
     .from('food_entries')
@@ -100,11 +87,7 @@ export async function updateFoodEntry(
  * field, ordered by name. Used by the food page to offer "also log to tracker."
  */
 export async function getTrackerModules(): Promise<TrackerModule[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data } = await supabase
     .from('modules')
@@ -131,11 +114,7 @@ export async function getTrackerModules(): Promise<TrackerModule[]> {
  * Used by the journal template to offer "mark this tracker as journaled."
  */
 export async function getBinaryTrackerModules(): Promise<Array<{ id: string; name: string }>> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data } = await supabase
     .from('modules')
@@ -163,11 +142,7 @@ export async function createEntryInModule(
   entry_date: string,
   values: Record<string, number | boolean | null>
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   // Ownership check — also guards against formula modules
   const { data: mod } = await supabase
@@ -195,11 +170,7 @@ export async function createEntryInModule(
 }
 
 export async function deleteFoodEntry(id: string): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { error } = await supabase
     .from('food_entries')

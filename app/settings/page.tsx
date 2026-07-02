@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { Separator } from '@/components/ui/separator'
 import { SettingsColorScheme } from '@/components/settings-color-scheme'
@@ -7,9 +6,7 @@ import { SettingsTimezone } from '@/components/settings-timezone'
 import { getProfile } from '@/app/actions/profile'
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { user } = await requireUser()
 
   const profile = await getProfile()
 

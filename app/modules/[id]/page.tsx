@@ -1,7 +1,7 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { PlusIcon } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { EntryForm } from '@/components/entry-form'
 import { EntryList } from '@/components/entry-list'
@@ -15,9 +15,7 @@ import type { Module, Chart, Entry } from '@/lib/types'
 
 export default async function ModuleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const [{ data: module }, { data: charts }, { data: profile }] = await Promise.all([
     supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),

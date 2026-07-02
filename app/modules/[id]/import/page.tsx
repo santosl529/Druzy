@@ -1,15 +1,13 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { ImportWizard } from '@/components/import/import-wizard'
 import type { Module } from '@/lib/types'
 
 export default async function ImportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data: module } = await supabase
     .from('modules')

@@ -1,7 +1,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { visionModel } from '@/lib/ai/config'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthContext } from '@/lib/supabase/auth'
 
 export const runtime = 'nodejs'
 
@@ -18,10 +18,7 @@ const macroSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { user } = await getAuthContext()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
   const contentType = req.headers.get('content-type') ?? ''

@@ -1,14 +1,9 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { AssistantChat } from '@/components/assistant/chat'
 
 export default async function AssistantPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { user } = await requireUser()
 
   return (
     <div className="flex flex-col min-h-screen">

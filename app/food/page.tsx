@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { FoodLog } from '@/components/food/food-log'
 import { getFoodEntriesForDate, getDailyTotals, getTrackerModules } from '@/app/actions/food'
@@ -7,11 +6,7 @@ import { todayInTimezone } from '@/lib/date'
 import type { FoodEntry, DailyTotals, TrackerModule } from '@/lib/types'
 
 export default async function FoodPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data: profile } = await supabase
     .from('profiles')

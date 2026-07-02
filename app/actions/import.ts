@@ -1,8 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { bulkImportPayloadSchema } from '@/lib/validations'
 import {
   coerceImportValue,
@@ -56,9 +55,7 @@ export async function bulkImportEntries(
   rows: ImportRowPayload[],
   includeDuplicates = false
 ): Promise<{ inserted: number; skipped: number; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const parsed = bulkImportPayloadSchema.safeParse({ moduleId, rows, includeDuplicates })
   if (!parsed.success) return { inserted: 0, skipped: 0, error: parsed.error.issues[0].message }

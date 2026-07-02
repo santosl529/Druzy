@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser, getAuthContext } from '@/lib/supabase/auth'
 import { moduleSchema } from '@/lib/validations'
 import { createDefaultChart } from '@/app/actions/charts'
 import type { ModuleField } from '@/lib/types'
@@ -18,9 +18,7 @@ function parseOptionalJson(raw: FormDataEntryValue | null): unknown {
 }
 
 export async function createModule(formData: FormData): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const raw = {
     name: formData.get('name') as string,
@@ -55,9 +53,7 @@ export async function createModule(formData: FormData): Promise<{ error: string 
 }
 
 export async function updateModule(id: string, formData: FormData): Promise<{ error: string } | never> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const raw = {
     name: formData.get('name') as string,
@@ -98,8 +94,7 @@ export async function getModuleDeleteWarnings(id: string): Promise<{
   formulaDependents: string[]
   chartDependents: string[]
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return { formulaDependents: [], chartDependents: [] }
 
   // Formula modules that reference this module as an input.
@@ -155,8 +150,7 @@ export async function createModuleFromProposal(
   fields: ModuleField[],
   crystalType: string,
 ): Promise<{ error: string } | { id: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return { error: 'Not authenticated. Please sign in and try again.' }
 
   const parsed = moduleSchema.safeParse({ name, fields, crystal_type: crystalType })
@@ -177,9 +171,7 @@ export async function createModuleFromProposal(
 }
 
 export async function deleteModule(id: string): Promise<void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   await supabase.from('modules').delete().eq('id', id).eq('user_id', user.id)
   revalidatePath('/')

@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { ConsistencyGrid } from '@/components/consistency-grid'
 import type { ModuleStage } from '@/components/consistency-grid'
@@ -11,9 +10,7 @@ import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import type { Module, Entry } from '@/lib/types'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const [{ data: modules }, { data: profile }] = await Promise.all([
     supabase.from('modules').select('*').eq('user_id', user.id).order('name'),

@@ -2,7 +2,7 @@ import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { chatModel } from '@/lib/ai/config'
 import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/validations'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthContext } from '@/lib/supabase/auth'
 import { validateExpression } from '@/lib/formula'
 import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
 import { daysAgoInTimezone } from '@/lib/date'
@@ -533,10 +533,7 @@ function makeQueryAnalyticsTool(
 // ----------------------------------------------------------------
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
 
   if (!user) {
     return new Response('Unauthorized', { status: 401 })

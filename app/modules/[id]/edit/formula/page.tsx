@@ -1,14 +1,12 @@
-import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { FormulaBuilder } from '@/components/formula-builder'
 import type { Entry, Module } from '@/lib/types'
 
 export default async function EditFormulaModulePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data: modules } = await supabase
     .from('modules').select('*').eq('user_id', user.id).order('created_at', { ascending: false })

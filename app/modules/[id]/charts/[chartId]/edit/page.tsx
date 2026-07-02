@@ -1,5 +1,5 @@
-import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { ChartBuilder } from '@/components/chart-builder'
 import type { Module, Chart } from '@/lib/types'
@@ -10,9 +10,7 @@ export default async function EditChartPage({
   params: Promise<{ id: string; chartId: string }>
 }) {
   const { id, chartId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const [{ data: module }, { data: chart }, { data: allModules }] = await Promise.all([
     supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),

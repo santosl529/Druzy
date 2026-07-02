@@ -1,8 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser, getAuthContext } from '@/lib/supabase/auth'
 import { journalTemplateSchema, journalEntrySchema } from '@/lib/validations'
 import { createEntryInModule } from '@/app/actions/food'
 import type { JournalTemplate, JournalEntry, JournalField } from '@/lib/types'
@@ -12,10 +11,7 @@ import type { JournalTemplate, JournalEntry, JournalField } from '@/lib/types'
 // ----------------------------------------------------------------
 
 export async function getJournalTemplate(): Promise<JournalTemplate | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthContext()
   if (!user) return null
 
   const { data } = await supabase
@@ -46,11 +42,7 @@ export async function saveJournalTemplate(
   fields: JournalField[],
   binaryModuleId: string | null | typeof UNSET = UNSET,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   // Sanitize: strip tracker connections from non-number fields.
   const sanitized = fields.map((f) => {
@@ -116,11 +108,7 @@ export async function saveJournalTemplate(
 // ----------------------------------------------------------------
 
 export async function getJournalEntries(limit = 20): Promise<JournalEntry[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { data } = await supabase
     .from('journal_entries')
@@ -151,11 +139,7 @@ export interface CreateJournalEntryInput {
 export async function createJournalEntry(
   input: CreateJournalEntryInput
 ): Promise<{ error?: string; id?: string; loggedModules?: string[] }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const parsed = journalEntrySchema.safeParse(input)
   if (!parsed.success) {
@@ -265,11 +249,7 @@ export async function createJournalEntry(
 }
 
 export async function deleteJournalEntry(id: string): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const { error } = await supabase
     .from('journal_entries')

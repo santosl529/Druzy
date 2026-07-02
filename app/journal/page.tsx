@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { JournalCapture } from '@/components/journal/journal-capture'
 import { JournalHistory } from '@/components/journal/journal-history'
@@ -7,11 +6,7 @@ import { getJournalTemplate, getJournalEntries } from '@/app/actions/journal'
 import { getTrackerModules } from '@/app/actions/food'
 
 export default async function JournalPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase, user } = await requireUser()
 
   const [template, entries, trackerModules, { data: profile }] = await Promise.all([
     getJournalTemplate(),
