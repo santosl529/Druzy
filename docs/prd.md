@@ -22,10 +22,10 @@
 
 ## 2. Tech Stack
 
-- **Framework:** Next.js 15 (App Router), React, TypeScript (strict).
+- **Framework:** Next.js 16 (App Router), React, TypeScript (strict).
 - **Language/validation:** TypeScript end to end; **Zod** schemas shared between AI tool outputs and DB-facing types.
 - **Database / auth / storage:** Supabase — Postgres with Row Level Security, Supabase Auth, Supabase Storage (for photos).
-- **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons. **Function over form for the MVP** — use shadcn defaults; no custom design system yet.
+- **Styling/UI:** Tailwind CSS + shadcn/ui + Lucide icons. ~~Function over form for the MVP — use shadcn defaults; no custom design system yet.~~ **Superseded (2026-07-02):** the app has a custom **crystal/geode design language** built on shadcn primitives — gem-tone accents, display typography, limestone/obsidian surfaces (see `docs/superpowers/specs/2026-06-17-crystal-geode-theme-design.md` and `docs/superpowers/specs/2026-07-02-full-refactor-design.md`).
 - **Charts:** Recharts for v1. (D3/visx is the escape hatch if a specific chart proves limiting — not a v1 dependency.)
 - **AI assistant layer:** **Vercel AI SDK 6** — `useChat` for the chat surface, tool calling with Zod input schemas, generative UI for rendering tool results as components. This is the primary *new* tool to learn; keep new-tooling concentrated here. **Provider:** OpenRouter (`@ai-sdk/openai` with `baseURL: 'https://openrouter.ai/api/v1'`); model configured in `lib/ai/config.ts` (currently `openrouter/free` for both `chatModel` and `visionModel`). Swap model by changing one string; swap provider by changing the import.
 - **Food vision:** a cloud vision model (e.g. Claude or GPT vision) via API.
@@ -433,7 +433,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 - ~~**Multi-module charts.**~~ **Built.** Multi-series charts across modules are active. Line, bar, and area charts support 2+ series from different modules, joined by date, with optional dual Y-axes.
 - **Curated/saved custom dashboards.** The all-charts grid that previously lived at `/dashboard` was **removed** in step 13 and replaced by the consistency grid. Per-tracker chart deep-dives remain on `/modules/[id]`. A "My Dashboard" with per-user curation, arrangement, or a separate ordering join table is future work.
 - **Social / sharing / comparison between friends.** Each user is siloed. (`modules.shared` column exists but stays unused.)
-- **Polished/custom UI design.** shadcn defaults only.
+- ~~**Polished/custom UI design.** shadcn defaults only.~~ **In scope as of 2026-07-02** — crystal/geode design language applied app-wide (see `docs/superpowers/specs/2026-07-02-full-refactor-design.md`).
 - **Mobile/native app.** Responsive web is enough.
 - **Offline support.**
 - **Richer charting via D3/visx.** Recharts only unless explicitly revisited.
@@ -447,7 +447,7 @@ If a task drifts into any of these, **stop and confirm** before proceeding.
 
 - **Local transcription accuracy** — ~~open~~ decided: default model is `qwen2.5vl` via Ollama (chosen over `llama3.2-vision`, whose `mllama` architecture crashes the llama.cpp runner on several Ollama builds; `qwen2.5vl` runs on Ollama's native engine and is stronger at handwriting/OCR). A manual fallback is always shown on Ollama error. Real-handwriting accuracy must be tested manually by the builder; cannot be automated in CI. Both the base URL and model are overridable via env vars and `localStorage` so the builder can swap models easily.
 - **Food modeling** — ~~decided~~: dedicated `food_entries` table (not a built-in module). Fixed columns (calories, protein_g, fat_g, carbs_g) and dedicated daily-total queries.
-- **Cloud vision provider for food** — ~~deferred~~ decided: `openrouter/free` via OpenRouter (same provider as chat; swap by editing `visionModel` in `lib/ai/config.ts`). Exact theme palette(s) still deferred.
+- **Cloud vision provider for food** — ~~deferred~~ decided: `openrouter/free` via OpenRouter (same provider as chat; swap by editing `visionModel` in `lib/ai/config.ts`). Theme palette ~~deferred~~ decided: crystal/geode — limestone/obsidian surfaces + gem-tone accents (2026-06-17 theme spec, extended app-wide by the 2026-07-02 refactor spec).
 - **Whether the AI assistant is worth its complexity for any given surface** — validate as you go; for chart-picking specifically, a plain UI may beat the assistant. Don't over-invest in AI where a menu is better.
 
 ---
