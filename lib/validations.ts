@@ -6,13 +6,13 @@ import { CRYSTAL_KEYS } from './crystals'
 export const crystalTypeSchema = z.enum(CRYSTAL_KEYS)
 
 /** Card summary config (matches CardConfig in lib/types.ts). */
-export const cardSummaryItemSchema = z.object({
+const cardSummaryItemSchema = z.object({
   field: z.string().min(1),
   mode: z.enum(CARD_SUMMARY_MODES),
   timeWindow: z.enum(CARD_TIME_WINDOWS),
 })
 
-export const cardConfigSchema = z.object({
+const cardConfigSchema = z.object({
   items: z.array(cardSummaryItemSchema).min(1, 'Add at least one value').max(4, 'At most 4 values'),
 })
 
@@ -39,7 +39,7 @@ const goalConfigSchema = z.object({
   combine: z.literal('all'),
 })
 
-export const dashboardConfigSchema = z.discriminatedUnion('mode', [
+const dashboardConfigSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('binary') }),
   z.object({ mode: z.literal('goal'), goal: goalConfigSchema }),
   z.object({
@@ -57,7 +57,7 @@ export const dashboardConfigSchema = z.discriminatedUnion('mode', [
   }),
 ])
 
-export const moduleFieldSchema = z.object({
+const moduleFieldSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
   label: z.string().min(1),
   type: z.enum(FIELD_TYPES),
@@ -120,7 +120,7 @@ export type ModuleFormValues = z.infer<typeof moduleSchema>
 // with own-property lookups, but these names are banned outright.
 const RESERVED_ALIASES = new Set(['__proto__', 'constructor', 'prototype'])
 
-export const formulaInputSchema = z.object({
+const formulaInputSchema = z.object({
   moduleId: z.string().uuid(),
   field: z.string().min(1, 'Pick a field for each input'),
   alias: z
@@ -213,7 +213,7 @@ export const chartConfigSchema = z.object({
   secondaryField: z.string().optional(),
 })
 
-export const chartSchema = z.object({
+const chartSchema = z.object({
   module_id: z.string().uuid(),
   config: chartConfigSchema,
   position: z.number().int().min(0).optional(),
@@ -225,17 +225,7 @@ export type ChartFormValues = z.infer<typeof chartSchema>
 // Bulk import schemas (matches ImportMapping in lib/import.ts)
 // ----------------------------------------------------------------
 
-export const importFieldMappingSchema = z.object({
-  column: z.string().min(1),
-  fieldKey: z.string().min(1),
-})
-
-export const importMappingSchema = z.object({
-  dateColumn: z.string().min(1, 'Date column is required'),
-  fieldMappings: z.array(importFieldMappingSchema).min(1, 'Map at least one field'),
-})
-
-export const importRowSchema = z.object({
+const importRowSchema = z.object({
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   values: z.record(z.string(), z.unknown()),
 })
@@ -252,7 +242,7 @@ export type BulkImportPayload = z.infer<typeof bulkImportPayloadSchema>
 // Journal template + entry schemas
 // ----------------------------------------------------------------
 
-export const journalFieldSchema = z
+const journalFieldSchema = z
   .object({
     key: z
       .string()

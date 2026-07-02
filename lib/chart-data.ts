@@ -111,7 +111,7 @@ function matchesFilter(vals: Record<string, unknown>, f: ChartFilter): boolean {
  * `timezone` governs relative windows like "last N days" so they line up with
  * the user's day-boundary timezone (defaults to UTC when not supplied).
  */
-export function getFilteredEntries(entries: Entry[], config: ChartConfig, timezone = 'UTC'): Entry[] {
+function getFilteredEntries(entries: Entry[], config: ChartConfig, timezone = 'UTC'): Entry[] {
   let result = entries
 
   // Date range
@@ -411,6 +411,3 @@ export function getListData(entries: Entry[], config: ChartConfig, timezone = 'U
 // Helpers used externally (e.g. ModuleChart, dashboard)
 // ----------------------------------------------------------------
 
-export function daysAgo(n: number, timezone = 'UTC'): string {
-  return daysAgoInTimezone(n, timezone)
-}

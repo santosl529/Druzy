@@ -145,11 +145,11 @@ class Parser {
   }
 }
 
-export function parseExpression(expression: string): AstNode {
+function parseExpression(expression: string): AstNode {
   return new Parser(tokenize(expression)).parse()
 }
 
-export function extractVariables(node: AstNode, out = new Set<string>()): Set<string> {
+function extractVariables(node: AstNode, out = new Set<string>()): Set<string> {
   switch (node.type) {
     case 'var': out.add(node.name); break
     case 'neg': extractVariables(node.operand, out); break
@@ -207,22 +207,6 @@ function evaluateAst(node: AstNode, scope: Record<string, number>): number {
   }
 }
 
-/**
- * Parse + evaluate in one go. Returns null if the expression is invalid,
- * a variable is missing, or the result is not a finite number
- * (e.g. division by zero).
- */
-export function evaluateExpression(
-  expression: string,
-  scope: Record<string, number>
-): number | null {
-  try {
-    const result = evaluateAst(parseExpression(expression), scope)
-    return Number.isFinite(result) ? result : null
-  } catch {
-    return null
-  }
-}
 
 // ----------------------------------------------------------------
 // Compute-on-read daily series
@@ -323,7 +307,7 @@ export const FORMULA_VALUE_FIELD: ModuleField = {
   required: false,
 }
 
-export function buildFormulaEntries(
+function buildFormulaEntries(
   module: Module,
   entriesByModule: Map<string, Entry[]>
 ): Entry[] {

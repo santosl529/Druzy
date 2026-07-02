@@ -243,7 +243,7 @@ export interface ModuleField {
 // Formula modules — daily value computed from other modules' data
 // ----------------------------------------------------------------
 
-export const MODULE_KINDS = ['standard', 'formula'] as const
+const MODULE_KINDS = ['standard', 'formula'] as const
 export type ModuleKind = (typeof MODULE_KINDS)[number]
 
 /** One named input a formula reads from another module. */

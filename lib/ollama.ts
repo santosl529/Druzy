@@ -31,7 +31,7 @@ export interface OllamaConfig {
  * localStorage overrides (key: "ollama_base_url" / "ollama_journal_model").
  * Safe to call in SSR — `localStorage` reads are guarded behind typeof window.
  */
-export function getOllamaConfig(): OllamaConfig {
+function getOllamaConfig(): OllamaConfig {
   const envBase = process.env.NEXT_PUBLIC_OLLAMA_BASE_URL ?? 'http://localhost:11434'
   const envModel = process.env.NEXT_PUBLIC_OLLAMA_JOURNAL_MODEL ?? 'qwen2.5vl'
 
@@ -61,7 +61,7 @@ export function getOllamaConfig(): OllamaConfig {
  * Ollama's structured-output `format` follows the JSON Schema draft-07 shape:
  *   { type: 'object', properties: {...}, required: [...] }
  */
-export function buildExtractionSchema(fields: JournalField[]): Record<string, unknown> {
+function buildExtractionSchema(fields: JournalField[]): Record<string, unknown> {
   const properties: Record<string, unknown> = {
     transcription: {
       type: 'string',
