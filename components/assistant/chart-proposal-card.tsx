@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
 import { BarChart2Icon, CheckIcon, ExternalLinkIcon } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -13,10 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { MultiSeriesChartView } from '@/components/charts/recharts-charts'
+import { ChartLoading } from '@/components/charts/chart-loading'
 import { addChartFromProposal } from '@/app/actions/charts'
 import type { ChartConfig } from '@/lib/types'
 import type { MultiSeriesRow, SeriesMeta } from '@/lib/chart-data'
+
+const MultiSeriesChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.MultiSeriesChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
 
 interface Props {
   config: ChartConfig

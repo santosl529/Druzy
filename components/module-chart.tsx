@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import {
   getTimeSeries,
   getScatterData,
@@ -9,22 +10,49 @@ import {
   getCalendarData,
   getMultiSeriesData,
 } from '@/lib/chart-data'
-import {
-  LineChartView,
-  BarChartView,
-  AreaChartView,
-  ScatterChartView,
-  PieChartView,
-  HistogramView,
-  StackedBarView,
-  NumberStatView,
-  MultiSeriesChartView,
-} from '@/components/charts/recharts-charts'
+import { ChartLoading } from '@/components/charts/chart-loading'
 import { CalendarHeatmap } from '@/components/charts/calendar-heatmap'
 import { ListChart } from '@/components/charts/list-chart'
 import { EntryList } from '@/components/entry-list'
 import { clientEffectiveTimezone } from '@/lib/date'
 import type { Chart, Entry, Module, ModuleField } from '@/lib/types'
+
+const LineChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.LineChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const BarChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.BarChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const AreaChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.AreaChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const ScatterChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.ScatterChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const PieChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.PieChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const HistogramView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.HistogramView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const StackedBarView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.StackedBarView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const NumberStatView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.NumberStatView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
+const MultiSeriesChartView = dynamic(
+  () => import('@/components/charts/recharts-charts').then((m) => m.MultiSeriesChartView),
+  { ssr: false, loading: () => <ChartLoading /> },
+)
 
 interface Props {
   chart: Chart
