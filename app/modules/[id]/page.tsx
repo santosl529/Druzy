@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { PlusIcon } from 'lucide-react'
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { EntryForm } from '@/components/entry-form'
 import { EntryList } from '@/components/entry-list'
@@ -17,13 +17,11 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { supabase, user } = await requireUser()
 
-  const [{ data: module }, { data: charts }, { data: profile }] = await Promise.all([
+  const [{ data: module }, { data: charts }, savedTimezone] = await Promise.all([
     supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),
     supabase.from('charts').select('*').eq('module_id', id).eq('user_id', user.id).order('position'),
-    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
+    getUserTimezone(supabase, user.id),
   ])
-
-  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
 
   if (!module) notFound()
 

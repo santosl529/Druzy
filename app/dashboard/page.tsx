@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { ConsistencyGrid } from '@/components/consistency-grid'
 import type { ModuleStage } from '@/components/consistency-grid'
@@ -12,13 +12,12 @@ import type { Module, Entry } from '@/lib/types'
 export default async function DashboardPage() {
   const { supabase, user } = await requireUser()
 
-  const [{ data: modules }, { data: profile }] = await Promise.all([
+  const [{ data: modules }, savedTimezone] = await Promise.all([
     supabase.from('modules').select('*').eq('user_id', user.id).order('name'),
-    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
+    getUserTimezone(supabase, user.id),
   ])
 
   const typedModules = (modules ?? []) as Module[]
-  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
   const today = todayInTimezone(savedTimezone ?? 'UTC')
 
   const moduleIds = typedModules.map((m) => m.id)

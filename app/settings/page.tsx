@@ -1,14 +1,13 @@
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { Separator } from '@/components/ui/separator'
 import { SettingsColorScheme } from '@/components/settings-color-scheme'
 import { SettingsTimezone } from '@/components/settings-timezone'
-import { getProfile } from '@/app/actions/profile'
 
 export default async function SettingsPage() {
-  const { user } = await requireUser()
+  const { supabase, user } = await requireUser()
 
-  const profile = await getProfile()
+  const savedTimezone = await getUserTimezone(supabase, user.id)
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -32,7 +31,7 @@ export default async function SettingsPage() {
         {/* Date & time */}
         <section className="space-y-4">
           <h2 className="font-medium">Date &amp; time</h2>
-          <SettingsTimezone savedTimezone={profile?.day_boundary_tz ?? null} />
+          <SettingsTimezone savedTimezone={savedTimezone} />
         </section>
 
         <Separator />

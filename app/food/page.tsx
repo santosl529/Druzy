@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { FoodLog } from '@/components/food/food-log'
 import { getFoodEntriesForDate, getDailyTotals, getTrackerModules } from '@/app/actions/food'
@@ -8,12 +8,7 @@ import type { FoodEntry, DailyTotals, TrackerModule } from '@/lib/types'
 export default async function FoodPage() {
   const { supabase, user } = await requireUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('day_boundary_tz')
-    .eq('id', user.id)
-    .single()
-  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
+  const savedTimezone = await getUserTimezone(supabase, user.id)
   const today = todayInTimezone(savedTimezone || 'UTC')
 
   const [entries, totals, trackerModules]: [FoodEntry[], DailyTotals, TrackerModule[]] =

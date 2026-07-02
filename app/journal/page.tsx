@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { JournalCapture } from '@/components/journal/journal-capture'
 import { JournalHistory } from '@/components/journal/journal-history'
@@ -8,14 +8,12 @@ import { getTrackerModules } from '@/app/actions/food'
 export default async function JournalPage() {
   const { supabase, user } = await requireUser()
 
-  const [template, entries, trackerModules, { data: profile }] = await Promise.all([
+  const [template, entries, trackerModules, savedTimezone] = await Promise.all([
     getJournalTemplate(),
     getJournalEntries(30),
     getTrackerModules(),
-    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
+    getUserTimezone(supabase, user.id),
   ])
-
-  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
 
   return (
     <div className="flex flex-col min-h-screen">

@@ -2,7 +2,7 @@ import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { chatModel } from '@/lib/ai/config'
 import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/validations'
-import { getAuthContext } from '@/lib/supabase/auth'
+import { getAuthContext, getUserTimezone } from '@/lib/supabase/auth'
 import { validateExpression } from '@/lib/formula'
 import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
 import { daysAgoInTimezone } from '@/lib/date'
@@ -539,16 +539,16 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const [{ data: rawModules }, { data: profile }] = await Promise.all([
+  const [{ data: rawModules }, tz] = await Promise.all([
     supabase
       .from('modules')
       .select('id, name, kind, fields, formula_config')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
-    supabase.from('profiles').select('day_boundary_tz').eq('id', user.id).single(),
+    getUserTimezone(supabase, user.id),
   ])
 
-  const userTz = (profile?.day_boundary_tz as string | null) || 'UTC'
+  const userTz = tz ?? 'UTC'
   const summaries = buildModuleSummaries((rawModules ?? []) as Module[])
   const systemPrompt = buildSystemPrompt(buildContextBlock(summaries))
 

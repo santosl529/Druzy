@@ -23,3 +23,16 @@ export async function requireUser(): Promise<{ supabase: SupabaseClient; user: U
   if (!user) redirect('/login')
   return { supabase, user }
 }
+
+/** The user's saved day-boundary timezone (profiles.day_boundary_tz), or null when unset. */
+export async function getUserTimezone(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('day_boundary_tz')
+    .eq('id', userId)
+    .single()
+  return (profile?.day_boundary_tz as string | null) || null
+}

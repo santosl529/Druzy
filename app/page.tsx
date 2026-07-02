@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUser } from '@/lib/supabase/auth'
+import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { Nav } from '@/components/nav'
 import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
@@ -19,12 +19,7 @@ export default async function DashboardPage() {
 
   const typedModules = (modules ?? []) as Module[]
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('day_boundary_tz')
-    .eq('id', user.id)
-    .single()
-  const savedTimezone = (profile?.day_boundary_tz as string | null) || null
+  const savedTimezone = await getUserTimezone(supabase, user.id)
   const today = todayInTimezone(savedTimezone || 'UTC')
 
   const moduleIds = typedModules.map((m) => m.id)
