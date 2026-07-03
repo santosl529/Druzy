@@ -2,6 +2,7 @@
 
 import type { Entry, ChartConfig, ModuleField } from '@/lib/types'
 import { getListData } from '@/lib/chart-data'
+import { clientEffectiveTimezone } from '@/lib/date'
 
 interface Props {
   entries: Entry[]
@@ -22,7 +23,9 @@ export function ListChart({ entries, config, fields, timezone }: Props) {
     return <p className="text-sm text-muted-foreground py-4">Configure a display field for this list.</p>
   }
 
-  const data = getListData(entries, config, timezone ?? 'UTC')
+  // Client component: unset timezone falls back to the browser tz per the
+  // lib/date.ts convention (server falls back to UTC, client to browser tz).
+  const data = getListData(entries, config, clientEffectiveTimezone(timezone))
 
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-8">No entries yet.</p>

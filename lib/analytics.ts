@@ -285,12 +285,17 @@ export function computeStreak(entries: Entry[], timezone = 'UTC'): StreakResult 
   const lastDate = dates[dates.length - 1]
   let currentStreak = 0
 
-  // Active streak if last entry was today or yesterday
-  if (lastDate === today || lastDate === yesterday) {
+  // Future-dated entries (e.g. a client tz ahead of the day-boundary tz) must
+  // not zero out the streak: count backwards over dates up to today only.
+  const pastDates = dates.filter((d) => d <= today)
+  const lastPastDate = pastDates[pastDates.length - 1]
+
+  // Active streak if the most recent non-future entry was today or yesterday
+  if (lastPastDate === today || lastPastDate === yesterday) {
     currentStreak = 1
-    for (let i = dates.length - 2; i >= 0; i--) {
-      const prev = new Date(dates[i] + 'T00:00:00Z')
-      const next = new Date(dates[i + 1] + 'T00:00:00Z')
+    for (let i = pastDates.length - 2; i >= 0; i--) {
+      const prev = new Date(pastDates[i] + 'T00:00:00Z')
+      const next = new Date(pastDates[i + 1] + 'T00:00:00Z')
       const diffDays = (next.getTime() - prev.getTime()) / 86_400_000
       if (diffDays === 1) {
         currentStreak++
