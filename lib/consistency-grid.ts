@@ -53,6 +53,20 @@ export function evaluateCondition(condition: GoalCondition, value: number): bool
 }
 
 /**
+ * Coerces a raw field value to a finite number, or null when it isn't one.
+ * Rejects null/undefined/'' up front (mirrors lib/formula.ts's toNumber) so
+ * a genuinely missing/non-numeric value is never silently treated as a
+ * contributed 0 — e.g. Number(null) === 0 and Number(true) === 1 would
+ * otherwise let a day with no real numeric entry "phantom-satisfy" a goal
+ * condition like `lte 0` or a `between` range that straddles 0.
+ */
+function toFiniteNumber(v: unknown): number | null {
+  if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null
+  const n = Number(v)
+  return isNaN(n) ? null : n
+}
+
+/**
  * Evaluates a goal against all entries for a single day.
  * Multi-entry fields are summed (e.g. calories across multiple meals).
  * Returns false when no entries exist.
@@ -63,10 +77,19 @@ export function evaluateGoal(
 ): boolean {
   if (dayEntries.length === 0) return false
   return goal.conditions.every((cond) => {
-    const total = dayEntries.reduce((sum, entry) => {
-      const v = Number(entry[cond.field])
-      return isNaN(v) ? sum : sum + v
-    }, 0)
+    let total = 0
+    let sawValue = false
+    for (const entry of dayEntries) {
+      const v = toFiniteNumber(entry[cond.field])
+      if (v === null) continue
+      total += v
+      sawValue = true
+    }
+    // No entry contributed a real numeric value for this field: a summed
+    // total of 0 here is not the same as the user logging 0, so the
+    // condition can't be satisfied — even for thresholds/ranges that a
+    // phantom 0 would otherwise satisfy (lte 0, eq 0, between straddling 0).
+    if (!sawValue) return false
     return evaluateCondition(cond, total)
   })
 }
@@ -190,9 +213,17 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
   if (modules.length === 0) return { modules: [], dates: [today], cells: [] }
 
   // 1. Build index: moduleId → date → values[]
+  //
+  // Entries are sorted by created_at ascending first so that, within a single
+  // day, dayEntries[dayEntries.length - 1] (used by category mode's "most
+  // recent entry wins" tiebreak — see computeCellState) is deterministically
+  // the chronologically latest entry. Callers (e.g. the dashboard page) issue
+  // an unordered Supabase `.select()`, so relying on input array order here
+  // would make the same-day category winner depend on undefined DB row order.
+  const sortedEntries = [...entries].sort((a, b) => a.created_at.localeCompare(b.created_at))
   const index = new Map<string, Map<string, Record<string, unknown>[]>>()
   let earliest = today
-  for (const e of entries) {
+  for (const e of sortedEntries) {
     let byDate = index.get(e.module_id)
     if (!byDate) { byDate = new Map(); index.set(e.module_id, byDate) }
     const day = byDate.get(e.entry_date) ?? []

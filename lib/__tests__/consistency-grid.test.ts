@@ -87,6 +87,69 @@ describe('evaluateGoal', () => {
   })
 })
 
+// ── evaluateGoal value coercion (Step 1: string/null/boolean/missing) ──────
+
+describe('evaluateGoal value coercion', () => {
+  it('string numeric value coerces: "150" satisfies gte 150', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'gte' as const, value: 150 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ cal: '150' }])).toBe(true)
+  })
+
+  it('string numeric values sum across entries: "100" + "50" satisfies gte 150', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'gte' as const, value: 150 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ cal: '100' }, { cal: '50' }])).toBe(true)
+  })
+
+  it('null value does not throw and is ignored, not coerced to 0 (bug: Number(null)===0)', () => {
+    // A single null entry must not satisfy an lte condition the way a real 0 would need to.
+    const goal = { conditions: [{ field: 'cal', op: 'lte' as const, value: 0 }], combine: 'all' as const }
+    expect(() => evaluateGoal(goal, [{ cal: null }])).not.toThrow()
+    expect(evaluateGoal(goal, [{ cal: null }])).toBe(false)
+  })
+
+  it('boolean true value does not throw and is ignored, not coerced to 1 (bug: Number(true)===1)', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'gte' as const, value: 1 }], combine: 'all' as const }
+    expect(() => evaluateGoal(goal, [{ cal: true }])).not.toThrow()
+    expect(evaluateGoal(goal, [{ cal: true }])).toBe(false)
+  })
+
+  it('boolean false value does not throw and does not falsely satisfy an eq-0 condition', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'eq' as const, value: 0 }], combine: 'all' as const }
+    expect(() => evaluateGoal(goal, [{ cal: false }])).not.toThrow()
+    expect(evaluateGoal(goal, [{ cal: false }])).toBe(false)
+  })
+
+  it('missing field key across all entries → false when threshold is positive (gte)', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'gte' as const, value: 100 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ other: 5 }])).toBe(false)
+  })
+
+  it('missing field key, "between" range straddling 0 → false (bug: reduce seed 0 phantom-satisfies)', () => {
+    // The reduce seed is 0 and a genuinely-missing field is skipped (not summed), so a day
+    // with ZERO valid numeric values for the goal field evaluates the condition against a
+    // "phantom" 0 — indistinguishable from the user having actually logged 0. For any
+    // condition satisfied by 0 (between straddling 0, lte 0, eq 0), this incorrectly reports
+    // the goal as met on a day nothing was logged for that field at all.
+    const goal = { conditions: [{ field: 'cal', op: 'between' as const, min: -10, max: 10 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ other: 5 }])).toBe(false)
+  })
+
+  it('missing field key, "lte 0" condition → false (same phantom-zero bug)', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'lte' as const, value: 0 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ other: 5 }])).toBe(false)
+  })
+
+  it('missing field key with a real (non-zero-straddling) between range → false', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'between' as const, min: 100, max: 200 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ other: 5 }])).toBe(false)
+  })
+
+  it('a genuinely logged 0 still counts as a real value (does not regress to the phantom-zero bug fix)', () => {
+    const goal = { conditions: [{ field: 'cal', op: 'lte' as const, value: 0 }], combine: 'all' as const }
+    expect(evaluateGoal(goal, [{ cal: 0 }])).toBe(true)
+  })
+})
+
 // ── computeCellState ─────────────────────────────────────────────
 
 // Minimal module factory
@@ -263,6 +326,77 @@ describe('computeCellState', () => {
     expect(cell.crystalOverride).toBe('obsidian')
     expect(cell.categoryLabel).toBe('Rest')
   })
+
+  it('category mode, entry with empty-string categoryField value → done, no crash, no crystalOverride, label undefined', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    expect(() => computeCellState(mod, [{ session_type: '' }], '2026-06-28', null)).not.toThrow()
+    const cell = computeCellState(mod, [{ session_type: '' }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.crystalOverride).toBeUndefined()
+    // Falsy label ('') is normalized to undefined (matches the `label || undefined` guard),
+    // so the renderer's aria-label falls back to plain "done" instead of "done ()".
+    expect(cell.categoryLabel).toBeUndefined()
+  })
+
+  it('category mode, entry missing the categoryField key entirely → done, no crash, no crystalOverride', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    // Entry has no session_type key at all (e.g. logged before the field existed).
+    expect(() => computeCellState(mod, [{ unrelated: 1 }], '2026-06-28', null)).not.toThrow()
+    const cell = computeCellState(mod, [{ unrelated: 1 }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.crystalOverride).toBeUndefined()
+    expect(cell.categoryLabel).toBeUndefined()
+  })
+
+  it('category mode, categoryColors maps to a crystal key not in CRYSTAL_KEYS → computeCellState passes it through as-is, no crash', () => {
+    // computeCellState does not validate categoryColors values against CRYSTAL_KEYS;
+    // it's a straight lookup. Runtime data (e.g. a stale config after a crystal was
+    // renamed) could hold an invalid key. The renderer (components/consistency-grid.tsx
+    // CrystalCell) is what actually guards this via lib/crystals.ts getCrystal(), which
+    // falls back to the default crystal ('amethyst') for any unrecognized key — see the
+    // getCrystal-level probe below.
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'not_a_real_crystal' as unknown as import('../crystals').CrystalKey },
+      },
+    })
+    expect(() => computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)).not.toThrow()
+    const cell = computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.crystalOverride).toBe('not_a_real_crystal')
+  })
+
+  it('category mode, missing categoryField in config (empty string) → done, no crash, label undefined', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: '',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    expect(() => computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)).not.toThrow()
+    const cell = computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)
+    expect(cell.state).toBe('done')
+    expect(cell.categoryLabel).toBeUndefined()
+  })
 })
 
 // ── computeColumnStats ──────────────────────────────────────────
@@ -385,6 +519,102 @@ describe('buildGridData', () => {
     const preIdx = grid.dates.indexOf('2026-05-19')
     expect(preIdx).toBeGreaterThan(-1)
     expect(grid.cells[0][preIdx].state).toBe('inactive')
+  })
+
+  it('module created today with an entry today → today done, no inactive bleed', () => {
+    const mod = makeMod({ id: 'mod-1', created_at: '2026-06-28T09:00:00Z' })
+    const entries = [makeEntry('mod-1', '2026-06-28', { done: true })]
+    const grid = buildGridData([mod], entries, '2026-06-28')
+    expect(grid.cells[0][0].state).toBe('done')
+    // Yesterday (before creation, no entry) is inactive, not not-done.
+    const yIdx = grid.dates.indexOf('2026-06-27')
+    expect(grid.cells[0][yIdx].state).toBe('inactive')
+  })
+
+  it('90-day window at a month boundary: earliest date is exactly 89 days before today (inclusive span of 90)', () => {
+    // today = 2026-03-01 (month boundary). No entries, no recent module creation
+    // to extend the window further, so the floor is driven purely by the
+    // "guarantee at least 90 days" rule: today - 89 days.
+    const mod = makeMod({ id: 'mod-1', created_at: '2020-01-01T00:00:00Z' })
+    const grid = buildGridData([mod], [], '2026-03-01')
+    expect(grid.dates[0]).toBe('2026-03-01')
+    expect(grid.dates.length).toBe(90)
+    // 89 days before 2026-03-01 (crossing Feb, a non-leap-adjacent boundary here
+    // since 2026 is not a leap year) = 2025-12-02.
+    const last = grid.dates[grid.dates.length - 1]
+    const expectedEarliest = new Date('2026-03-01T00:00:00Z')
+    expectedEarliest.setUTCDate(expectedEarliest.getUTCDate() - 89)
+    const expectedStr = expectedEarliest.toISOString().split('T')[0]
+    expect(last).toBe(expectedStr)
+    // Dates must remain strictly descending and unique across the boundary.
+    const seen = new Set(grid.dates)
+    expect(seen.size).toBe(grid.dates.length)
+  })
+
+  it('duplicate same-day entries (binary mode) → one done cell, not double-counted', () => {
+    const mod = makeMod({ id: 'mod-1' })
+    const entries = [
+      makeEntry('mod-1', '2026-06-28', { done: true }),
+      makeEntry('mod-1', '2026-06-28', { done: true }),
+    ]
+    const grid = buildGridData([mod], entries, '2026-06-28')
+    expect(grid.cells[0][0].state).toBe('done')
+    // Streak counts the day once regardless of how many entries logged that day.
+    const stats = computeColumnStats(grid.cells[0], grid.dates, '2026-06-28')
+    expect(stats.currentStreak).toBe(1)
+  })
+
+  it('duplicate same-day entries, same category value → deterministic done cell (no ambiguity when values agree)', () => {
+    const mod = makeMod({
+      id: 'mod-1',
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    const entries = [
+      makeEntry('mod-1', '2026-06-28', { session_type: 'Lift' }),
+      makeEntry('mod-1', '2026-06-28', { session_type: 'Lift' }),
+    ]
+    const grid = buildGridData([mod], entries, '2026-06-28')
+    expect(grid.cells[0][0].state).toBe('done')
+    expect(grid.cells[0][0].crystalOverride).toBe('amethyst')
+  })
+
+  it('same-day category conflict resolves by entry_date creation order (created_at), not raw array/query order', () => {
+    // Two entries logged the same calendar day with DIFFERENT category values.
+    // The spec says "most-recent-entry wins" (chronologically), not "whatever
+    // order the DB query happened to return rows in." The caller
+    // (app/(app)/dashboard/page.tsx) issues an unordered `.select()` — Postgres
+    // gives no ordering guarantee without ORDER BY — so if buildGridData just
+    // pushes entries in array-arrival order, the winning category becomes
+    // nondeterministic per the brief's explicit bug carve-out. Pin that
+    // buildGridData resolves ties by created_at regardless of input array order.
+    const mod = makeMod({
+      id: 'mod-1',
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'amethyst', Rest: 'obsidian' },
+      },
+    })
+    const earlier = { ...makeEntry('mod-1', '2026-06-28', { session_type: 'Lift' }), id: 'e-a', created_at: '2026-06-28T08:00:00Z' }
+    const later = { ...makeEntry('mod-1', '2026-06-28', { session_type: 'Rest' }), id: 'e-b', created_at: '2026-06-28T20:00:00Z' }
+
+    // Array order: chronologically-later entry arrives FIRST in the input array
+    // (simulating unordered DB row order not matching created_at order).
+    const gridReversed = buildGridData([mod], [later, earlier], '2026-06-28')
+    // Array order: chronologically-later entry arrives LAST (natural order).
+    const gridNatural = buildGridData([mod], [earlier, later], '2026-06-28')
+
+    // Both must agree: the chronologically most recent entry (Rest, 20:00) wins,
+    // regardless of array order.
+    expect(gridReversed.cells[0][0].categoryLabel).toBe('Rest')
+    expect(gridNatural.cells[0][0].categoryLabel).toBe('Rest')
+    expect(gridReversed.cells[0][0].crystalOverride).toBe(gridNatural.cells[0][0].crystalOverride)
   })
 
   it('dates are in descending order (newest first)', () => {

@@ -159,3 +159,158 @@ Entry format:
   Trade-off: extra defensive code for a state the schema/actions already
   prevent; low priority unless a new formula-creation path is added later
   (e.g. bulk import) that might skip `validateFormulaInputs`.
+
+## [F-06] `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** grid
+- **What happens:** `evaluateGoal`'s reduce used `Number(entry[cond.field])`
+  guarded only by `isNaN`. Two distinct failure modes: (1) `Number(null)`
+  is `0` and `Number(true)`/`Number(false)` are `1`/`0` — none of these are
+  `NaN`, so a `null` or boolean value logged under a numeric goal field
+  was silently coerced and counted as a real contribution instead of
+  being ignored. (2) Separately, because the reduce seed is `0` and a
+  genuinely-missing field is (correctly) excluded from the sum, a day
+  where the field never appears in *any* entry evaluates the condition
+  against `0` — indistinguishable from the user having actually logged
+  `0`. For a condition satisfied by `0` (e.g. `lte 0`, `eq 0`, or a
+  `between` range straddling `0`), this "phantom zero" reports the goal
+  as met on a day nothing was logged for that field at all. Both are the
+  same root cause the codebase already guards against in
+  `lib/formula.ts`'s `toNumber` (rejects `null`/`undefined`/`''` before
+  calling `Number()`) — `evaluateGoal` never had the equivalent guard.
+- **Where:** lib/consistency-grid.ts (`evaluateGoal`, `toFiniteNumber`
+  helper added). Regression tests: lib/__tests__/consistency-grid.test.ts
+  `describe('evaluateGoal value coercion', ...)` — string-numeric
+  coercion (kept, unchanged behavior), null/boolean values no longer
+  satisfy conditions, missing-field-across-all-entries returns false
+  even for zero-straddling ranges, and a genuinely logged `0` still
+  counts (regression guard against overcorrecting).
+- **Proposed fix:** (applied) added `toFiniteNumber` (rejects
+  `null`/`undefined`/`''`/`boolean` before `Number()` coercion, mirroring
+  `lib/formula.ts`'s `toNumber`) and tracked whether any entry
+  contributed a real value per condition (`sawValue`); if none did, the
+  condition is false regardless of what the reduce-seed `0` would
+  otherwise satisfy. Note: the identical `Number(e[fieldKey])`/`isNaN`
+  pattern also exists in gradient mode (cell computation and the
+  auto-fit range scan) — see F-07, left unfixed as out of this task's
+  scope (lower severity: affects a display intensity value, not a
+  boolean pass/fail gate).
+
+## [F-07] Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity)
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** grid
+- **What happens:** `computeCellState`'s `'gradient'` branch
+  (`lib/consistency-grid.ts`, the `rawValue` reduce) and
+  `buildGridData`'s gradient auto-fit range scan use the same
+  `Number(e[fieldKey])` / `isNaN` pattern that F-06 fixed in
+  `evaluateGoal`. `null`/boolean field values are silently coerced
+  (`Number(null)===0`, `Number(true)===1`) into the summed `rawValue`,
+  and a day with no real numeric value for the field computes `rawValue
+  = 0` — identical to a genuinely logged `0`. Unlike `evaluateGoal`,
+  gradient mode's output is a display intensity/hover value, not a
+  boolean goal-met gate, so the practical impact is softer: a day with a
+  stray `null`/boolean value (or entirely missing field, which is
+  already the common "no entry" case elsewhere) renders at the bottom of
+  the gradient range instead of being visually distinguished from a
+  real `0`. Since `computeCellState`'s dispatch already returns early
+  for `dayEntries.length === 0` (true no-entry days), this only bites
+  when an entry *exists* for the day but the configured gradient field
+  specifically holds `null`/a boolean/a non-numeric string on it (e.g. a
+  field left blank in a multi-field form, or type drift after a field's
+  type was changed).
+- **Where:** lib/consistency-grid.ts, `computeCellState` case
+  `'gradient'` (rawValue reduce), and `buildGridData`'s gradient
+  auto-fit range scan (same reduce pattern). No regression test added —
+  this is an unfixed DECIDE, not a characterized behavior change.
+- **Proposed fix:** reuse the `toFiniteNumber` helper added for F-06 in
+  both gradient-mode reduces, and track `sawValue` the same way so a
+  field with zero real numeric contributions can render as a distinct
+  "no data" state instead of `rawValue = 0`. Trade-off: gradient mode
+  currently has no "no data but entry exists" visual state — `rawValue:
+  undefined` would need a rendering decision (blank cell? floor
+  intensity? excluded from auto-fit min/max?), which is a product call
+  beyond a one-line coercion fix; deferred rather than bundled into F-06
+  to keep that fix minimal and scoped to the brief's Step 1 target.
+
+## [F-08] Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** grid
+- **What happens:** The category-mode spec
+  (docs/superpowers/specs/2026-06-29-category-mode-design.md) says the
+  "most recent entry" wins when two entries land on the same day, read
+  from `dayEntries[dayEntries.length - 1]` in `computeCellState`. But
+  `buildGridData` populated `dayEntries` by pushing entries into each
+  day's array in whatever order the input `entries` array arrived in —
+  and the sole production caller
+  (app/(app)/dashboard/page.tsx:24-30) issues an unordered
+  `.select('module_id, entry_date, values, created_at')...` Supabase
+  query with no `.order()` clause. Postgres gives no ordering guarantee
+  without `ORDER BY`, so "last in the array" was not reliably "most
+  recently created" — the winning category for a same-day conflict
+  could flip between page loads or after unrelated writes/vacuums
+  changed physical row order, with no code change and no user action.
+  Per the task brief, order-dependent nondeterminism is treated as a bug
+  even though the spec is silent on the underlying query's ordering.
+- **Where:** lib/consistency-grid.ts, `buildGridData` step 1 (entry
+  indexing loop). Regression test:
+  lib/__tests__/consistency-grid.test.ts `'same-day category conflict
+  resolves by entry_date creation order (created_at), not raw
+  array/query order'` — builds the grid twice from the same two entries
+  in opposite array order and asserts both runs agree on the winner
+  (RED before fix: reversed-array run picked the array-last entry
+  instead of the chronologically-last one; GREEN after).
+- **Proposed fix:** (applied) sort the `entries` array by `created_at`
+  ascending once, up front in `buildGridData`, before building the
+  per-day index — so `dayEntries[dayEntries.length - 1]` is
+  deterministically the chronologically latest entry regardless of
+  input array order. Fixed at the `lib` layer (not the Supabase query)
+  so the guarantee holds for any caller, not just the current dashboard
+  page.
+
+## [F-09] An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** grid
+- **What happens:** The category-mode spec says "unmapped options fall
+  back to the module's crystal," and `computeCellState` implements that
+  correctly for options genuinely absent from `categoryColors` — it
+  leaves `crystalOverride` as `undefined`, and the renderer
+  (`components/consistency-grid.tsx` `CrystalCell`) does
+  `getCrystal(cell.crystalOverride ?? crystalType)`, which falls through
+  to the module's own `crystalType`. But `categoryColors` values are
+  never validated against `CRYSTAL_KEYS` at the `computeCellState`
+  layer — it's a plain object lookup, so a *present but invalid* mapped
+  value (e.g. stale config data from a renamed/removed crystal key) is
+  passed through as `crystalOverride` unchanged. `cell.crystalOverride
+  ?? crystalType` only catches `null`/`undefined`, not an
+  invalid-but-truthy string, so `getCrystal(garbage)` is called instead
+  — and `getCrystal`'s own fallback (lib/crystals.ts:54-56,
+  already covered by an existing passing test in
+  lib/__tests__/crystals.test.ts) returns the hardcoded default
+  (`amethyst`), not the module's actual configured crystal. Net effect:
+  an unmapped option renders in the module's crystal (correct per spec);
+  an invalid-but-mapped option renders in amethyst regardless of the
+  module's crystal (spec-adjacent but not what "fall back to the
+  module's crystal" says). Currently unreachable through the UI — the
+  module-builder's category config only offers `CRYSTAL_KEYS` values via
+  a `<Select>` — this only matters for stale/hand-edited config rows.
+- **Where:** lib/consistency-grid.ts `computeCellState` case `'category'`
+  (no validation on `categoryColors[label]` lookup);
+  components/consistency-grid.tsx:39 (`getCrystal(cell.crystalOverride
+  ?? crystalType)`); lib/crystals.ts:54-56 (`getCrystal`'s hardcoded
+  fallback). Probe (characterization, no crash):
+  lib/__tests__/consistency-grid.test.ts 'category mode, categoryColors
+  maps to a crystal key not in CRYSTAL_KEYS → computeCellState passes it
+  through as-is, no crash'.
+- **Proposed fix:** either (a) validate `categoryColors` values against
+  `CRYSTAL_KEYS` in `computeCellState` and treat an invalid entry the
+  same as unmapped (`crystalOverride` stays `undefined`, falls back to
+  the module's crystal, matching spec intent exactly), or (b) change the
+  renderer's fallback to `getCrystal(cell.crystalOverride ?? crystalType,
+  crystalType)`-style two-level fallback. Trade-off: this is unreachable
+  dead-config territory today (no UI path produces an invalid key), so
+  it's low priority defense-in-depth; (a) is the more spec-faithful fix
+  and belongs in lib/consistency-grid.ts rather than the renderer.
