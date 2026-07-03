@@ -141,6 +141,28 @@ describe('computeFormulaSeries numeric edges', () => {
     expect(points).toEqual([])
   })
 
+  it('multi-input: a non-numeric value in a defaulted input is fine when another input anchors the day', () => {
+    // a + b, b has defaultValue: 3. On 2026-06-01, a is numeric (5) and b's
+    // logged value is non-numeric ('bad'). b's non-numeric entry never enters
+    // b's byDate map (toNumber → null), so it's indistinguishable from b
+    // having no entry that day — the date is still anchored into `allDates`
+    // by a's numeric entry (lines 265-266), and b's defaultValue substitutes
+    // (lines 275-278: `logged !== undefined` is false for b on this date).
+    const config: FormulaConfig = {
+      inputs: [
+        { moduleId: 'mod-a', field: 'val', alias: 'a' },
+        { moduleId: 'mod-b', field: 'val', alias: 'b', defaultValue: 3 },
+      ],
+      expression: 'a + b',
+    }
+    const entriesByModule = new Map<string, Entry[]>([
+      ['mod-a', [makeEntry('mod-a', '2026-06-01', { val: 5 })]],
+      ['mod-b', [makeEntry('mod-b', '2026-06-01', { val: 'bad' })]],
+    ])
+    const points = computeFormulaSeries(config, entriesByModule)
+    expect(points).toEqual([{ date: '2026-06-01', value: 8 }])
+  })
+
   it('multiple entries on the same day are averaged per input', () => {
     const config: FormulaConfig = {
       inputs: [{ moduleId: 'mod-a', field: 'val', alias: 'a' }],

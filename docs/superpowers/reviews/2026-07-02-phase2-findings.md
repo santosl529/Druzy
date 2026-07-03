@@ -13,7 +13,7 @@ Entry format:
 - **Proposed fix:** <one or two sentences; for DECIDE entries include the trade-off>
 
 ## [F-01] Future-dated entry zeroes the current streak
-- **Status:** FIXED (commit: task-1 audit commit on refactor/phase-2-bugs)
+- **Status:** FIXED (commit afbbd72)
 - **Severity:** medium
 - **Area:** date-tz
 - **What happens:** `computeStreak` decided "streak active" by looking only at
@@ -30,7 +30,7 @@ Entry format:
   streak computation" (RED before fix, GREEN after).
 
 ## [F-02] ListChart (client component) fell back to UTC instead of browser tz
-- **Status:** FIXED (commit: task-1 audit commit on refactor/phase-2-bugs)
+- **Status:** FIXED (commit afbbd72)
 - **Severity:** low
 - **Area:** date-tz
 - **What happens:** `components/charts/list-chart.tsx` is `'use client'` but
@@ -66,41 +66,57 @@ Entry format:
   the fallback simple but silently wrong-by-a-day if a future form forgets
   the field.
 
-## [F-04] Non-numeric logged value drops the whole formula day, even with a default configured
+## [F-04] A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence
 - **Status:** DECIDE
 - **Severity:** low
 - **Area:** formula
 - **What happens:** `computeFormulaSeries` (lib/formula.ts:236) builds each
   input's `byDate` map only from entries whose field value survives
   `toNumber` (line 219-223: null/undefined/''/non-numeric string → `null`,
-  `continue`d out at line 253). A `defaultValue` is only substituted when
-  the input module has *no entry at all* for that date (line 275-283,
-  `logged !== undefined` check against `byDate`, not against "did an entry
-  exist"). So if a user logs an entry for an input tracker that day but
-  leaves the numeric field blank or it somehow contains a non-numeric
-  string, that date never enters `allDates` (line 265-266 only iterates
-  `perInput[i].byDate.keys()`) — the formula silently has no point for that
-  day at all, identical to the module never being touched, even when the
-  input has an explicit `defaultValue`. This technically matches the
-  code's own doc comment ("a configured defaultValue for inputs **with no
-  entry**", line 232-234) but arguably contradicts the more permissive
+  `continue`d out at line 253). Because of this, an entry with a
+  non-numeric value is *indistinguishable* from a missing entry — both
+  simply never appear in that input's `byDate` map. The real gate on
+  whether a date is computed at all is `allDates` (lib/formula.ts:265-266),
+  which is the union of every input's `byDate` keys: a date only exists in
+  the output if **at least one input contributed a numeric value that
+  day**. Once a date clears that bar, each input is resolved independently
+  at lib/formula.ts:275-278 — `logged !== undefined` — and a defaulted
+  input with no numeric value that day (whether truly absent or logged as
+  non-numeric) falls through to its `defaultValue`. So in a multi-input
+  formula, a non-numeric value in a defaulted input is harmless when
+  another input anchors the day with a real numeric value that day: the
+  default still substitutes and the day still computes. The day drops
+  entirely only in the *sole-anchor* case — when no input has a numeric
+  value that day at all (e.g. a single-input formula, or every input's
+  value that day is non-numeric/absent), because then no input's `byDate`
+  contributes that key to `allDates` and the date never comes up for
+  evaluation in the first place, regardless of any `defaultValue`
+  configured. This matches the code's own doc comment ("a configured
+  defaultValue for inputs with no entry", line 232-234) read narrowly, but
+  the sole-anchor case still creates tension with the more permissive
   promise in components/formula-summary.tsx:47-48 ("computed... when every
-  input has **a logged value** or a configured default") — a blank/bad
-  logged value is not "a logged value," so a reasonable reading is that
-  the default should still apply.
-- **Where:** lib/formula.ts:219-223 (`toNumber`), :250-262 (`byDate`
-  construction, drops non-numeric silently), :265-266 (`allDates`),
-  :275-283 (default substitution only on missing-from-byDate). Regression
-  test (characterization, pinned as-is):
+  input has a logged value or a configured default") — in that case
+  there's no entry at all to anchor the date, so the default is configured
+  but never gets a chance to apply, which a user reading that copy
+  wouldn't expect.
+- **Where:** lib/formula.ts:265-266 (`allDates`, the actual gate — a date
+  needs at least one input with a numeric value to be considered at all),
+  :275-278 (per-input default substitution, `logged !== undefined` against
+  `byDate`, correctly indifferent to *why* the value is missing). Multi-input
+  characterization test: lib/__tests__/formula.test.ts "multi-input: a
+  non-numeric value in a defaulted input is fine when another input anchors
+  the day". Sole-anchor characterization test (pre-existing):
   lib/__tests__/formula.test.ts "non-numeric value in an input field is
-  dropped, not NaN — and the day is skipped even with a default".
-- **Proposed fix:** distinguish "no entry logged" from "entry logged but
-  value not numeric" upstream (e.g. track presence separately from the
-  numeric sum/count), and apply `defaultValue` in the latter case too.
-  Trade-off: changes computed history for any formula whose input field
-  sometimes has blank/non-numeric values — worth confirming this is
-  actually surprising in practice (numeric/rating fields are typically
-  validated at entry time) before changing silently-relied-upon output.
+  dropped, not NaN — and the day is skipped even with a default" (single
+  input, so it is its own sole anchor).
+- **Proposed fix:** treat defaulted inputs as date anchors (i.e., a date
+  with a non-numeric/absent value in a defaulted input still computes
+  using the default), so the sole-anchor case no longer silently drops a
+  day when every anchor came from a defaulted input. Trade-off: formulas
+  would emit values on days with no real data — a formula chart could show
+  a smooth line where the user actually logged nothing, which may be
+  surprising or actively misleading; worth confirming this is the desired
+  behavior before changing silently-relied-upon output.
 
 ## [F-05] Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself
 - **Status:** DECIDE
