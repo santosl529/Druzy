@@ -314,3 +314,87 @@ Entry format:
   dead-config territory today (no UI path produces an invalid key), so
   it's low priority defense-in-depth; (a) is the more spec-faithful fix
   and belongs in lib/consistency-grid.ts rather than the renderer.
+
+## [F-10] Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** import
+- **What happens:** `coerceImportValue`'s `'rating'` case (lib/import.ts:117-124)
+  deliberately treats an out-of-bounds rating (e.g. "7" for a 1–5 scale) as a
+  *warning*, not an *error* — it returns `{ value: n, warning: "... is
+  outside 1–max" }` and lets the raw value through unclamped. That looks
+  intentional (errors block a row; warnings were presumably meant to let it
+  through with a flag). But nothing downstream ever reads `.warning`:
+  `validateImportRows` (lib/import.ts:209-211) destructures `{ value, error }`
+  and only pushes to `errors` when `error` is set — the `warning` field is
+  silently dropped. The row ends up `status: 'ok'`, `rowsToImport` includes
+  it unchanged, and `app/actions/import.ts`'s `validateRowServer` calls
+  `coerceImportValue` again server-side but has the same blind spot (only
+  checks `error`, app/actions/import.ts:38-39).
+  Net effect: importing a CSV with a "9" in a 1–5 rating column inserts a
+  literal 9 into the entry, with no error, no preview-table warning row (the
+  wizard's `problemRows` filter is `status !== 'ok'`, so a warned-but-ok row
+  never appears there), and no indication to the user anywhere that the value
+  was out of range. Downstream chart/analytics code that assumes ratings are
+  bounded 1–max would then silently render/aggregate a value outside that
+  range.
+- **Where:** lib/import.ts:117-124 (`coerceImportValue` rating case, produces
+  `warning`); lib/import.ts:209-211 (`validateImportRows`, only reads
+  `error`, drops `warning`); app/actions/import.ts:38-39 (`validateRowServer`,
+  same pattern server-side); components/import/import-wizard.tsx:190
+  (`problemRows` only surfaces non-`ok` rows, so warned rows are invisible in
+  the preview UI). Probe (characterization):
+  lib/__tests__/import.test.ts `'coerceImportValue — rating bounds'` →
+  `'out-of-range rating is a WARNING not an error — value passes through
+  unbounded'`, and `'validateImportRows — duplicate semantics'` →
+  `'out-of-range rating warning does not block the row from ending up ok and
+  importable'`.
+- **Proposed fix:** two reasonable directions, trade-off is product intent:
+  (a) treat rating-out-of-range as a hard `error` like every other coercion
+  failure — simplest, consistent with how the rest of the function treats
+  invalid input, but forecloses any future "allow with warning" UX; or
+  (b) actually wire `warning` through — surface it in `ImportRowResult` (new
+  optional field or reuse `reason` with a distinct status), show it in the
+  wizard's preview table, and decide whether `rowsToImport` should still
+  include warned rows or require explicit opt-in via `includeDuplicates`-style
+  checkbox. (b) is more work but preserves the apparent original intent of
+  having a separate warning channel at all. Recommend (a) unless there's a
+  known use case for importing intentionally-out-of-scale ratings.
+
+## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
+- **Status:** DECIDE
+- **Severity:** medium
+- **Area:** import
+- **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
+  in chunks of `CHUNK_SIZE = 500` via a sequential loop, not one atomic bulk
+  insert. If chunk 3 of 5 fails (e.g. a transient DB error, a constraint hit
+  by a row that slipped past validation), the loop returns immediately with
+  `{ inserted: <rows from chunks 1-2>, skipped, error: error.message }` —
+  so the *return value* correctly reflects a partial success and does carry
+  the error message. The bug is entirely on the caller side:
+  `ImportWizard.handleImport` (components/import/import-wizard.tsx:214-221)
+  guards the error path with `if (result.error && result.inserted === 0)`.
+  When `inserted > 0` (i.e. any earlier chunk committed), that condition is
+  false, so the function falls through to `router.push(...); router.refresh()`
+  — navigating away as if the import fully succeeded. The error message and
+  the partial count (e.g. "1000 of 2200 imported, then failed") are never
+  shown to the user. For imports at or near `MAX_IMPORT_ROWS` (5000 rows /
+  10 chunks), a failure partway through silently leaves the tracker with an
+  incomplete, un-flagged import and no way for the user to know which rows
+  are missing short of manually diffing.
+- **Where:** app/actions/import.ts:123-129 (chunked insert loop, correct
+  partial-count return); components/import/import-wizard.tsx:213-221
+  (`handleImport`'s `result.inserted === 0` guard drops the partial-failure
+  case). No test added — this is a UI/state-flow read, not a pure-function
+  probe; confirmed by static trace of the `if` condition against the
+  possible `{inserted, skipped, error}` return shapes from
+  `bulkImportEntries`.
+- **Proposed fix:** change the wizard's condition to branch on `result.error`
+  alone (regardless of `inserted`), and when both `error` and `inserted > 0`
+  are present, show a distinct message like `Imported ${inserted} of
+  ${rows.length} rows, then stopped: ${result.error}` instead of either the
+  generic error path or a silent success redirect. Trade-off: this is a
+  UX/copy decision (what to tell the user, whether to still navigate to the
+  module page so they can see what did land, whether to offer "retry
+  remaining rows") rather than a one-line logic fix, so it's flagged for
+  product judgment rather than auto-applied.
