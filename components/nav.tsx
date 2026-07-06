@@ -27,7 +27,7 @@ const navLinkClass = (active: boolean) =>
   cn(
     'transition-colors',
     active
-      ? 'text-primary font-semibold'
+      ? 'text-accent-text font-semibold'
       : 'text-foreground/80 font-medium hover:text-foreground',
   )
 
