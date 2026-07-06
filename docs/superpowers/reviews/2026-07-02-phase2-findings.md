@@ -673,7 +673,7 @@ Entry format:
   fix later without committing to one now.
 
 ## [F-19] Binary-entry duplicate guard used `.maybeSingle()`, which errors (and was silently swallowed) when more than one entry already exists for the day — reopening the exact duplicate the guard exists to prevent
-- **Status:** FIXED (commit \<pending\>)
+- **Status:** FIXED (commit 7c7ff3d)
 - **Severity:** medium
 - **Area:** journal
 - **What happens:** The duplicate guard added in a51b1db
