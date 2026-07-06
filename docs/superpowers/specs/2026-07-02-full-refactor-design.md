@@ -104,13 +104,20 @@ artwork from the 2026-06-17 theme spec — extends, never contradicts.
 
 ### Design language
 
-- **Typography:** a distinctive display font for headings via `next/font`
-  (no new deps), paired with Geist for body. Exact face chosen during
-  implementation with user sign-off on a comparison.
-- **Color & light:** gem-tone accent system — amethyst-family primary replacing the
-  current near-black `--primary`; sparing iridescent gradient accents on key moments
-  (active nav state, primary buttons, progress, empty states); dark mode keeps the
-  obsidian/violet cast and gains depth (surface glow, crystal-tinted borders).
+- **Typography (decided 2026-07-06, user sign-off on rendered comparison):**
+  **Space Grotesk** for headings/display via `next/font/google`, paired with
+  Geist for body. Rationale: faceted-geometric character matches the geode
+  artwork.
+- **Color & light (decided 2026-07-06, "Deep Vein" intensity):** the UI accent
+  is a **chrome-only deep obsidian violet** — `#6D4A9E` light / `#7E58B8` dark
+  (tune in oklch), deliberately distinct from crystal amethyst `#9B6DCC` so
+  tracker identity colors are never ambiguous. Scope rule: **crystal colors
+  belong exclusively to tracker surfaces** (cards, geode art, pills, chart
+  series); the violet accent lives only in app chrome (active nav, primary
+  buttons, links, focus rings, form controls). Iridescent gradients stay
+  reserved for the geode artwork; no gradient chrome. Dark mode keeps the
+  obsidian/violet cast and gains depth (surface glow, crystal-tinted borders
+  on tracker surfaces only).
 - **Surfaces:** cards, dialogs, and grid cells get subtle depth/faceting cues;
   crystal colors do real work app-wide instead of only inside the grid.
 - **Motion:** restrained transitions using the existing `tw-animate-css`;
