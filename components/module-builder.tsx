@@ -217,7 +217,7 @@ export function ModuleBuilder({ initial }: Props) {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Fields</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">Fields</h2>
           <Button type="button" variant="outline" size="sm" onClick={addField}>
             <PlusIcon /> Add field
           </Button>
@@ -313,7 +313,7 @@ export function ModuleBuilder({ initial }: Props) {
 
       <div className="space-y-3">
         <div>
-          <h2 className="font-medium">Card summary</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">Card summary</h2>
           <p className="text-sm text-muted-foreground">
             The values shown on this tracker&apos;s dashboard card (up to {MAX_CARD_ITEMS}). Leave empty to pick a sensible default automatically.
           </p>
@@ -381,7 +381,7 @@ export function ModuleBuilder({ initial }: Props) {
 
       <Separator />
       <div>
-        <h2 className="text-base font-semibold mb-1">Dashboard mode</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight mb-1">Dashboard mode</h2>
         <p className="text-sm text-muted-foreground mb-3">
           How this tracker appears in the consistency grid.
         </p>

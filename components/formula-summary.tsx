@@ -44,8 +44,9 @@ export function FormulaSummary({ config, modules }: Props) {
         </ul>
       </div>
       <p className="text-xs text-muted-foreground">
-        Computed per day from current source data. A day is included when every input has a logged
-        value or a configured default; multiple entries on the same day are averaged.
+        Computed per day from current source data. Defaults fill in for inputs with no logged value
+        on days where at least one input has real data; days with no data at all are omitted, and
+        multiple entries on the same day are averaged.
       </p>
     </div>
   )

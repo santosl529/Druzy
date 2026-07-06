@@ -128,12 +128,12 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
                       : day.value === 0
                       ? 'bg-muted'
                       : getIntensity(day.value, maxValue) >= 4
-                      ? 'bg-primary'
+                      ? 'bg-foreground'
                       : getIntensity(day.value, maxValue) === 3
-                      ? 'bg-primary/70'
+                      ? 'bg-foreground/70'
                       : getIntensity(day.value, maxValue) === 2
-                      ? 'bg-primary/45'
-                      : 'bg-primary/25'
+                      ? 'bg-foreground/45'
+                      : 'bg-foreground/25'
                   }`}
                 />
               ))}
@@ -152,12 +152,12 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
                 level === 0
                   ? 'bg-muted'
                   : level === 1
-                  ? 'bg-primary/25'
+                  ? 'bg-foreground/25'
                   : level === 2
-                  ? 'bg-primary/45'
+                  ? 'bg-foreground/45'
                   : level === 3
-                  ? 'bg-primary/70'
-                  : 'bg-primary'
+                  ? 'bg-foreground/70'
+                  : 'bg-foreground'
               }`}
             />
           ))}

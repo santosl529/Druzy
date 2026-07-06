@@ -541,7 +541,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
 
       {/* Display toggles */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium">Display</h3>
+        <h3 className="font-heading text-xl font-semibold tracking-tight">Display</h3>
 
         {FILL_FORWARD_TYPES.includes(chartType) && (
           <label className="flex items-start gap-2 cursor-pointer">
@@ -579,7 +579,7 @@ export function ChartBuilder({ moduleId, fields, modules, initial }: Props) {
           <Separator />
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Reference lines</h3>
+              <h3 className="font-heading text-xl font-semibold tracking-tight">Reference lines</h3>
               <Button
                 type="button" variant="outline" size="sm"
                 onClick={() => setRefLines((r) => [...r, { value: 0, label: '' }])}

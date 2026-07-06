@@ -62,7 +62,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
           <p className="text-sm text-muted-foreground mb-1">
             <Link href="/" className="hover:underline">Trackers</Link> /
           </p>
-          <h1 className="text-2xl font-semibold">{typedModule.name}</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight">{typedModule.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">
             {isFormula
               ? `Formula tracker — ${typedEntries.length} computed ${typedEntries.length === 1 ? 'day' : 'days'}`
@@ -90,7 +90,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
       {/* Formula modules are computed, not logged */}
       {isFormula && typedModule.formula_config ? (
         <section>
-          <h2 className="font-medium mb-4">Formula</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">Formula</h2>
           <FormulaSummary
             config={typedModule.formula_config}
             modules={sourceModules}
@@ -98,7 +98,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
         </section>
       ) : (
         <section>
-          <h2 className="font-medium mb-4">Log entry</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">Log entry</h2>
           <EntryForm moduleId={id} fields={typedModule.fields} savedTimezone={savedTimezone} />
         </section>
       )}
@@ -108,7 +108,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
       {/* Charts */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-medium">Charts</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight">Charts</h2>
           <Link
             href={`/modules/${id}/charts/new`}
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -136,7 +136,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
 
       {/* Entry history */}
       <section>
-        <h2 className="font-medium mb-4">{isFormula ? 'Computed values' : 'History'}</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">{isFormula ? 'Computed values' : 'History'}</h2>
         <EntryList
           moduleId={id}
           fields={typedModule.fields}

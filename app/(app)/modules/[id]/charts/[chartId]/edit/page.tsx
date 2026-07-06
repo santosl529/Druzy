@@ -27,7 +27,7 @@ export default async function EditChartPage({
       <p className="text-sm text-muted-foreground mb-1">
         <a href={`/modules/${id}`} className="hover:underline">{m.name}</a> / Edit chart
       </p>
-      <h1 className="text-2xl font-semibold mb-8">Edit chart</h1>
+      <h1 className="font-heading text-3xl font-bold tracking-tight mb-8">Edit chart</h1>
       <ChartBuilder moduleId={id} fields={m.fields} modules={(allModules ?? []) as Module[]} initial={c} />
     </main>
   )

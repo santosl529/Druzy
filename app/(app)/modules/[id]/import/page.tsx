@@ -36,7 +36,7 @@ export default async function ImportPage({ params }: { params: Promise<{ id: str
         <Link href={`/modules/${id}`} className="hover:underline">{typedModule.name}</Link>
         {' / '}
       </p>
-      <h1 className="text-2xl font-semibold mb-1">Import data</h1>
+      <h1 className="font-heading text-3xl font-bold tracking-tight mb-1">Import data</h1>
       <p className="text-muted-foreground mb-8">
         Upload a spreadsheet, map columns to fields, preview, then confirm.
       </p>

@@ -25,7 +25,7 @@ export default async function EditFormulaModulePage({ params }: { params: Promis
 
   return (
     <main className="max-w-2xl mx-auto w-full px-4 py-10">
-      <h1 className="text-2xl font-semibold mb-1">Edit formula</h1>
+      <h1 className="font-heading text-3xl font-bold tracking-tight mb-1">Edit formula</h1>
       <p className="text-muted-foreground mb-8">{formulaModule.name}</p>
       <FormulaBuilder
         modules={sourceModules}
