@@ -42,7 +42,7 @@
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces (all later tasks rely on): CSS vars `--primary`/`--ring`/`--font-heading` retuned; Tailwind utility `font-heading`; nav active convention `text-primary font-semibold`.
+- Produces (all later tasks rely on): CSS vars `--primary`/`--ring`/`--font-heading` retuned; Tailwind utility `font-heading`; nav active convention `text-accent-text font-semibold`.
 
 - [ ] **Step 1: Create the branch**
 
@@ -90,7 +90,7 @@ and add `${spaceGrotesk.variable}` to the `<html>` className alongside the exist
 - [ ] **Step 4: Nav (`components/nav.tsx`)**
 
 1. Brand link: add `font-heading` to the existing classes.
-2. `navLinkClass`: active state becomes `text-primary font-semibold` (inactive stays as-is). Mobile dropdown inherits automatically (same helper).
+2. `navLinkClass`: active state becomes `text-accent-text font-semibold` (AA-safe text tier) (inactive stays as-is). Mobile dropdown inherits automatically (same helper).
 3. Contrast check: violet on limestone `#F4F1ED` and lifted violet on obsidian `#100E17` must both pass AA for the nav's text size — verify with a contrast checker and note results in the report.
 
 - [ ] **Step 5: Verify**
@@ -174,13 +174,15 @@ git add app/ components/ && git commit -m "design(trackers,dashboard): header re
 
 - [ ] **Step 2: Form chrome:** primary submit buttons default-violet; destructive actions keep `variant="destructive"`; selects/inputs keep shadcn defaults (focus rings now violet via tokens). Chart previews and crystal pickers are tracker surfaces — colors untouched.
 
-- [ ] **Step 3: F-04 copy fix (ruled 2026-07-06, carried from Phase 2):** in `components/formula-summary.tsx` (~line 47-48), align the default-substitution copy with actual behavior: defaults fill missing values only on days where at least one input has real data; days with no data are omitted from the series. Keep it to one sentence in the existing style.
+- [ ] **Step 3 (assigned from Task 1 review): calendar-heatmap cell color.** `components/charts/calendar-heatmap.tsx:131-160` uses `bg-primary` for cells — after the retune that paints tracker chart surfaces violet (scope-rule violation) and `bg-primary/25` is near-invisible on obsidian. Change cells to a neutral scale (`bg-foreground` opacity steps, matching how the consistency grid handles neutral cells) — NOT a crystal color (the heatmap is generic) and NOT `--primary`.
 
-- [ ] **Step 4: Verify + commit**
+- [ ] **Step 4: F-04 copy fix (ruled 2026-07-06, carried from Phase 2):** in `components/formula-summary.tsx` (~line 47-48), align the default-substitution copy with actual behavior: defaults fill missing values only on days where at least one input has real data; days with no data are omitted from the series. Keep it to one sentence in the existing style.
+
+- [ ] **Step 5: Verify + commit**
 
 ```bash
 npx tsc --noEmit && npm test && npm run lint && npm run build
-git add app/ components/ && git commit -m "design(modules,builders): heading hierarchy, form chrome, F-04 copy alignment"
+git add app/ components/ && git commit -m "design(modules,builders): heading hierarchy, form chrome, heatmap neutral cells, F-04 copy alignment"
 ```
 
 ---
@@ -196,7 +198,7 @@ git add app/ components/ && git commit -m "design(modules,builders): heading hie
 
 - [ ] **Step 1: Page header recipe**; chat input focus ring (inherited — verify); send/confirm buttons primary-violet; user-message bubbles may use `bg-primary text-primary-foreground` (chrome), assistant bubbles stay neutral surfaces.
 
-- [ ] **Step 2: Proposal cards:** titles `font-heading`; their "Add/Create" confirm buttons primary. Crystal pickers and chart previews inside cards are tracker surfaces — untouched.
+- [ ] **Step 2 (includes Task 1 review assignment): Proposal cards:** migrate `text-primary`-as-text to `text-accent-text` at `components/assistant/analytics-insight-card.tsx:157` and `components/assistant/chart-proposal-card.tsx:115` (dark-mode AA failure at 3.29:1 otherwise). Then: titles `font-heading`; their "Add/Create" confirm buttons primary. Crystal pickers and chart previews inside cards are tracker surfaces — untouched.
 
 - [ ] **Step 3: Verify + commit**
 
