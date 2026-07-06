@@ -596,7 +596,7 @@ Entry format:
   one-line convention alignment on a currently-dead fallback path.
 
 ## [F-06] `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field
-- **Status:** FIXED (commit pending — see report)
+- **Status:** FIXED (commit 9ca609c)
 - **Severity:** medium
 - **Area:** grid
 - **What happens:** `evaluateGoal`'s reduce used `Number(entry[cond.field])`
@@ -633,7 +633,7 @@ Entry format:
   boolean pass/fail gate).
 
 ## [F-08] Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order
-- **Status:** FIXED (commit pending — see report)
+- **Status:** FIXED (commit 9ca609c)
 - **Severity:** medium
 - **Area:** grid
 - **What happens:** The category-mode spec
@@ -669,7 +669,7 @@ Entry format:
   page.
 
 ## [F-12] `FoodLog`'s save/delete/update handlers derived next state from a stale closure over `entries`, racing concurrent row operations
-- **Status:** FIXED (commit pending — see report)
+- **Status:** FIXED (commit 5394e38)
 - **Severity:** medium
 - **Area:** optimistic-ui
 - **What happens:** `handleSaved`/`handleDeleted`/`handleUpdated`
@@ -781,6 +781,7 @@ Entry format:
   guard fell through and inserted a third, duplicate row. This is the
   identical duplicate-entry class a51b1db was written to close, reopened
   specifically in the multi-row case.
+- **Residual:** The guard's own select still discards its `error` (app/actions/journal.ts:234) — if the guard QUERY fails (network/RLS), the code fails open and inserts anyway; capturing the error and skipping the insert is the fail-closed alternative, left as a judgment call.
 - **Where:** app/actions/journal.ts:225-231 (pre-fix; guard query using
   `.maybeSingle()` with discarded `error`).
 - **Proposed fix:** (applied) switched the existence check to

@@ -121,7 +121,7 @@ export function SortableChartsList({
       const newIdx = prev.findIndex((c) => c.id === over.id)
       const reordered = arrayMove(prev, oldIdx, newIdx)
       startTransition(() => {
-        void reorderCharts(reordered.map((c, i) => ({ id: c.id, position: i })))
+        void reorderCharts(reordered.map((c, i) => ({ id: c.id, position: i }))).catch(() => {})
       })
       return reordered
     })
@@ -131,7 +131,7 @@ export function SortableChartsList({
     if (!confirm('Remove this chart?')) return
     setCharts((prev) => prev.filter((c) => c.id !== chartId))
     startTransition(() => {
-      void deleteChart(chartId, moduleId)
+      void deleteChart(chartId, moduleId).catch(() => {})
     })
   }
 
