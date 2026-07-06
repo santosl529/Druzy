@@ -57,8 +57,17 @@ export function ImportWizard({ moduleId, fields, existingDates }: Props) {
 
   const [includeDuplicates, setIncludeDuplicates] = useState(false)
 
+  // Dates confirmed inserted by a prior partial-failure attempt (F-11 retry-safety):
+  // chunks insert in payload order, so on partial failure the first
+  // `result.inserted` payload rows are already committed. Folding their dates in
+  // here makes a retry see them as duplicates instead of double-inserting.
+  const [confirmedInsertedDates, setConfirmedInsertedDates] = useState<string[]>([])
+
   const mappableFields = fields.filter((f) => f.type !== 'photo')
-  const existingDateSet = useMemo(() => new Set(existingDates), [existingDates])
+  const existingDateSet = useMemo(
+    () => new Set([...existingDates, ...confirmedInsertedDates]),
+    [existingDates, confirmedInsertedDates]
+  )
 
   const columnItems = columns.map((c) => ({ value: c, label: c }))
   const skipItems = [{ value: SKIP, label: '(skip)' }, ...columnItems]
@@ -212,8 +221,21 @@ export function ImportWizard({ moduleId, fields, existingDates }: Props) {
     setError(null)
     startTransition(async () => {
       const result = await bulkImportEntries(moduleId, rows, includeDuplicates)
-      if (result.error && result.inserted === 0) {
-        setError(result.error)
+      if (result.error) {
+        if (result.inserted > 0) {
+          // Chunks insert in payload order, so the first `result.inserted` rows
+          // of this exact payload landed before the failure. Mark their dates as
+          // existing so a retry's duplicate check skips them instead of
+          // double-inserting (this is what makes the message's promise true).
+          const landedDates = rows.slice(0, result.inserted).map((r) => r.entry_date)
+          setConfirmedInsertedDates((prev) => [...prev, ...landedDates])
+          setError(
+            `Import stopped after ${result.inserted} of ${rows.length} rows: ${result.error}. ` +
+              `The imported rows are saved; retrying will skip them as duplicates.`
+          )
+        } else {
+          setError(result.error)
+        }
         return
       }
       router.push(`/modules/${moduleId}`)

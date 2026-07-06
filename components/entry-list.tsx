@@ -185,6 +185,8 @@ function EditRow({ entry, fields, moduleId, onCancel }: EditRowProps) {
 export function EntryList({ moduleId, fields, entries, readOnly = false }: Props) {
   const [, startTransition] = useTransition()
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
 
   if (entries.length === 0) {
     return (
@@ -228,11 +230,12 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
                 ))}
                 {!readOnly && (
                   <TableCell>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground h-7 w-7"
+                        disabled={deletingId === entry.id}
                         onClick={() => setEditingId(entry.id)}
                       >
                         <PencilIcon className="size-3.5" />
@@ -241,13 +244,25 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground h-7 w-7"
+                        disabled={deletingId === entry.id}
                         onClick={() => {
                           if (!confirm('Delete this entry?')) return
-                          startTransition(() => deleteEntry(entry.id, moduleId))
+                          setDeleteError(null)
+                          setDeletingId(entry.id)
+                          startTransition(async () => {
+                            const result = await deleteEntry(entry.id, moduleId)
+                            setDeletingId(null)
+                            if (result?.error) {
+                              setDeleteError({ id: entry.id, message: result.error })
+                            }
+                          })
                         }}
                       >
                         <Trash2Icon className="size-3.5" />
                       </Button>
+                      {deleteError?.id === entry.id && (
+                        <span className="text-xs text-destructive">{deleteError.message}</span>
+                      )}
                     </div>
                   </TableCell>
                 )}

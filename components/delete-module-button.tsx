@@ -1,12 +1,13 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { deleteModule, getModuleDeleteWarnings } from '@/app/actions/modules'
 import { cn } from '@/lib/utils'
 
 export function DeleteModuleButton({ id }: { id: string }) {
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   async function handleClick() {
     const { formulaDependents, chartDependents } = await getModuleDeleteWarnings(id)
@@ -26,19 +27,27 @@ export function DeleteModuleButton({ id }: { id: string }) {
     }
 
     if (!confirm(lines.join(''))) return
-    startTransition(() => deleteModule(id))
+    setError(null)
+    startTransition(async () => {
+      const result = await deleteModule(id)
+      // Only reachable on failure — success redirects and never returns.
+      if (result?.error) setError(result.error)
+    })
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={pending}
-      className={cn(
-        buttonVariants({ variant: 'outline' }),
-        'text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5'
-      )}
-    >
-      {pending ? 'Deleting…' : 'Delete tracker'}
-    </button>
+    <div className="space-y-1.5">
+      <button
+        onClick={handleClick}
+        disabled={pending}
+        className={cn(
+          buttonVariants({ variant: 'outline' }),
+          'text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5'
+        )}
+      >
+        {pending ? 'Deleting…' : 'Delete tracker'}
+      </button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
   )
 }

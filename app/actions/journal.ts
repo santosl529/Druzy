@@ -138,7 +138,12 @@ export interface CreateJournalEntryInput {
  */
 export async function createJournalEntry(
   input: CreateJournalEntryInput
-): Promise<{ error?: string; id?: string; loggedModules?: string[] }> {
+): Promise<{
+  error?: string
+  id?: string
+  loggedModules?: string[]
+  failedModules?: { name: string; error: string }[]
+}> {
   const { supabase, user } = await requireUser()
 
   const parsed = journalEntrySchema.safeParse(input)
@@ -191,19 +196,26 @@ export async function createJournalEntry(
 
   // Fire tracker entries. Collect names for the return value.
   const loggedModules: string[] = []
+  const failedModules: { name: string; error: string }[] = []
   for (const [moduleId, values] of byModule) {
     const result = await createEntryInModule(moduleId, parsed.data.entry_date, values)
+    // Fetch module name for display (needed for both success and failure reporting).
+    const { data: mod } = await supabase
+      .from('modules')
+      .select('name')
+      .eq('id', moduleId)
+      .eq('user_id', user.id)
+      .single()
+    const name = (mod?.name as string) ?? 'Unknown tracker'
     if (!result.error) {
-      // Fetch module name for display.
-      const { data: mod } = await supabase
-        .from('modules')
-        .select('name')
-        .eq('id', moduleId)
-        .eq('user_id', user.id)
-        .single()
-      if (mod?.name) loggedModules.push(mod.name as string)
+      if (mod?.name) loggedModules.push(name)
+    } else {
+      // Non-fatal: journal entry already saved regardless of per-tracker write
+      // failures. The specific error is now returned via failedModules so the
+      // caller can tell the user which tracker(s) didn't get logged and why,
+      // instead of the failure being indistinguishable from "not connected."
+      failedModules.push({ name, error: result.error })
     }
-    // Non-fatal: journal entry already saved; log errors are surfaced via loggedModules absence.
   }
 
   // If the template has a binary module connected, write {<booleanField>: true} to it.
@@ -244,7 +256,12 @@ export async function createJournalEntry(
             parsed.data.entry_date,
             { [boolField.key]: true }
           )
-          if (!binaryResult.error && binaryMod.name) {
+          if (binaryResult.error) {
+            failedModules.push({
+              name: (binaryMod.name as string) ?? 'Unknown tracker',
+              error: binaryResult.error,
+            })
+          } else if (binaryMod.name) {
             loggedModules.push(binaryMod.name as string)
           }
         }
@@ -253,7 +270,7 @@ export async function createJournalEntry(
   }
 
   revalidatePath('/journal')
-  return { id: inserted.id, loggedModules }
+  return { id: inserted.id, loggedModules, failedModules }
 }
 
 export async function deleteJournalEntry(id: string): Promise<{ error?: string }> {

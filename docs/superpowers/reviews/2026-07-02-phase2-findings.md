@@ -16,8 +16,8 @@ Entry format:
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| F-11 | medium | import | Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded | DECIDE |
-| F-17 | medium | actions | `deleteModule` discards its delete error and still unconditionally redirects home | DECIDE |
+| F-11 | medium | import | Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded | FIXED |
+| F-17 | medium | actions | `deleteModule` discards its delete error and still unconditionally redirects home | FIXED |
 | F-03 | low | actions | Entry actions' entry_date fallback is UTC-today, not the user's day | FIXED |
 | F-04 | low | formula | A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence | WONTFIX |
 | F-05 | low | formula | Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself | WONTFIX |
@@ -25,9 +25,9 @@ Entry format:
 | F-09 | low | grid | An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal | FIXED |
 | F-10 | low | import | Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline | FIXED |
 | F-13 | low | optimistic-ui | `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state | DECIDE |
-| F-14 | low | optimistic-ui | `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback | DECIDE |
+| F-14 | low | optimistic-ui | `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback | FIXED |
 | F-15 | low | optimistic-ui | Food-log's "Back to today" control is not gated on its own in-flight state | DECIDE |
-| F-18 | low | journal | `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules` | DECIDE |
+| F-18 | low | journal | `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules` | FIXED |
 | F-20 | low | journal | Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day | DECIDE |
 | F-01 | medium | date-tz | Future-dated entry zeroes the current streak | FIXED |
 | F-06 | medium | grid | `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field | FIXED |
@@ -40,7 +40,7 @@ Entry format:
 ## Open decisions (DECIDE)
 
 ## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
-- **Status:** DECIDE
+- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
 - **Severity:** medium
 - **Area:** import
 - **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
@@ -76,9 +76,32 @@ Entry format:
   module page so they can see what did land, whether to offer "retry
   remaining rows") rather than a one-line logic fix, so it's flagged for
   product judgment rather than auto-applied.
+- **Ruling (2026-07-06):** FIXED per the consistent inline-error pattern (server
+  actions return `{ error? }`, components render destructive text inline).
+  `ImportWizard.handleImport` (components/import/import-wizard.tsx) now
+  branches on `result.error` alone; when `result.inserted > 0` it shows
+  "Import stopped after {inserted} of {total} rows: {error}. The imported
+  rows are saved; retrying will skip them as duplicates." and does not
+  navigate away. Retry-safety is made real, not just promised: the wizard
+  slices the first `result.inserted` entries off the same `rows` array it
+  sent to the server (chunks insert in payload order, so those rows are the
+  ones that landed) and folds their `entry_date`s into a new
+  `confirmedInsertedDates` state, merged into `existingDateSet` alongside the
+  `existingDates` prop — so `validateImportRows` on a retry marks them
+  `duplicate` instead of re-inserting. `inserted === 0` keeps the original
+  full-failure behavior (generic error, no navigation). `app/actions/import.ts`
+  needed no change, as the brief specified. Known narrow edge case not in
+  scope: if `includeDuplicates` is checked AND the file has multiple rows
+  sharing the same date AND a partial failure lands only some of them, the
+  client-side retry-safety marks that date as fully "existing," which would
+  cause a retry's duplicate check to skip all same-date rows rather than just
+  the ones already inserted — undercounting duplicates in that specific
+  combination. Not fixed here; the brief's mechanism (mark landed dates as
+  existing) is implemented faithfully, and this combination requires
+  per-occurrence tracking beyond what was asked.
 
 ## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
-- **Status:** DECIDE
+- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
 - **Severity:** medium
 - **Area:** actions
 - **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
@@ -109,6 +132,20 @@ Entry format:
   `{ error } | never` pattern), skip the redirect on error, and have
   `DeleteModuleButton` render the error inline (mirroring the
   `EditRow`-style error span called out in F-14).
+- **Ruling (2026-07-06):** FIXED as recommended, replacing the partial
+  console.error fix. `deleteModule` now returns `Promise<{ error: string } |
+  never>`: on delete error it returns `{ error: error.message }` instead of
+  falling through; `revalidatePath('/')` + `redirect('/')` now only run on
+  the success path (the console.error call was removed — the error is
+  returned instead, so it's no longer merely a server-log artifact).
+  `DeleteModuleButton` (sole caller) awaits the result inside
+  `startTransition` and renders `{error}` as inline destructive text under
+  the button (matching `EntryForm`'s error-paragraph idiom); a failed delete
+  now leaves the user on the tracker page with a visible reason instead of
+  redirecting home as if it succeeded. Verified `redirect()` still functions
+  correctly on the success path via `npm run build` (a misused/swallowed
+  `redirect()` throws a Next.js internal control-flow signal that build-time
+  static analysis and runtime rendering both depend on) — build passed.
 
 ## [F-04] A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence
 - **Status:** WONTFIX (ruled 2026-07-06)
@@ -268,7 +305,7 @@ Entry format:
   by name.
 
 ## [F-14] `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback
-- **Status:** DECIDE
+- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** optimistic-ui
 - **What happens:** Two compounding issues in the non-edit delete path of
@@ -312,6 +349,18 @@ Entry format:
   `EntryList` state to disable only the clicked row's buttons, and show a
   brief inline error (mirroring `EditRow`'s existing `error` span) on
   failure.
+- **Ruling (2026-07-06):** FIXED as recommended. `deleteEntry`
+  (app/actions/entries.ts) now captures `{ error }` from the `.delete()` call
+  and returns `Promise<{ error?: string } | void>`. `EntryList` adds a
+  per-row `deletingId` state (distinct from the still-shared
+  `startTransition`) and a `deleteError: { id, message } | null` state; the
+  delete button sets `deletingId` before calling the action, clears it after,
+  and both the edit and delete buttons for that row are disabled only while
+  `deletingId === entry.id` — other rows' buttons remain interactive, closing
+  the cross-row-disable concern the DECIDE flagged without over-scoping into
+  a shared-pending redesign. On error, the message renders as inline
+  destructive text next to that row's action buttons (mirroring `EditRow`'s
+  existing error span) and clears on the next delete attempt for that row.
 
 ## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
 - **Status:** DECIDE
@@ -346,7 +395,7 @@ Entry format:
   combined decision.
 
 ## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
-- **Status:** DECIDE
+- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** journal
 - **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
@@ -381,6 +430,20 @@ Entry format:
   lower-risk step: it's an additive return-shape change (existing callers
   destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
   fix later without committing to one now.
+- **Ruling (2026-07-06):** FIXED — option (a) plus the minimal render option
+  (b), per the user's ruling to adopt the consistent inline-error pattern
+  everywhere. `createJournalEntry` now additionally returns `failedModules:
+  { name: string; error: string }[]`, populated in both the per-tracker loop
+  and the binary-module block wherever `result.error`/`binaryResult.error` is
+  set (previously discarded, keeping only the boolean
+  present/absent-in-`loggedModules` signal). The stale line-206 comment
+  ("log errors are surfaced via loggedModules absence") was corrected to
+  describe the current behavior. The return-shape change is additive, so
+  `{ id, loggedModules }`-only callers remain type-compatible.
+  `components/journal/journal-capture.tsx` adds a `failedModules` state,
+  populated from the result on save, and renders one destructive-text line
+  per entry ("Couldn't log to {name}: {error}") alongside the existing
+  `saveError`/`savedModules` inline messages, following the same idiom.
 
 ## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
 - **Status:** DECIDE

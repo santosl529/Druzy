@@ -138,6 +138,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
   const [isPending, startTransition] = useTransition()
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedModules, setSavedModules] = useState<string[] | null>(null)
+  const [failedModules, setFailedModules] = useState<{ name: string; error: string }[]>([])
 
   // fields derived before any early return so hooks below are not conditional
   const fields = useMemo(() => template?.fields ?? [], [template])
@@ -227,6 +228,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
   function handleSave() {
     setSaveError(null)
     setSavedModules(null)
+    setFailedModules([])
     startTransition(async () => {
       const result = await createJournalEntry({
         entry_date: date,
@@ -239,6 +241,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
         return
       }
       setSavedModules(result.loggedModules ?? [])
+      setFailedModules(result.failedModules ?? [])
       // Reset
       setPhotos([])
       setTranscription('')
@@ -259,6 +262,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
     setTranscribeError(null)
     setSaveError(null)
     setSavedModules(null)
+    setFailedModules([])
     setDate(clientToday(savedTimezone))
   }
 
@@ -463,6 +467,16 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
                 ? ` Also logged to: ${savedModules.join(', ')}.`
                 : ''}
             </p>
+          )}
+
+          {failedModules.length > 0 && (
+            <div className="space-y-0.5">
+              {failedModules.map((f) => (
+                <p key={f.name} className="text-sm text-destructive">
+                  Couldn&apos;t log to {f.name}: {f.error}
+                </p>
+              ))}
+            </div>
           )}
 
           <div className="flex gap-2">

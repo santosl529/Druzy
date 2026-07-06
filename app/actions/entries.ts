@@ -98,10 +98,11 @@ export async function updateEntry(
   revalidatePath(`/modules/${moduleId}`)
 }
 
-export async function deleteEntry(id: string, moduleId: string): Promise<void> {
+export async function deleteEntry(id: string, moduleId: string): Promise<{ error?: string } | void> {
   const { supabase, user } = await requireUser()
 
-  await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id)
+  const { error } = await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id)
+  if (error) return { error: error.message }
 
   revalidatePath(`/modules/${moduleId}`)
 }
