@@ -44,7 +44,7 @@ export function FormulaSummary({ config, modules }: Props) {
         </ul>
       </div>
       <p className="text-xs text-muted-foreground">
-        Computed per day from current source data. Defaults fill missing values when at least one input has real data; days are skipped when any input without a configured default is missing, and multiple entries per day are averaged.
+        Computed per day from current source data. Defaults fill missing values when at least one input has real data; days with no data at all, or where an input without a default is missing, are skipped. Multiple entries per day are averaged.
       </p>
     </div>
   )
