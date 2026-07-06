@@ -39,114 +39,6 @@ Entry format:
 
 ## Open decisions (DECIDE)
 
-## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
-- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
-- **Severity:** medium
-- **Area:** import
-- **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
-  in chunks of `CHUNK_SIZE = 500` via a sequential loop, not one atomic bulk
-  insert. If chunk 3 of 5 fails (e.g. a transient DB error, a constraint hit
-  by a row that slipped past validation), the loop returns immediately with
-  `{ inserted: <rows from chunks 1-2>, skipped, error: error.message }` —
-  so the *return value* correctly reflects a partial success and does carry
-  the error message. The bug is entirely on the caller side:
-  `ImportWizard.handleImport` (components/import/import-wizard.tsx:214-221)
-  guards the error path with `if (result.error && result.inserted === 0)`.
-  When `inserted > 0` (i.e. any earlier chunk committed), that condition is
-  false, so the function falls through to `router.push(...); router.refresh()`
-  — navigating away as if the import fully succeeded. The error message and
-  the partial count (e.g. "1000 of 2200 imported, then failed") are never
-  shown to the user. For imports at or near `MAX_IMPORT_ROWS` (5000 rows /
-  10 chunks), a failure partway through silently leaves the tracker with an
-  incomplete, un-flagged import and no way for the user to know which rows
-  are missing short of manually diffing.
-- **Where:** app/actions/import.ts:123-129 (chunked insert loop, correct
-  partial-count return); components/import/import-wizard.tsx:213-221
-  (`handleImport`'s `result.inserted === 0` guard drops the partial-failure
-  case). No test added — this is a UI/state-flow read, not a pure-function
-  probe; confirmed by static trace of the `if` condition against the
-  possible `{inserted, skipped, error}` return shapes from
-  `bulkImportEntries`.
-- **Proposed fix:** change the wizard's condition to branch on `result.error`
-  alone (regardless of `inserted`), and when both `error` and `inserted > 0`
-  are present, show a distinct message like `Imported ${inserted} of
-  ${rows.length} rows, then stopped: ${result.error}` instead of either the
-  generic error path or a silent success redirect. Trade-off: this is a
-  UX/copy decision (what to tell the user, whether to still navigate to the
-  module page so they can see what did land, whether to offer "retry
-  remaining rows") rather than a one-line logic fix, so it's flagged for
-  product judgment rather than auto-applied.
-- **Ruling (2026-07-06):** FIXED per the consistent inline-error pattern (server
-  actions return `{ error? }`, components render destructive text inline).
-  `ImportWizard.handleImport` (components/import/import-wizard.tsx) now
-  branches on `result.error` alone; when `result.inserted > 0` it shows
-  "Import stopped after {inserted} of {total} rows: {error}. The imported
-  rows are saved; retrying will skip them as duplicates." and does not
-  navigate away. Retry-safety is made real, not just promised: the wizard
-  slices the first `result.inserted` entries off the same `rows` array it
-  sent to the server (chunks insert in payload order, so those rows are the
-  ones that landed) and folds their `entry_date`s into a new
-  `confirmedInsertedDates` state, merged into `existingDateSet` alongside the
-  `existingDates` prop — so `validateImportRows` on a retry marks them
-  `duplicate` instead of re-inserting. `inserted === 0` keeps the original
-  full-failure behavior (generic error, no navigation). `app/actions/import.ts`
-  needed no change, as the brief specified. Known narrow edge case not in
-  scope: if `includeDuplicates` is checked AND the file has multiple rows
-  sharing the same date AND a partial failure lands only some of them, the
-  client-side retry-safety marks that date as fully "existing," which would
-  cause a retry's duplicate check to skip all same-date rows rather than just
-  the ones already inserted — undercounting duplicates in that specific
-  combination. Not fixed here; the brief's mechanism (mark landed dates as
-  existing) is implemented faithfully, and this combination requires
-  per-occurrence tracking beyond what was asked.
-
-## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
-- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
-- **Severity:** medium
-- **Area:** actions
-- **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
-  176) called `await supabase.from('modules').delete()...` with no error
-  destructure, then unconditionally ran `revalidatePath('/')` and
-  `redirect('/')`. Unlike `deleteChart`/`deleteEntry` (F-14, F-16), which at
-  least leave the user on the same page after a silent failure, this one
-  actively navigates the user away to the dashboard on every call
-  regardless of whether the delete actually succeeded — a failed delete
-  (RLS denial, FK constraint from a dependent row, network error) looks
-  identical to a successful one from the user's perspective: the tracker
-  disappears from view (redirected home) even though it's still in the DB
-  and will reappear the next time its module list is fetched. The sole
-  caller (`components/delete-module-button.tsx`) fire-and-forgets the call
-  inside `startTransition` with no result handling, so there's currently no
-  UI path that could surface an error even if one were returned.
-- **Where:** app/actions/modules.ts, `deleteModule` (pre-fix line 176,
-  unconditional `redirect('/')` after an uninspected delete).
-- **Proposed fix:** (partially applied) captured the error and logged it
-  server-side (`console.error`) so failures are at least visible in server
-  logs, but left the `redirect('/')` unconditional — making the redirect
-  conditional on success is a genuine behavior change (what happens on
-  failure: stay on the tracker page? show a toast before redirecting?) that
-  needs a product decision, not a mechanical fix, and doing it silently
-  would risk leaving the user on a tracker page they just "deleted" with no
-  explanation either way. Recommend: change the return type to
-  `Promise<{ error?: string } | never>` (matching `createChart`'s
-  `{ error } | never` pattern), skip the redirect on error, and have
-  `DeleteModuleButton` render the error inline (mirroring the
-  `EditRow`-style error span called out in F-14).
-- **Ruling (2026-07-06):** FIXED as recommended, replacing the partial
-  console.error fix. `deleteModule` now returns `Promise<{ error: string } |
-  never>`: on delete error it returns `{ error: error.message }` instead of
-  falling through; `revalidatePath('/')` + `redirect('/')` now only run on
-  the success path (the console.error call was removed — the error is
-  returned instead, so it's no longer merely a server-log artifact).
-  `DeleteModuleButton` (sole caller) awaits the result inside
-  `startTransition` and renders `{error}` as inline destructive text under
-  the button (matching `EntryForm`'s error-paragraph idiom); a failed delete
-  now leaves the user on the tracker page with a visible reason instead of
-  redirecting home as if it succeeded. Verified `redirect()` still functions
-  correctly on the success path via `npm run build` (a misused/swallowed
-  `redirect()` throws a Next.js internal control-flow signal that build-time
-  static analysis and runtime rendering both depend on) — build passed.
-
 ## [F-04] A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence
 - **Status:** WONTFIX (ruled 2026-07-06)
 - **Severity:** low
@@ -304,64 +196,6 @@ Entry format:
   open across a day boundary, but it's a real gap given the brief flags it
   by name.
 
-## [F-14] `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback
-- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
-- **Severity:** low
-- **Area:** optimistic-ui
-- **What happens:** Two compounding issues in the non-edit delete path of
-  `components/entry-list.tsx`. (1) The main `EntryList` component destructures
-  `const [, startTransition] = useTransition()` (line 186), discarding the
-  pending flag entirely, so the delete button (lines 240-250) has no
-  `disabled` guard — unlike the `EditRow` save/cancel buttons in the same
-  file, which correctly wire `disabled={pending}` (lines 169, 172). A user
-  who clicks delete, dismisses the native `confirm()`, and clicks again
-  before the first `deleteEntry` call resolves can fire multiple concurrent
-  deletes of the same row (harmless — deleting an already-deleted id is a
-  no-op — but reflects the same missing-disabled pattern flagged elsewhere
-  as a mechanical fix candidate). (2) `deleteEntry`
-  (app/actions/entries.ts:94-100) has a `Promise<void>` return type and
-  never checks the Supabase `.delete()` call's error — a failed delete
-  (e.g. RLS denial, network error, revoked session) is silently discarded
-  both server-side (no error captured) and client-side (`entry-list.tsx`
-  line 246 does `startTransition(() => deleteEntry(...))` and never reads
-  a result). The row is never removed from `entries` optimistically
-  (`EntryList` relies entirely on `revalidatePath` + a server refetch to
-  reflect the deletion), so a failed delete simply leaves the row in place
-  with zero indication to the user that anything went wrong — it looks
-  identical to "nothing happened yet."
-- **Where:** components/entry-list.tsx:186 (discarded pending flag),
-  :240-250 (delete button, no `disabled`, no result handling);
-  app/actions/entries.ts:94-100 (`deleteEntry`, `Promise<void>`, error from
-  `.delete()` never captured or returned).
-- **Proposed fix:** wiring `disabled={pending}` onto the delete button alone
-  is not purely mechanical here because the transition is shared across
-  every row in the list (`[, startTransition]` at the `EntryList` level,
-  not per-row) — disabling it while any row's delete is in flight would
-  also disable *other* rows' delete (and, if reused, edit) buttons, a
-  cross-row UX change beyond "add disabled to the control that was
-  clicked." Fixing this properly means either lifting per-row pending state
-  (e.g. track the deleting id) or accepting the cross-row disable, both of
-  which are judgment calls. Separately, `deleteEntry` should return
-  `{error?: string}` (matching `updateEntry`'s shape) and the component
-  should render it — but that is squarely "what is shown on error," called
-  out by the brief as a DECIDE. Recommend: change `deleteEntry`'s signature
-  to return `{error?: string}`, track a per-row `deletingId` in
-  `EntryList` state to disable only the clicked row's buttons, and show a
-  brief inline error (mirroring `EditRow`'s existing `error` span) on
-  failure.
-- **Ruling (2026-07-06):** FIXED as recommended. `deleteEntry`
-  (app/actions/entries.ts) now captures `{ error }` from the `.delete()` call
-  and returns `Promise<{ error?: string } | void>`. `EntryList` adds a
-  per-row `deletingId` state (distinct from the still-shared
-  `startTransition`) and a `deleteError: { id, message } | null` state; the
-  delete button sets `deletingId` before calling the action, clears it after,
-  and both the edit and delete buttons for that row are disabled only while
-  `deletingId === entry.id` — other rows' buttons remain interactive, closing
-  the cross-row-disable concern the DECIDE flagged without over-scoping into
-  a shared-pending redesign. On error, the message renders as inline
-  destructive text next to that row's action buttons (mirroring `EditRow`'s
-  existing error span) and clears on the next delete attempt for that row.
-
 ## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
 - **Status:** DECIDE
 - **Severity:** low
@@ -393,57 +227,6 @@ Entry format:
   Bundling the trivial `disabled` addition without the sequencing fix would
   give a false sense that the race is closed, so both are left for a
   combined decision.
-
-## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
-- **Status:** FIXED (commit 1a1877b) — ruled by user 2026-07-06
-- **Severity:** low
-- **Area:** journal
-- **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
-  fires one `createEntryInModule` call per connected tracker field (loop at
-  line 194-207) and, separately, one for the template's binary
-  "journaled" marker module (lines 233-242). Both call sites correctly read
-  `result.error`/`binaryResult.error` — this is not the "never checked"
-  class of bug — but the *only* thing done with a failure is skip pushing
-  that module's name onto `loggedModules`; there is no distinction between
-  "field wasn't enabled/connected for this module" and "the write to this
-  tracker failed." The journal entry itself has already been committed by
-  this point (insert at lines 150-159, checked and returned on error
-  correctly), so a downstream per-module write failure is genuinely
-  non-fatal to the user's data — but the user has no way to tell, from the
-  UI, that they journaled "I ran 5 miles" and checked the box to log it to
-  their Running tracker, yet the tracker entry silently didn't get created
-  because of e.g. a transient DB error. The code comment at line 206
-  ("Non-fatal: journal entry already saved; log errors are surfaced via
-  loggedModules absence") documents this as intentional, but "surfaced via
-  absence" is indistinguishable from "the user didn't check that box in the
-  first place."
-- **Where:** app/actions/journal.ts:192-207 (per-field tracker loop),
-  :233-242 (binary module write) — both discard the specific error message
-  from `createEntryInModule`, keeping only a boolean bit of information
-  (present/absent in `loggedModules`).
-- **Proposed fix:** two directions, both DECIDE since either changes what
-  the client can show: (a) minimal — return a separate `failedModules:
-  string[]` (or `{name, error}[]`) alongside `loggedModules` so the caller
-  *could* show "Logged to Sleep; failed to log to Running: <reason>",
-  without forcing a UI change immediately; (b) fuller — have the journal
-  capture UI actually render the distinction. Recommend (a) as the
-  lower-risk step: it's an additive return-shape change (existing callers
-  destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
-  fix later without committing to one now.
-- **Ruling (2026-07-06):** FIXED — option (a) plus the minimal render option
-  (b), per the user's ruling to adopt the consistent inline-error pattern
-  everywhere. `createJournalEntry` now additionally returns `failedModules:
-  { name: string; error: string }[]`, populated in both the per-tracker loop
-  and the binary-module block wherever `result.error`/`binaryResult.error` is
-  set (previously discarded, keeping only the boolean
-  present/absent-in-`loggedModules` signal). The stale line-206 comment
-  ("log errors are surfaced via loggedModules absence") was corrected to
-  describe the current behavior. The return-shape change is additive, so
-  `{ id, loggedModules }`-only callers remain type-compatible.
-  `components/journal/journal-capture.tsx` adds a `failedModules` state,
-  populated from the result on save, and renders one destructive-text line
-  per entry ("Couldn't log to {name}: {error}") alongside the existing
-  `saveError`/`savedModules` inline messages, following the same idiom.
 
 ## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
 - **Status:** DECIDE
@@ -915,6 +698,241 @@ Entry format:
   multiple-rows contract for `.maybeSingle()` rather than an executable
   regression test; documented here per the brief's "fix + documented
   reasoning" path for action logic without test infra.
+
+## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
+- **Status:** FIXED (commit 0e99bc8) — ruled by user 2026-07-06
+- **Severity:** medium
+- **Area:** import
+- **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
+  in chunks of `CHUNK_SIZE = 500` via a sequential loop, not one atomic bulk
+  insert. If chunk 3 of 5 fails (e.g. a transient DB error, a constraint hit
+  by a row that slipped past validation), the loop returns immediately with
+  `{ inserted: <rows from chunks 1-2>, skipped, error: error.message }` —
+  so the *return value* correctly reflects a partial success and does carry
+  the error message. The bug is entirely on the caller side:
+  `ImportWizard.handleImport` (components/import/import-wizard.tsx:214-221)
+  guards the error path with `if (result.error && result.inserted === 0)`.
+  When `inserted > 0` (i.e. any earlier chunk committed), that condition is
+  false, so the function falls through to `router.push(...); router.refresh()`
+  — navigating away as if the import fully succeeded. The error message and
+  the partial count (e.g. "1000 of 2200 imported, then failed") are never
+  shown to the user. For imports at or near `MAX_IMPORT_ROWS` (5000 rows /
+  10 chunks), a failure partway through silently leaves the tracker with an
+  incomplete, un-flagged import and no way for the user to know which rows
+  are missing short of manually diffing.
+- **Where:** app/actions/import.ts:123-129 (chunked insert loop, correct
+  partial-count return); components/import/import-wizard.tsx:213-221
+  (`handleImport`'s `result.inserted === 0` guard drops the partial-failure
+  case). No test added — this is a UI/state-flow read, not a pure-function
+  probe; confirmed by static trace of the `if` condition against the
+  possible `{inserted, skipped, error}` return shapes from
+  `bulkImportEntries`.
+- **Proposed fix:** change the wizard's condition to branch on `result.error`
+  alone (regardless of `inserted`), and when both `error` and `inserted > 0`
+  are present, show a distinct message like `Imported ${inserted} of
+  ${rows.length} rows, then stopped: ${result.error}` instead of either the
+  generic error path or a silent success redirect. Trade-off: this is a
+  UX/copy decision (what to tell the user, whether to still navigate to the
+  module page so they can see what did land, whether to offer "retry
+  remaining rows") rather than a one-line logic fix, so it's flagged for
+  product judgment rather than auto-applied.
+- **Ruling (2026-07-06):** FIXED per the consistent inline-error pattern (server
+  actions return `{ error? }`, components render destructive text inline).
+  `ImportWizard.handleImport` (components/import/import-wizard.tsx) now
+  branches on `result.error` alone; when `result.inserted > 0` it shows
+  "Import stopped after {inserted} of {total} rows: {error}. The imported
+  rows are saved; retrying will skip them as duplicates." and does not
+  navigate away. Retry-safety is made real, not just promised: the wizard
+  slices the first `result.inserted` entries off the same `rows` array it
+  sent to the server (chunks insert in payload order, so those rows are the
+  ones that landed) and folds their `entry_date`s into a new
+  `confirmedInsertedDates` state, merged into `existingDateSet` alongside the
+  `existingDates` prop — so `validateImportRows` on a retry marks them
+  `duplicate` instead of re-inserting. `inserted === 0` keeps the original
+  full-failure behavior (generic error, no navigation). `app/actions/import.ts`
+  needed no change, as the brief specified.
+- **Residual gap (found in review, mitigated 2026-07-06):** the retry-safety
+  mechanism above was entirely inert whenever `includeDuplicates` was
+  checked at the time of the partial failure: both the client's own
+  duplicate check (`validateImportRows(..., { includeDuplicates })`) and the
+  server's duplicate guard are bypassed by that flag, so folding the landed
+  dates into `confirmedInsertedDates` had no effect — a retry would
+  re-insert every row that already landed, exactly contradicting the "will
+  skip them as duplicates" message. Fixed by having `handleImport` reset
+  `includeDuplicates` to `false` on partial failure, so the duplicate check
+  is guaranteed active for the retry, and by rewording the message to match
+  ("they'll be skipped as duplicates when you retry," plus a note that
+  re-checking "include duplicates" would re-import them). One narrower gap
+  remains, not fixed: the mechanism assumes the first `result.inserted` rows
+  of the *retry's* payload are a prefix-for-prefix match with the rows that
+  landed on the *original* attempt. Server-side re-validation on the retry
+  (the required-field check and the fresh duplicate check in
+  `app/actions/import.ts`) can skip rows that pass differently than they did
+  the first time (e.g. a date that was a duplicate before but no longer is,
+  or vice versa), which shifts which rows occupy `rows.slice(0,
+  result.inserted)` on the retry relative to the original. Because the
+  server-side duplicate guard is active whenever `includeDuplicates` is off
+  (which this fix now guarantees on the retry), this cannot cause a second
+  double-insert of the same row — the blast radius is limited to
+  label/count noise (a landed row briefly mismarked, or the reported
+  inserted-count description reading slightly off), not new duplicate
+  writes.
+
+## [F-14] `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback
+- **Status:** FIXED (commit 0e99bc8) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** Two compounding issues in the non-edit delete path of
+  `components/entry-list.tsx`. (1) The main `EntryList` component destructures
+  `const [, startTransition] = useTransition()` (line 186), discarding the
+  pending flag entirely, so the delete button (lines 240-250) has no
+  `disabled` guard — unlike the `EditRow` save/cancel buttons in the same
+  file, which correctly wire `disabled={pending}` (lines 169, 172). A user
+  who clicks delete, dismisses the native `confirm()`, and clicks again
+  before the first `deleteEntry` call resolves can fire multiple concurrent
+  deletes of the same row (harmless — deleting an already-deleted id is a
+  no-op — but reflects the same missing-disabled pattern flagged elsewhere
+  as a mechanical fix candidate). (2) `deleteEntry`
+  (app/actions/entries.ts:94-100) has a `Promise<void>` return type and
+  never checks the Supabase `.delete()` call's error — a failed delete
+  (e.g. RLS denial, network error, revoked session) is silently discarded
+  both server-side (no error captured) and client-side (`entry-list.tsx`
+  line 246 does `startTransition(() => deleteEntry(...))` and never reads
+  a result). The row is never removed from `entries` optimistically
+  (`EntryList` relies entirely on `revalidatePath` + a server refetch to
+  reflect the deletion), so a failed delete simply leaves the row in place
+  with zero indication to the user that anything went wrong — it looks
+  identical to "nothing happened yet."
+- **Where:** components/entry-list.tsx:186 (discarded pending flag),
+  :240-250 (delete button, no `disabled`, no result handling);
+  app/actions/entries.ts:94-100 (`deleteEntry`, `Promise<void>`, error from
+  `.delete()` never captured or returned).
+- **Proposed fix:** wiring `disabled={pending}` onto the delete button alone
+  is not purely mechanical here because the transition is shared across
+  every row in the list (`[, startTransition]` at the `EntryList` level,
+  not per-row) — disabling it while any row's delete is in flight would
+  also disable *other* rows' delete (and, if reused, edit) buttons, a
+  cross-row UX change beyond "add disabled to the control that was
+  clicked." Fixing this properly means either lifting per-row pending state
+  (e.g. track the deleting id) or accepting the cross-row disable, both of
+  which are judgment calls. Separately, `deleteEntry` should return
+  `{error?: string}` (matching `updateEntry`'s shape) and the component
+  should render it — but that is squarely "what is shown on error," called
+  out by the brief as a DECIDE. Recommend: change `deleteEntry`'s signature
+  to return `{error?: string}`, track a per-row `deletingId` in
+  `EntryList` state to disable only the clicked row's buttons, and show a
+  brief inline error (mirroring `EditRow`'s existing `error` span) on
+  failure.
+- **Ruling (2026-07-06):** FIXED as recommended. `deleteEntry`
+  (app/actions/entries.ts) now captures `{ error }` from the `.delete()` call
+  and returns `Promise<{ error?: string } | void>`. `EntryList` adds a
+  per-row `deletingId` state (distinct from the still-shared
+  `startTransition`) and a `deleteError: { id, message } | null` state; the
+  delete button sets `deletingId` before calling the action, clears it after,
+  and both the edit and delete buttons for that row are disabled only while
+  `deletingId === entry.id` — other rows' buttons remain interactive, closing
+  the cross-row-disable concern the DECIDE flagged without over-scoping into
+  a shared-pending redesign. On error, the message renders as inline
+  destructive text next to that row's action buttons (mirroring `EditRow`'s
+  existing error span) and clears on the next delete attempt for that row.
+
+## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
+- **Status:** FIXED (commit 0e99bc8) — ruled by user 2026-07-06
+- **Severity:** medium
+- **Area:** actions
+- **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
+  176) called `await supabase.from('modules').delete()...` with no error
+  destructure, then unconditionally ran `revalidatePath('/')` and
+  `redirect('/')`. Unlike `deleteChart`/`deleteEntry` (F-14, F-16), which at
+  least leave the user on the same page after a silent failure, this one
+  actively navigates the user away to the dashboard on every call
+  regardless of whether the delete actually succeeded — a failed delete
+  (RLS denial, FK constraint from a dependent row, network error) looks
+  identical to a successful one from the user's perspective: the tracker
+  disappears from view (redirected home) even though it's still in the DB
+  and will reappear the next time its module list is fetched. The sole
+  caller (`components/delete-module-button.tsx`) fire-and-forgets the call
+  inside `startTransition` with no result handling, so there's currently no
+  UI path that could surface an error even if one were returned.
+- **Where:** app/actions/modules.ts, `deleteModule` (pre-fix line 176,
+  unconditional `redirect('/')` after an uninspected delete).
+- **Proposed fix:** (partially applied) captured the error and logged it
+  server-side (`console.error`) so failures are at least visible in server
+  logs, but left the `redirect('/')` unconditional — making the redirect
+  conditional on success is a genuine behavior change (what happens on
+  failure: stay on the tracker page? show a toast before redirecting?) that
+  needs a product decision, not a mechanical fix, and doing it silently
+  would risk leaving the user on a tracker page they just "deleted" with no
+  explanation either way. Recommend: change the return type to
+  `Promise<{ error?: string } | never>` (matching `createChart`'s
+  `{ error } | never` pattern), skip the redirect on error, and have
+  `DeleteModuleButton` render the error inline (mirroring the
+  `EditRow`-style error span called out in F-14).
+- **Ruling (2026-07-06):** FIXED as recommended, replacing the partial
+  console.error fix. `deleteModule` now returns `Promise<{ error: string } |
+  never>`: on delete error it returns `{ error: error.message }` instead of
+  falling through; `revalidatePath('/')` + `redirect('/')` now only run on
+  the success path (the console.error call was removed — the error is
+  returned instead, so it's no longer merely a server-log artifact).
+  `DeleteModuleButton` (sole caller) awaits the result inside
+  `startTransition` and renders `{error}` as inline destructive text under
+  the button (matching `EntryForm`'s error-paragraph idiom); a failed delete
+  now leaves the user on the tracker page with a visible reason instead of
+  redirecting home as if it succeeded. Verified `redirect()` still functions
+  correctly on the success path via `npm run build` (a misused/swallowed
+  `redirect()` throws a Next.js internal control-flow signal that build-time
+  static analysis and runtime rendering both depend on) — build passed.
+
+## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
+- **Status:** FIXED (commit 0e99bc8) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** journal
+- **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
+  fires one `createEntryInModule` call per connected tracker field (loop at
+  line 194-207) and, separately, one for the template's binary
+  "journaled" marker module (lines 233-242). Both call sites correctly read
+  `result.error`/`binaryResult.error` — this is not the "never checked"
+  class of bug — but the *only* thing done with a failure is skip pushing
+  that module's name onto `loggedModules`; there is no distinction between
+  "field wasn't enabled/connected for this module" and "the write to this
+  tracker failed." The journal entry itself has already been committed by
+  this point (insert at lines 150-159, checked and returned on error
+  correctly), so a downstream per-module write failure is genuinely
+  non-fatal to the user's data — but the user has no way to tell, from the
+  UI, that they journaled "I ran 5 miles" and checked the box to log it to
+  their Running tracker, yet the tracker entry silently didn't get created
+  because of e.g. a transient DB error. The code comment at line 206
+  ("Non-fatal: journal entry already saved; log errors are surfaced via
+  loggedModules absence") documents this as intentional, but "surfaced via
+  absence" is indistinguishable from "the user didn't check that box in the
+  first place."
+- **Where:** app/actions/journal.ts:192-207 (per-field tracker loop),
+  :233-242 (binary module write) — both discard the specific error message
+  from `createEntryInModule`, keeping only a boolean bit of information
+  (present/absent in `loggedModules`).
+- **Proposed fix:** two directions, both DECIDE since either changes what
+  the client can show: (a) minimal — return a separate `failedModules:
+  string[]` (or `{name, error}[]`) alongside `loggedModules` so the caller
+  *could* show "Logged to Sleep; failed to log to Running: <reason>",
+  without forcing a UI change immediately; (b) fuller — have the journal
+  capture UI actually render the distinction. Recommend (a) as the
+  lower-risk step: it's an additive return-shape change (existing callers
+  destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
+  fix later without committing to one now.
+- **Ruling (2026-07-06):** FIXED — option (a) plus the minimal render option
+  (b), per the user's ruling to adopt the consistent inline-error pattern
+  everywhere. `createJournalEntry` now additionally returns `failedModules:
+  { name: string; error: string }[]`, populated in both the per-tracker loop
+  and the binary-module block wherever `result.error`/`binaryResult.error` is
+  set (previously discarded, keeping only the boolean
+  present/absent-in-`loggedModules` signal). The stale line-206 comment
+  ("log errors are surfaced via loggedModules absence") was corrected to
+  describe the current behavior. The return-shape change is additive, so
+  `{ id, loggedModules }`-only callers remain type-compatible.
+  `components/journal/journal-capture.tsx` adds a `failedModules` state,
+  populated from the result on save, and renders one destructive-text line
+  per entry ("Couldn't log to {name}: {error}") alongside the existing
+  `saveError`/`savedModules` inline messages, following the same idiom.
 
 ## Audit-record notes
 
