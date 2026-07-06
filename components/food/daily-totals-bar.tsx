@@ -17,7 +17,7 @@ export function DailyTotalsBar({ totals }: { totals: DailyTotals }) {
     <div className="grid grid-cols-4 gap-2">
       {items.map(({ label, value, unit }) => (
         <div key={label} className="text-center rounded-lg bg-muted/50 px-3 py-3">
-          <div className="text-xl font-semibold tabular-nums">{value}</div>
+          <div className="font-heading text-xl font-semibold tabular-nums">{value}</div>
           <div className="text-xs text-muted-foreground mt-0.5">
             {label} <span className="text-muted-foreground/60">{unit}</span>
           </div>
