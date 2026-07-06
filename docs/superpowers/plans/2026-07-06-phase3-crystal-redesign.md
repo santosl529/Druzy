@@ -26,7 +26,7 @@
 - **Page header recipe:** `h1` gets `font-heading text-3xl font-bold tracking-tight` (the `font-heading` utility exists after Task 1); subtitle stays `text-muted-foreground`. Section headings (`h2`-level) get `font-heading text-xl font-semibold tracking-tight`.
 - **Card titles** (`CardTitle` and equivalents) get `font-heading`.
 - **Primary actions** use the default shadcn `Button` (which Task 1 turns violet via `--primary`); secondary actions stay `variant="outline"`. Never hand-roll button colors.
-- **Links in prose/chrome:** `text-primary hover:underline underline-offset-4`.
+- **Links in prose/chrome:** `text-accent-text hover:underline underline-offset-4` — the AA-safe text tier of the accent (same as `--primary` in light; lifted in dark). Violet TEXT always uses `text-accent-text`; `--primary` is the surface/ring tier only (Task 1 amendment, 2026-07-06).
 - **Empty states:** dashed border card, `font-heading` heading, one primary + one outline action — the pattern already on the trackers page, restyled once in Task 3 and copied verbatim where other pages need one.
 - **Surface depth:** cards/dialogs may gain at most `shadow-sm` → `shadow-md on hover` and 1px borders — no new gradients, no glows on non-tracker surfaces.
 
