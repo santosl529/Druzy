@@ -465,7 +465,7 @@ Entry format:
   one-line convention alignment on a currently-dead fallback path.
 
 ## [F-03] Entry actions' entry_date fallback is UTC-today, not the user's day
-- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5e0a963) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** actions
 - **What happens:** `createEntry`/`updateEntry` fall back to
@@ -530,7 +530,7 @@ Entry format:
   boolean pass/fail gate).
 
 ## [F-07] Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity)
-- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5e0a963) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** grid
 - **What happens:** `computeCellState`'s `'gradient'` branch
@@ -578,7 +578,7 @@ Entry format:
   (anti-regression, mirrors F-06).
 
 ## [F-09] An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal
-- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5e0a963) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** grid
 - **What happens:** The category-mode spec says "unmapped options fall
@@ -632,7 +632,7 @@ Entry format:
   pins that a valid `CRYSTAL_KEYS` value still passes through unchanged.
 
 ## [F-10] Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline
-- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5e0a963) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** import
 - **What happens:** `coerceImportValue`'s `'rating'` case (lib/import.ts:117-124)
