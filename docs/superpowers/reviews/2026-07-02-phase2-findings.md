@@ -12,40 +12,103 @@ Entry format:
 - **Where:** <file:line>
 - **Proposed fix:** <one or two sentences; for DECIDE entries include the trade-off>
 
-## [F-01] Future-dated entry zeroes the current streak
-- **Status:** FIXED (commit afbbd72)
-- **Severity:** medium
-- **Area:** date-tz
-- **What happens:** `computeStreak` decided "streak active" by looking only at
-  the single most recent entry date. With entries on [today+1, today] (real
-  scenario: the client's browser tz is a day ahead of the resolved day-boundary
-  tz, so the form submits "tomorrow's" date), `lastDate` is neither today nor
-  yesterday → `currentStreak` = 0 even though the user logged today. Surfaced
-  in the assistant's analytics streak card ("Current streak: 0d").
-- **Where:** lib/analytics.ts:285-301 (pre-fix)
-- **Proposed fix:** (applied) compute the current streak over dates ≤ today
-  only; future dates still count toward `longestStreak`/`totalDaysLogged` and
-  `lastLoggedDate` is unchanged. Regression test:
-  lib/__tests__/date-edges.test.ts "future-dated entry does not break the
-  streak computation" (RED before fix, GREEN after).
+## Summary
 
-## [F-02] ListChart (client component) fell back to UTC instead of browser tz
-- **Status:** FIXED (commit afbbd72)
-- **Severity:** low
-- **Area:** date-tz
-- **What happens:** `components/charts/list-chart.tsx` is `'use client'` but
-  used `timezone ?? 'UTC'`, violating the lib/date.ts convention (client falls
-  back to the browser tz, server to UTC). If the fallback ever fired, a
-  "last N days" list window would use UTC day boundaries instead of the
-  browser's. Currently unreachable: the sole caller
-  (components/module-chart.tsx:217) always passes
-  `clientEffectiveTimezone(timezone)` — so no user-visible behavior change.
-- **Where:** components/charts/list-chart.tsx:25 (pre-fix)
-- **Proposed fix:** (applied) `getListData(entries, config,
-  clientEffectiveTimezone(timezone))`. No regression test: the repo's vitest
-  setup is node-only (no DOM, no `@/` alias resolution), so component-render
-  tests aren't feasible without new dependencies/config; the fix is a
-  one-line convention alignment on a currently-dead fallback path.
+| ID | Sev | Area | Title | Status |
+|---|---|---|---|---|
+| F-11 | medium | import | Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded | DECIDE |
+| F-17 | medium | actions | `deleteModule` discards its delete error and still unconditionally redirects home | DECIDE |
+| F-03 | low | actions | Entry actions' entry_date fallback is UTC-today, not the user's day | DECIDE |
+| F-04 | low | formula | A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence | DECIDE |
+| F-05 | low | formula | Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself | DECIDE |
+| F-07 | low | grid | Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity) | DECIDE |
+| F-09 | low | grid | An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal | DECIDE |
+| F-10 | low | import | Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline | DECIDE |
+| F-13 | low | optimistic-ui | `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state | DECIDE |
+| F-14 | low | optimistic-ui | `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback | DECIDE |
+| F-15 | low | optimistic-ui | Food-log's "Back to today" control is not gated on its own in-flight state | DECIDE |
+| F-18 | low | journal | `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules` | DECIDE |
+| F-20 | low | journal | Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day | DECIDE |
+| F-01 | medium | date-tz | Future-dated entry zeroes the current streak | FIXED |
+| F-06 | medium | grid | `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field | FIXED |
+| F-08 | medium | grid | Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order | FIXED |
+| F-12 | medium | optimistic-ui | `FoodLog`'s save/delete/update handlers derived next state from a stale closure over `entries`, racing concurrent row operations | FIXED |
+| F-16 | medium | actions | Three server actions discarded their Supabase write error entirely (no destructure at all) | FIXED |
+| F-19 | medium | journal | Binary-entry duplicate guard used `.maybeSingle()`, which errors (and was silently swallowed) when more than one entry already exists for the day — reopening the exact duplicate the guard exists to prevent | FIXED |
+| F-02 | low | date-tz | ListChart (client component) fell back to UTC instead of browser tz | FIXED |
+
+## Open decisions (DECIDE)
+
+## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
+- **Status:** DECIDE
+- **Severity:** medium
+- **Area:** import
+- **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
+  in chunks of `CHUNK_SIZE = 500` via a sequential loop, not one atomic bulk
+  insert. If chunk 3 of 5 fails (e.g. a transient DB error, a constraint hit
+  by a row that slipped past validation), the loop returns immediately with
+  `{ inserted: <rows from chunks 1-2>, skipped, error: error.message }` —
+  so the *return value* correctly reflects a partial success and does carry
+  the error message. The bug is entirely on the caller side:
+  `ImportWizard.handleImport` (components/import/import-wizard.tsx:214-221)
+  guards the error path with `if (result.error && result.inserted === 0)`.
+  When `inserted > 0` (i.e. any earlier chunk committed), that condition is
+  false, so the function falls through to `router.push(...); router.refresh()`
+  — navigating away as if the import fully succeeded. The error message and
+  the partial count (e.g. "1000 of 2200 imported, then failed") are never
+  shown to the user. For imports at or near `MAX_IMPORT_ROWS` (5000 rows /
+  10 chunks), a failure partway through silently leaves the tracker with an
+  incomplete, un-flagged import and no way for the user to know which rows
+  are missing short of manually diffing.
+- **Where:** app/actions/import.ts:123-129 (chunked insert loop, correct
+  partial-count return); components/import/import-wizard.tsx:213-221
+  (`handleImport`'s `result.inserted === 0` guard drops the partial-failure
+  case). No test added — this is a UI/state-flow read, not a pure-function
+  probe; confirmed by static trace of the `if` condition against the
+  possible `{inserted, skipped, error}` return shapes from
+  `bulkImportEntries`.
+- **Proposed fix:** change the wizard's condition to branch on `result.error`
+  alone (regardless of `inserted`), and when both `error` and `inserted > 0`
+  are present, show a distinct message like `Imported ${inserted} of
+  ${rows.length} rows, then stopped: ${result.error}` instead of either the
+  generic error path or a silent success redirect. Trade-off: this is a
+  UX/copy decision (what to tell the user, whether to still navigate to the
+  module page so they can see what did land, whether to offer "retry
+  remaining rows") rather than a one-line logic fix, so it's flagged for
+  product judgment rather than auto-applied.
+
+## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
+- **Status:** DECIDE
+- **Severity:** medium
+- **Area:** actions
+- **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
+  176) called `await supabase.from('modules').delete()...` with no error
+  destructure, then unconditionally ran `revalidatePath('/')` and
+  `redirect('/')`. Unlike `deleteChart`/`deleteEntry` (F-14, F-16), which at
+  least leave the user on the same page after a silent failure, this one
+  actively navigates the user away to the dashboard on every call
+  regardless of whether the delete actually succeeded — a failed delete
+  (RLS denial, FK constraint from a dependent row, network error) looks
+  identical to a successful one from the user's perspective: the tracker
+  disappears from view (redirected home) even though it's still in the DB
+  and will reappear the next time its module list is fetched. The sole
+  caller (`components/delete-module-button.tsx`) fire-and-forgets the call
+  inside `startTransition` with no result handling, so there's currently no
+  UI path that could surface an error even if one were returned.
+- **Where:** app/actions/modules.ts, `deleteModule` (pre-fix line 176,
+  unconditional `redirect('/')` after an uninspected delete).
+- **Proposed fix:** (partially applied) captured the error and logged it
+  server-side (`console.error`) so failures are at least visible in server
+  logs, but left the `redirect('/')` unconditional — making the redirect
+  conditional on success is a genuine behavior change (what happens on
+  failure: stay on the tracker page? show a toast before redirecting?) that
+  needs a product decision, not a mechanical fix, and doing it silently
+  would risk leaving the user on a tracker page they just "deleted" with no
+  explanation either way. Recommend: change the return type to
+  `Promise<{ error?: string } | never>` (matching `createChart`'s
+  `{ error } | never` pattern), skip the redirect on error, and have
+  `DeleteModuleButton` render the error inline (mirroring the
+  `EditRow`-style error span called out in F-14).
 
 ## [F-03] Entry actions' entry_date fallback is UTC-today, not the user's day
 - **Status:** DECIDE
@@ -112,11 +175,17 @@ Entry format:
 - **Proposed fix:** treat defaulted inputs as date anchors (i.e., a date
   with a non-numeric/absent value in a defaulted input still computes
   using the default), so the sole-anchor case no longer silently drops a
-  day when every anchor came from a defaulted input. Trade-off: formulas
-  would emit values on days with no real data — a formula chart could show
-  a smooth line where the user actually logged nothing, which may be
-  surprising or actively misleading; worth confirming this is the desired
-  behavior before changing silently-relied-upon output.
+  day when every anchor came from a defaulted input. The implementable
+  anchor rule here is entry-*presence*, not entry-value: a defaulted input
+  that has an entry for the day (even one whose field value is
+  non-numeric) can anchor the date, because there is a real row to key
+  off; a truly absent entry — no row for that module/day at all — still
+  contributes no date, since there is nothing to anchor to. Trade-off:
+  formulas would emit values on days with a non-numeric logged value in a
+  defaulted input but no other anchor — a formula chart could show a
+  computed point where the defaulted input's own data was junk, which may
+  be surprising or actively misleading; worth confirming this is the
+  desired behavior before changing silently-relied-upon output.
 
 ## [F-05] Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself
 - **Status:** DECIDE
@@ -160,43 +229,6 @@ Entry format:
   prevent; low priority unless a new formula-creation path is added later
   (e.g. bulk import) that might skip `validateFormulaInputs`.
 
-## [F-06] `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field
-- **Status:** FIXED (commit pending — see report)
-- **Severity:** medium
-- **Area:** grid
-- **What happens:** `evaluateGoal`'s reduce used `Number(entry[cond.field])`
-  guarded only by `isNaN`. Two distinct failure modes: (1) `Number(null)`
-  is `0` and `Number(true)`/`Number(false)` are `1`/`0` — none of these are
-  `NaN`, so a `null` or boolean value logged under a numeric goal field
-  was silently coerced and counted as a real contribution instead of
-  being ignored. (2) Separately, because the reduce seed is `0` and a
-  genuinely-missing field is (correctly) excluded from the sum, a day
-  where the field never appears in *any* entry evaluates the condition
-  against `0` — indistinguishable from the user having actually logged
-  `0`. For a condition satisfied by `0` (e.g. `lte 0`, `eq 0`, or a
-  `between` range straddling `0`), this "phantom zero" reports the goal
-  as met on a day nothing was logged for that field at all. Both are the
-  same root cause the codebase already guards against in
-  `lib/formula.ts`'s `toNumber` (rejects `null`/`undefined`/`''` before
-  calling `Number()`) — `evaluateGoal` never had the equivalent guard.
-- **Where:** lib/consistency-grid.ts (`evaluateGoal`, `toFiniteNumber`
-  helper added). Regression tests: lib/__tests__/consistency-grid.test.ts
-  `describe('evaluateGoal value coercion', ...)` — string-numeric
-  coercion (kept, unchanged behavior), null/boolean values no longer
-  satisfy conditions, missing-field-across-all-entries returns false
-  even for zero-straddling ranges, and a genuinely logged `0` still
-  counts (regression guard against overcorrecting).
-- **Proposed fix:** (applied) added `toFiniteNumber` (rejects
-  `null`/`undefined`/`''`/`boolean` before `Number()` coercion, mirroring
-  `lib/formula.ts`'s `toNumber`) and tracked whether any entry
-  contributed a real value per condition (`sawValue`); if none did, the
-  condition is false regardless of what the reduce-seed `0` would
-  otherwise satisfy. Note: the identical `Number(e[fieldKey])`/`isNaN`
-  pattern also exists in gradient mode (cell computation and the
-  auto-fit range scan) — see F-07, left unfixed as out of this task's
-  scope (lower severity: affects a display intensity value, not a
-  boolean pass/fail gate).
-
 ## [F-07] Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity)
 - **Status:** DECIDE
 - **Severity:** low
@@ -233,42 +265,6 @@ Entry format:
   intensity? excluded from auto-fit min/max?), which is a product call
   beyond a one-line coercion fix; deferred rather than bundled into F-06
   to keep that fix minimal and scoped to the brief's Step 1 target.
-
-## [F-08] Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order
-- **Status:** FIXED (commit pending — see report)
-- **Severity:** medium
-- **Area:** grid
-- **What happens:** The category-mode spec
-  (docs/superpowers/specs/2026-06-29-category-mode-design.md) says the
-  "most recent entry" wins when two entries land on the same day, read
-  from `dayEntries[dayEntries.length - 1]` in `computeCellState`. But
-  `buildGridData` populated `dayEntries` by pushing entries into each
-  day's array in whatever order the input `entries` array arrived in —
-  and the sole production caller
-  (app/(app)/dashboard/page.tsx:24-30) issues an unordered
-  `.select('module_id, entry_date, values, created_at')...` Supabase
-  query with no `.order()` clause. Postgres gives no ordering guarantee
-  without `ORDER BY`, so "last in the array" was not reliably "most
-  recently created" — the winning category for a same-day conflict
-  could flip between page loads or after unrelated writes/vacuums
-  changed physical row order, with no code change and no user action.
-  Per the task brief, order-dependent nondeterminism is treated as a bug
-  even though the spec is silent on the underlying query's ordering.
-- **Where:** lib/consistency-grid.ts, `buildGridData` step 1 (entry
-  indexing loop). Regression test:
-  lib/__tests__/consistency-grid.test.ts `'same-day category conflict
-  resolves by entry_date creation order (created_at), not raw
-  array/query order'` — builds the grid twice from the same two entries
-  in opposite array order and asserts both runs agree on the winner
-  (RED before fix: reversed-array run picked the array-last entry
-  instead of the chronologically-last one; GREEN after).
-- **Proposed fix:** (applied) sort the `entries` array by `created_at`
-  ascending once, up front in `buildGridData`, before building the
-  per-day index — so `dayEntries[dayEntries.length - 1]` is
-  deterministically the chronologically latest entry regardless of
-  input array order. Fixed at the `lib` layer (not the Supabase query)
-  so the guarantee holds for any caller, not just the current dashboard
-  page.
 
 ## [F-09] An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal
 - **Status:** DECIDE
@@ -361,81 +357,6 @@ Entry format:
   having a separate warning channel at all. Recommend (a) unless there's a
   known use case for importing intentionally-out-of-scale ratings.
 
-## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
-- **Status:** DECIDE
-- **Severity:** medium
-- **Area:** import
-- **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
-  in chunks of `CHUNK_SIZE = 500` via a sequential loop, not one atomic bulk
-  insert. If chunk 3 of 5 fails (e.g. a transient DB error, a constraint hit
-  by a row that slipped past validation), the loop returns immediately with
-  `{ inserted: <rows from chunks 1-2>, skipped, error: error.message }` —
-  so the *return value* correctly reflects a partial success and does carry
-  the error message. The bug is entirely on the caller side:
-  `ImportWizard.handleImport` (components/import/import-wizard.tsx:214-221)
-  guards the error path with `if (result.error && result.inserted === 0)`.
-  When `inserted > 0` (i.e. any earlier chunk committed), that condition is
-  false, so the function falls through to `router.push(...); router.refresh()`
-  — navigating away as if the import fully succeeded. The error message and
-  the partial count (e.g. "1000 of 2200 imported, then failed") are never
-  shown to the user. For imports at or near `MAX_IMPORT_ROWS` (5000 rows /
-  10 chunks), a failure partway through silently leaves the tracker with an
-  incomplete, un-flagged import and no way for the user to know which rows
-  are missing short of manually diffing.
-- **Where:** app/actions/import.ts:123-129 (chunked insert loop, correct
-  partial-count return); components/import/import-wizard.tsx:213-221
-  (`handleImport`'s `result.inserted === 0` guard drops the partial-failure
-  case). No test added — this is a UI/state-flow read, not a pure-function
-  probe; confirmed by static trace of the `if` condition against the
-  possible `{inserted, skipped, error}` return shapes from
-  `bulkImportEntries`.
-- **Proposed fix:** change the wizard's condition to branch on `result.error`
-  alone (regardless of `inserted`), and when both `error` and `inserted > 0`
-  are present, show a distinct message like `Imported ${inserted} of
-  ${rows.length} rows, then stopped: ${result.error}` instead of either the
-  generic error path or a silent success redirect. Trade-off: this is a
-  UX/copy decision (what to tell the user, whether to still navigate to the
-  module page so they can see what did land, whether to offer "retry
-  remaining rows") rather than a one-line logic fix, so it's flagged for
-  product judgment rather than auto-applied.
-
-## [F-12] `FoodLog`'s save/delete/update handlers derived next state from a stale closure over `entries`, racing concurrent row operations
-- **Status:** FIXED (commit pending — see report)
-- **Severity:** medium
-- **Area:** optimistic-ui
-- **What happens:** `handleSaved`/`handleDeleted`/`handleUpdated`
-  (components/food/food-log.tsx, pre-fix lines 84-101) each read the
-  component-level `entries` variable captured at render time, computed
-  `updated`/`next` from it, and called `setEntries(updated)` with a plain
-  value rather than a functional updater. Each handler is passed as a prop
-  (`onSaved`/`onDeleted`/`onUpdated`) into a child (`PhotoUploader`,
-  `ManualEntry`, `EntryRow`) that invokes it only after its own server
-  action resolves inside its own `useTransition`. Because each `EntryRow`
-  has independent pending state, two concurrent operations on different
-  rows (e.g. deleting row A and editing row B in quick succession, both
-  in flight before either resolves) both close over the *same* pre-render
-  `entries` snapshot. Whichever `setEntries` call's callback fires last
-  wins outright — it computes its `updated`/`next` from the stale
-  snapshot, silently discarding the other operation's change from local
-  state (e.g. a deleted row reappears in the UI, or an edit is dropped)
-  until the next full data fetch (date navigation or page refresh). The
-  underlying Supabase writes/deletes both still succeed — this is a
-  client-side display desync, not data loss — but it shows the wrong
-  entries list until the user navigates away and back.
-- **Where:** components/food/food-log.tsx, `handleSaved`/`handleDeleted`/
-  `handleUpdated` (pre-fix lines 84-101), each computing `updated`/`next`
-  from the closed-over `entries` instead of the setter's `prev` argument.
-- **Proposed fix:** (applied) converted all three handlers to
-  `setEntries((prev) => { const updated = ...prev...; recalcTotals(updated);
-  return updated })`, deriving the new list from the setter's own `prev`
-  argument instead of the render-time closure, and calling `recalcTotals`
-  on that up-to-date value. No behavior change on the single-operation
-  happy path; eliminates the lost-update race on concurrent operations.
-  Mechanical fix per the task brief (functional-updater conversion, no
-  intended-behavior change) — no regression test added (no component-render
-  test harness in this repo; verified by tsc/lint/existing suite plus the
-  reasoning above).
-
 ## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
 - **Status:** DECIDE
 - **Severity:** low
@@ -523,13 +444,13 @@ Entry format:
   brief inline error (mirroring `EditRow`'s existing `error` span) on
   failure.
 
-## [F-15] Food-log's "Back to today" control and `PhotoUploader`'s file-input trigger are not gated on their own in-flight state
+## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
 - **Status:** DECIDE
 - **Severity:** low
 - **Area:** optimistic-ui
 - **What happens:** In `components/food/food-log.tsx`, the two chevron date-nav
-  buttons correctly disable on `loadingDate` (lines 113, 132), but the
-  "Back to today" text control (a raw `<button>`, lines 120-125) does not —
+  buttons correctly disable on `loadingDate` (lines 119, 138), but the
+  "Back to today" text control (a raw `<button>`, lines 126-131) does not —
   it can be clicked again while a previous `navigateDate` fetch is still in
   flight, firing a second concurrent `fetch('/api/food/entries?date=...')`.
   Both calls eventually call `setEntries`/`setTotals`/`setDate` with
@@ -540,7 +461,7 @@ Entry format:
   read-navigation race, not a write/double-submit (no duplicate server-side
   record is created), so it falls outside the brief's check #1 framing
   literally, but is the same class of missing-in-flight-guard issue.
-- **Where:** components/food/food-log.tsx:120-125 (`Back to today` button,
+- **Where:** components/food/food-log.tsx:126-131 (`Back to today` button,
   no `disabled`); :52-63 (`navigateDate`, no request-ordering guard).
 - **Proposed fix:** add `disabled={loadingDate}` to the "Back to today"
   button (mechanical on its face), but flagged as DECIDE rather than
@@ -555,8 +476,237 @@ Entry format:
   give a false sense that the race is closed, so both are left for a
   combined decision.
 
-## [F-16] Three server actions discarded their Supabase write error entirely (no destructure at all)
+## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** journal
+- **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
+  fires one `createEntryInModule` call per connected tracker field (loop at
+  line 194-207) and, separately, one for the template's binary
+  "journaled" marker module (lines 233-242). Both call sites correctly read
+  `result.error`/`binaryResult.error` — this is not the "never checked"
+  class of bug — but the *only* thing done with a failure is skip pushing
+  that module's name onto `loggedModules`; there is no distinction between
+  "field wasn't enabled/connected for this module" and "the write to this
+  tracker failed." The journal entry itself has already been committed by
+  this point (insert at lines 150-159, checked and returned on error
+  correctly), so a downstream per-module write failure is genuinely
+  non-fatal to the user's data — but the user has no way to tell, from the
+  UI, that they journaled "I ran 5 miles" and checked the box to log it to
+  their Running tracker, yet the tracker entry silently didn't get created
+  because of e.g. a transient DB error. The code comment at line 206
+  ("Non-fatal: journal entry already saved; log errors are surfaced via
+  loggedModules absence") documents this as intentional, but "surfaced via
+  absence" is indistinguishable from "the user didn't check that box in the
+  first place."
+- **Where:** app/actions/journal.ts:192-207 (per-field tracker loop),
+  :233-242 (binary module write) — both discard the specific error message
+  from `createEntryInModule`, keeping only a boolean bit of information
+  (present/absent in `loggedModules`).
+- **Proposed fix:** two directions, both DECIDE since either changes what
+  the client can show: (a) minimal — return a separate `failedModules:
+  string[]` (or `{name, error}[]`) alongside `loggedModules` so the caller
+  *could* show "Logged to Sleep; failed to log to Running: <reason>",
+  without forcing a UI change immediately; (b) fuller — have the journal
+  capture UI actually render the distinction. Recommend (a) as the
+  lower-risk step: it's an additive return-shape change (existing callers
+  destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
+  fix later without committing to one now.
+
+## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** journal
+- **What happens:** The manual "log an entry" form for any standard module
+  (`createEntry`, app/actions/entries.ts:7-49) writes
+  `values[field.key] = raw === 'on'` for boolean fields — i.e. leaving the
+  checkbox unchecked and submitting still inserts a row, with the field set
+  to `false`, not no row at all. (The one-tap grid toggle,
+  `setBinaryToday` in app/actions/entries.ts:126-168 — delete branch at
+  139-146 — behaves differently: `done=false` *deletes* the day's rows
+  rather than writing `false`, so "false" rows are reachable specifically
+  through the generic entry form, not the toggle.) If a user submits that
+  form with the box unchecked for today, then separately saves a journal
+  entry the same day with that same tracker connected as the template's
+  "journaled" marker, `createJournalEntry`'s guard
+  (app/actions/journal.ts:225-238, post F-19 fix) finds the existing
+  `false` row via `.limit(1)` and skips the write — the journal save
+  silently never upgrades that day's entry to `true`, even though
+  completing the journal is the exact signal the "mark as journaled"
+  feature is meant to record. The user sees no error; `loggedModules`
+  simply won't include that tracker's name (compounding F-18's
+  silent-omission problem).
+- **Where:** app/actions/journal.ts:225-238 — the guard's `if (existing.length
+  === 0)` treats "a row is present" as "already journaled today," without
+  checking whether that row's boolean field is actually `true`.
+- **Proposed fix:** two directions, DECIDE because both are behavior
+  changes to a data-mutation path: (a) tighten the guard to only skip when
+  an existing row already has the boolean field `=== true` (query
+  `.contains('values', { [boolField.key]: true })` or filter client-side
+  after a `.limit(5)` fetch), and otherwise call `createEntryInModule`
+  to add a corroborating `true` entry for the day — accepts that the tracker
+  could then show 2 rows for one day (mirrors the existing multi-row
+  possibility from the manual form, which the app already tolerates per
+  `getEntryState`'s `dayEntries.some(...)` check in
+  lib/consistency-grid.ts:154-157); (b) leave as-is and treat "already has
+  any entry today" as sufficient (current behavior) — simplest, but silently
+  disagrees with a user who explicitly unchecked the tracker earlier and
+  then completed the journal intending to override that. Recommend (a):
+  the grid's own `done` calculation already treats "any `true` entry that
+  day" as done, so adding a second `true` row is consistent with how the
+  feature is read elsewhere, whereas never overriding a `false` makes the
+  "mark as journaled" feature unreliable exactly when a user changes their
+  mind mid-day.
+
+## Fixed during the hunt (audit record)
+
+## [F-01] Future-dated entry zeroes the current streak
+- **Status:** FIXED (commit afbbd72)
+- **Severity:** medium
+- **Area:** date-tz
+- **What happens:** `computeStreak` decided "streak active" by looking only at
+  the single most recent entry date. With entries on [today+1, today] (real
+  scenario: the client's browser tz is a day ahead of the resolved day-boundary
+  tz, so the form submits "tomorrow's" date), `lastDate` is neither today nor
+  yesterday → `currentStreak` = 0 even though the user logged today. Surfaced
+  in the assistant's analytics streak card ("Current streak: 0d").
+- **Where:** lib/analytics.ts:285-301 (pre-fix)
+- **Proposed fix:** (applied) compute the current streak over dates ≤ today
+  only; future dates still count toward `longestStreak`/`totalDaysLogged` and
+  `lastLoggedDate` is unchanged. Regression test:
+  lib/__tests__/date-edges.test.ts "future-dated entry does not break the
+  streak computation" (RED before fix, GREEN after).
+
+## [F-02] ListChart (client component) fell back to UTC instead of browser tz
+- **Status:** FIXED (commit afbbd72)
+- **Severity:** low
+- **Area:** date-tz
+- **What happens:** `components/charts/list-chart.tsx` is `'use client'` but
+  used `timezone ?? 'UTC'`, violating the lib/date.ts convention (client falls
+  back to the browser tz, server to UTC). If the fallback ever fired, a
+  "last N days" list window would use UTC day boundaries instead of the
+  browser's. Currently unreachable: the sole caller
+  (components/module-chart.tsx:217) always passes
+  `clientEffectiveTimezone(timezone)` — so no user-visible behavior change.
+- **Where:** components/charts/list-chart.tsx:25 (pre-fix)
+- **Proposed fix:** (applied) `getListData(entries, config,
+  clientEffectiveTimezone(timezone))`. No regression test: the repo's vitest
+  setup is node-only (no DOM, no `@/` alias resolution), so component-render
+  tests aren't feasible without new dependencies/config; the fix is a
+  one-line convention alignment on a currently-dead fallback path.
+
+## [F-06] `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field
 - **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** grid
+- **What happens:** `evaluateGoal`'s reduce used `Number(entry[cond.field])`
+  guarded only by `isNaN`. Two distinct failure modes: (1) `Number(null)`
+  is `0` and `Number(true)`/`Number(false)` are `1`/`0` — none of these are
+  `NaN`, so a `null` or boolean value logged under a numeric goal field
+  was silently coerced and counted as a real contribution instead of
+  being ignored. (2) Separately, because the reduce seed is `0` and a
+  genuinely-missing field is (correctly) excluded from the sum, a day
+  where the field never appears in *any* entry evaluates the condition
+  against `0` — indistinguishable from the user having actually logged
+  `0`. For a condition satisfied by `0` (e.g. `lte 0`, `eq 0`, or a
+  `between` range straddling `0`), this "phantom zero" reports the goal
+  as met on a day nothing was logged for that field at all. Both are the
+  same root cause the codebase already guards against in
+  `lib/formula.ts`'s `toNumber` (rejects `null`/`undefined`/`''` before
+  calling `Number()`) — `evaluateGoal` never had the equivalent guard.
+- **Where:** lib/consistency-grid.ts (`evaluateGoal`, `toFiniteNumber`
+  helper added). Regression tests: lib/__tests__/consistency-grid.test.ts
+  `describe('evaluateGoal value coercion', ...)` — string-numeric
+  coercion (kept, unchanged behavior), null/boolean values no longer
+  satisfy conditions, missing-field-across-all-entries returns false
+  even for zero-straddling ranges, and a genuinely logged `0` still
+  counts (regression guard against overcorrecting).
+- **Proposed fix:** (applied) added `toFiniteNumber` (rejects
+  `null`/`undefined`/`''`/`boolean` before `Number()` coercion, mirroring
+  `lib/formula.ts`'s `toNumber`) and tracked whether any entry
+  contributed a real value per condition (`sawValue`); if none did, the
+  condition is false regardless of what the reduce-seed `0` would
+  otherwise satisfy. Note: the identical `Number(e[fieldKey])`/`isNaN`
+  pattern also exists in gradient mode (cell computation and the
+  auto-fit range scan) — see F-07, left unfixed as out of this task's
+  scope (lower severity: affects a display intensity value, not a
+  boolean pass/fail gate).
+
+## [F-08] Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** grid
+- **What happens:** The category-mode spec
+  (docs/superpowers/specs/2026-06-29-category-mode-design.md) says the
+  "most recent entry" wins when two entries land on the same day, read
+  from `dayEntries[dayEntries.length - 1]` in `computeCellState`. But
+  `buildGridData` populated `dayEntries` by pushing entries into each
+  day's array in whatever order the input `entries` array arrived in —
+  and the sole production caller
+  (app/(app)/dashboard/page.tsx:24-30) issues an unordered
+  `.select('module_id, entry_date, values, created_at')...` Supabase
+  query with no `.order()` clause. Postgres gives no ordering guarantee
+  without `ORDER BY`, so "last in the array" was not reliably "most
+  recently created" — the winning category for a same-day conflict
+  could flip between page loads or after unrelated writes/vacuums
+  changed physical row order, with no code change and no user action.
+  Per the task brief, order-dependent nondeterminism is treated as a bug
+  even though the spec is silent on the underlying query's ordering.
+- **Where:** lib/consistency-grid.ts, `buildGridData` step 1 (entry
+  indexing loop). Regression test:
+  lib/__tests__/consistency-grid.test.ts `'same-day category conflict
+  resolves by entry_date creation order (created_at), not raw
+  array/query order'` — builds the grid twice from the same two entries
+  in opposite array order and asserts both runs agree on the winner
+  (RED before fix: reversed-array run picked the array-last entry
+  instead of the chronologically-last one; GREEN after).
+- **Proposed fix:** (applied) sort the `entries` array by `created_at`
+  ascending once, up front in `buildGridData`, before building the
+  per-day index — so `dayEntries[dayEntries.length - 1]` is
+  deterministically the chronologically latest entry regardless of
+  input array order. Fixed at the `lib` layer (not the Supabase query)
+  so the guarantee holds for any caller, not just the current dashboard
+  page.
+
+## [F-12] `FoodLog`'s save/delete/update handlers derived next state from a stale closure over `entries`, racing concurrent row operations
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** optimistic-ui
+- **What happens:** `handleSaved`/`handleDeleted`/`handleUpdated`
+  (components/food/food-log.tsx, pre-fix lines 84-101) each read the
+  component-level `entries` variable captured at render time, computed
+  `updated`/`next` from it, and called `setEntries(updated)` with a plain
+  value rather than a functional updater. Each handler is passed as a prop
+  (`onSaved`/`onDeleted`/`onUpdated`) into a child (`PhotoUploader`,
+  `ManualEntry`, `EntryRow`) that invokes it only after its own server
+  action resolves inside its own `useTransition`. Because each `EntryRow`
+  has independent pending state, two concurrent operations on different
+  rows (e.g. deleting row A and editing row B in quick succession, both
+  in flight before either resolves) both close over the *same* pre-render
+  `entries` snapshot. Whichever `setEntries` call's callback fires last
+  wins outright — it computes its `updated`/`next` from the stale
+  snapshot, silently discarding the other operation's change from local
+  state (e.g. a deleted row reappears in the UI, or an edit is dropped)
+  until the next full data fetch (date navigation or page refresh). The
+  underlying Supabase writes/deletes both still succeed — this is a
+  client-side display desync, not data loss — but it shows the wrong
+  entries list until the user navigates away and back.
+- **Where:** components/food/food-log.tsx, `handleSaved`/`handleDeleted`/
+  `handleUpdated` (pre-fix lines 84-101), each computing `updated`/`next`
+  from the closed-over `entries` instead of the setter's `prev` argument.
+- **Proposed fix:** (applied) converted all three handlers to
+  `setEntries((prev) => { const updated = ...prev...; recalcTotals(updated);
+  return updated })`, deriving the new list from the setter's own `prev`
+  argument instead of the render-time closure, and calling `recalcTotals`
+  on that up-to-date value. No behavior change on the single-operation
+  happy path; eliminates the lost-update race on concurrent operations.
+  Mechanical fix per the task brief (functional-updater conversion, no
+  intended-behavior change) — no regression test added (no component-render
+  test harness in this repo; verified by tsc/lint/existing suite plus the
+  reasoning above).
+
+## [F-16] Three server actions discarded their Supabase write error entirely (no destructure at all)
+- **Status:** FIXED (commit 1c48ca9)
 - **Severity:** medium
 - **Area:** actions
 - **What happens:** Task 6's write-error grep
@@ -602,76 +752,6 @@ Entry format:
   DECIDE (see F-17 for the one case — `deleteModule` — where the discarded
   error is compounded by an unconditional `redirect`).
 
-## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
-- **Status:** DECIDE
-- **Severity:** medium
-- **Area:** actions
-- **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
-  176) called `await supabase.from('modules').delete()...` with no error
-  destructure, then unconditionally ran `revalidatePath('/')` and
-  `redirect('/')`. Unlike `deleteChart`/`deleteEntry` (F-14, F-16), which at
-  least leave the user on the same page after a silent failure, this one
-  actively navigates the user away to the dashboard on every call
-  regardless of whether the delete actually succeeded — a failed delete
-  (RLS denial, FK constraint from a dependent row, network error) looks
-  identical to a successful one from the user's perspective: the tracker
-  disappears from view (redirected home) even though it's still in the DB
-  and will reappear the next time its module list is fetched. The sole
-  caller (`components/delete-module-button.tsx`) fire-and-forgets the call
-  inside `startTransition` with no result handling, so there's currently no
-  UI path that could surface an error even if one were returned.
-- **Where:** app/actions/modules.ts, `deleteModule` (pre-fix line 176,
-  unconditional `redirect('/')` after an uninspected delete).
-- **Proposed fix:** (partially applied) captured the error and logged it
-  server-side (`console.error`) so failures are at least visible in server
-  logs, but left the `redirect('/')` unconditional — making the redirect
-  conditional on success is a genuine behavior change (what happens on
-  failure: stay on the tracker page? show a toast before redirecting?) that
-  needs a product decision, not a mechanical fix, and doing it silently
-  would risk leaving the user on a tracker page they just "deleted" with no
-  explanation either way. Recommend: change the return type to
-  `Promise<{ error?: string } | never>` (matching `createChart`'s
-  `{ error } | never` pattern), skip the redirect on error, and have
-  `DeleteModuleButton` render the error inline (mirroring the
-  `EditRow`-style error span called out in F-14).
-
-## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** journal
-- **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
-  fires one `createEntryInModule` call per connected tracker field (loop at
-  line 194-207) and, separately, one for the template's binary
-  "journaled" marker module (lines 233-242). Both call sites correctly read
-  `result.error`/`binaryResult.error` — this is not the "never checked"
-  class of bug — but the *only* thing done with a failure is skip pushing
-  that module's name onto `loggedModules`; there is no distinction between
-  "field wasn't enabled/connected for this module" and "the write to this
-  tracker failed." The journal entry itself has already been committed by
-  this point (insert at lines 150-159, checked and returned on error
-  correctly), so a downstream per-module write failure is genuinely
-  non-fatal to the user's data — but the user has no way to tell, from the
-  UI, that they journaled "I ran 5 miles" and checked the box to log it to
-  their Running tracker, yet the tracker entry silently didn't get created
-  because of e.g. a transient DB error. The code comment at line 206
-  ("Non-fatal: journal entry already saved; log errors are surfaced via
-  loggedModules absence") documents this as intentional, but "surfaced via
-  absence" is indistinguishable from "the user didn't check that box in the
-  first place."
-- **Where:** app/actions/journal.ts:192-207 (per-field tracker loop),
-  :233-242 (binary module write) — both discard the specific error message
-  from `createEntryInModule`, keeping only a boolean bit of information
-  (present/absent in `loggedModules`).
-- **Proposed fix:** two directions, both DECIDE since either changes what
-  the client can show: (a) minimal — return a separate `failedModules:
-  string[]` (or `{name, error}[]`) alongside `loggedModules` so the caller
-  *could* show "Logged to Sleep; failed to log to Running: <reason>",
-  without forcing a UI change immediately; (b) fuller — have the journal
-  capture UI actually render the distinction. Recommend (a) as the
-  lower-risk step: it's an additive return-shape change (existing callers
-  destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
-  fix later without committing to one now.
-
 ## [F-19] Binary-entry duplicate guard used `.maybeSingle()`, which errors (and was silently swallowed) when more than one entry already exists for the day — reopening the exact duplicate the guard exists to prevent
 - **Status:** FIXED (commit 7c7ff3d)
 - **Severity:** medium
@@ -687,12 +767,20 @@ Entry format:
   user who has manually logged the connected binary tracker twice on the same
   day (e.g. via its own module page) already has 2 rows for that
   module+date. When `createJournalEntry` then runs its guard,
-  `.maybeSingle()` receives PostgREST's "multiple (or no) rows returned"
-  error for that query. The pre-fix code destructured only `{ data: existing
-  }`, discarding `error` entirely, so `existing` came back `undefined` and
-  `if (!existing)` was true — the guard fell through and inserted a third,
-  duplicate row. This is the identical duplicate-entry class a51b1db was
-  written to close, reopened specifically in the multi-row case.
+  `.maybeSingle()` receives a "multiple (or no) rows returned" failure for
+  that query — synthesized **client-side** by postgrest-js (v2.107.0,
+  dist/index.cjs:389-401: when `isMaybeSingle` and the parsed JSON array has
+  more than one row, the library discards the array, sets `data = null`,
+  and manufactures a `PGRST116` error object itself) after an ordinary
+  plain-JSON fetch — the PostgREST server itself never returned this as an
+  HTTP error; the client library detects the row count and re-shapes the
+  response after the fact. The net observable behavior is the same either
+  way (`data = null` plus a `PGRST116`-coded error), and the pre-fix code
+  destructured only `{ data: existing }`, discarding that error entirely,
+  so `existing` came back `undefined` and `if (!existing)` was true — the
+  guard fell through and inserted a third, duplicate row. This is the
+  identical duplicate-entry class a51b1db was written to close, reopened
+  specifically in the multi-row case.
 - **Where:** app/actions/journal.ts:225-231 (pre-fix; guard query using
   `.maybeSingle()` with discarded `error`).
 - **Proposed fix:** (applied) switched the existence check to
@@ -707,46 +795,11 @@ Entry format:
   regression test; documented here per the brief's "fix + documented
   reasoning" path for action logic without test infra.
 
-## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** journal
-- **What happens:** The manual "log an entry" form for any standard module
-  (`createEntry`, app/actions/entries.ts:7-49) writes
-  `values[field.key] = raw === 'on'` for boolean fields — i.e. leaving the
-  checkbox unchecked and submitting still inserts a row, with the field set
-  to `false`, not no row at all. (The one-tap grid toggle,
-  `setBinaryToday` in lib/consistency-grid-adjacent app/actions/entries.ts:130-141,
-  behaves differently: `done=false` *deletes* the day's rows rather than
-  writing `false`, so "false" rows are reachable specifically through the
-  generic entry form, not the toggle.) If a user submits that form with the
-  box unchecked for today, then separately saves a journal entry the same
-  day with that same tracker connected as the template's "journaled"
-  marker, `createJournalEntry`'s guard (app/actions/journal.ts:225-238,
-  post F-19 fix) finds the existing `false` row via `.limit(1)` and skips
-  the write — the journal save silently never upgrades that day's entry to
-  `true`, even though completing the journal is the exact signal the
-  "mark as journaled" feature is meant to record. The user sees no error;
-  `loggedModules` simply won't include that tracker's name (compounding
-  F-18's silent-omission problem).
-- **Where:** app/actions/journal.ts:225-238 — the guard's `if (existing.length
-  === 0)` treats "a row is present" as "already journaled today," without
-  checking whether that row's boolean field is actually `true`.
-- **Proposed fix:** two directions, DECIDE because both are behavior
-  changes to a data-mutation path: (a) tighten the guard to only skip when
-  an existing row already has the boolean field `=== true` (query
-  `.contains('values', { [boolField.key]: true })` or filter client-side
-  after a `.limit(5)` fetch), and otherwise call `createEntryInModule`
-  to add a corroborating `true` entry for the day — accepts that the tracker
-  could then show 2 rows for one day (mirrors the existing multi-row
-  possibility from the manual form, which the app already tolerates per
-  `getEntryState`'s `dayEntries.some(...)` check in
-  lib/consistency-grid.ts:154-157); (b) leave as-is and treat "already has
-  any entry today" as sufficient (current behavior) — simplest, but silently
-  disagrees with a user who explicitly unchecked the tracker earlier and
-  then completed the journal intending to override that. Recommend (a):
-  the grid's own `done` calculation already treats "any `true` entry that
-  day" as done, so adding a second `true` row is consistent with how the
-  feature is read elsewhere, whereas never overriding a `false` makes the
-  "mark as journaled" feature unreliable exactly when a user changes their
-  mind mid-day.
+## Audit-record notes
+
+- Task 6's sweep report (`.superpowers/sdd/task-6-report.md`) claimed "zero
+  try/catch blocks in app/actions"; this is inaccurate —
+  app/actions/modules.ts:13-17 (`parseOptionalJson`) has one `try { ... }
+  catch { ... }` block. It contains no `redirect()` call, so the report's
+  actual conclusion (no redirect-swallowed-by-catch pattern exists) still
+  stands; only the "zero try blocks" phrasing was wrong.
