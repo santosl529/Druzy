@@ -671,3 +671,82 @@ Entry format:
   lower-risk step: it's an additive return-shape change (existing callers
   destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
   fix later without committing to one now.
+
+## [F-19] Binary-entry duplicate guard used `.maybeSingle()`, which errors (and was silently swallowed) when more than one entry already exists for the day — reopening the exact duplicate the guard exists to prevent
+- **Status:** FIXED (commit \<pending\>)
+- **Severity:** medium
+- **Area:** journal
+- **What happens:** The duplicate guard added in a51b1db
+  (`createJournalEntry`, pre-fix app/actions/journal.ts:225-231) queries
+  `entries` filtered by `module_id` + `entry_date` + `user_id` and calls
+  `.maybeSingle()`, then checks `if (!existing)` to decide whether to
+  insert. `entries` has no unique constraint on
+  `(module_id, user_id, entry_date)` (supabase/migrations/20240101000000_initial.sql:60-67),
+  and the generic manual-entry form `createEntry` (app/actions/entries.ts:7-49)
+  allows unlimited inserts per module per day with no dedup of its own. So a
+  user who has manually logged the connected binary tracker twice on the same
+  day (e.g. via its own module page) already has 2 rows for that
+  module+date. When `createJournalEntry` then runs its guard,
+  `.maybeSingle()` receives PostgREST's "multiple (or no) rows returned"
+  error for that query. The pre-fix code destructured only `{ data: existing
+  }`, discarding `error` entirely, so `existing` came back `undefined` and
+  `if (!existing)` was true — the guard fell through and inserted a third,
+  duplicate row. This is the identical duplicate-entry class a51b1db was
+  written to close, reopened specifically in the multi-row case.
+- **Where:** app/actions/journal.ts:225-231 (pre-fix; guard query using
+  `.maybeSingle()` with discarded `error`).
+- **Proposed fix:** (applied) switched the existence check to
+  `.limit(1)`, which returns an array and never errors based on row count;
+  the guard now checks `existing.length === 0` before inserting. No other
+  behavior changed — a single pre-existing row still skips the insert
+  exactly as before; the fix only closes the multi-row gap. Action-level
+  code with a live Supabase dependency and no action-test harness in this
+  repo (confirmed: no existing test mocks `createClient`/`requireUser` for
+  `app/actions/*`), so verified by code reading plus the PostgREST
+  multiple-rows contract for `.maybeSingle()` rather than an executable
+  regression test; documented here per the brief's "fix + documented
+  reasoning" path for action logic without test infra.
+
+## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** journal
+- **What happens:** The manual "log an entry" form for any standard module
+  (`createEntry`, app/actions/entries.ts:7-49) writes
+  `values[field.key] = raw === 'on'` for boolean fields — i.e. leaving the
+  checkbox unchecked and submitting still inserts a row, with the field set
+  to `false`, not no row at all. (The one-tap grid toggle,
+  `setBinaryToday` in lib/consistency-grid-adjacent app/actions/entries.ts:130-141,
+  behaves differently: `done=false` *deletes* the day's rows rather than
+  writing `false`, so "false" rows are reachable specifically through the
+  generic entry form, not the toggle.) If a user submits that form with the
+  box unchecked for today, then separately saves a journal entry the same
+  day with that same tracker connected as the template's "journaled"
+  marker, `createJournalEntry`'s guard (app/actions/journal.ts:225-238,
+  post F-19 fix) finds the existing `false` row via `.limit(1)` and skips
+  the write — the journal save silently never upgrades that day's entry to
+  `true`, even though completing the journal is the exact signal the
+  "mark as journaled" feature is meant to record. The user sees no error;
+  `loggedModules` simply won't include that tracker's name (compounding
+  F-18's silent-omission problem).
+- **Where:** app/actions/journal.ts:225-238 — the guard's `if (existing.length
+  === 0)` treats "a row is present" as "already journaled today," without
+  checking whether that row's boolean field is actually `true`.
+- **Proposed fix:** two directions, DECIDE because both are behavior
+  changes to a data-mutation path: (a) tighten the guard to only skip when
+  an existing row already has the boolean field `=== true` (query
+  `.contains('values', { [boolField.key]: true })` or filter client-side
+  after a `.limit(5)` fetch), and otherwise call `createEntryInModule`
+  to add a corroborating `true` entry for the day — accepts that the tracker
+  could then show 2 rows for one day (mirrors the existing multi-row
+  possibility from the manual form, which the app already tolerates per
+  `getEntryState`'s `dayEntries.some(...)` check in
+  lib/consistency-grid.ts:154-157); (b) leave as-is and treat "already has
+  any entry today" as sufficient (current behavior) — simplest, but silently
+  disagrees with a user who explicitly unchecked the tracker earlier and
+  then completed the journal intending to override that. Recommend (a):
+  the grid's own `done` calculation already treats "any `true` entry that
+  day" as done, so adding a second `true` row is consistent with how the
+  feature is read elsewhere, whereas never overriding a `false` makes the
+  "mark as journaled" feature unreliable exactly when a user changes their
+  mind mid-day.

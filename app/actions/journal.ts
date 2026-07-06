@@ -221,16 +221,24 @@ export async function createJournalEntry(
         (f) => f.type === 'boolean'
       )
       if (boolField) {
-        // Check for existing entry — skip insert to avoid duplicates on same day
+        // Check for existing entry — skip insert to avoid duplicates on same day.
+        // Uses .limit(1) rather than .maybeSingle(): entries has no unique
+        // constraint on (module_id, user_id, entry_date), so if more than one
+        // row already exists for this day (e.g. the user manually logged this
+        // tracker twice), .maybeSingle() would receive a PostgREST "multiple
+        // rows" error. That error was previously discarded by destructuring
+        // only `data`, which stayed undefined and made the guard fall through
+        // to inserting an extra duplicate row — exactly the bug this guard
+        // exists to prevent. .limit(1) never errors on row count.
         const { data: existing } = await supabase
           .from('entries')
           .select('id')
           .eq('module_id', template.binary_module_id)
           .eq('entry_date', parsed.data.entry_date)
           .eq('user_id', user.id)
-          .maybeSingle()
+          .limit(1)
 
-        if (!existing) {
+        if (!existing || existing.length === 0) {
           const binaryResult = await createEntryInModule(
             template.binary_module_id,
             parsed.data.entry_date,
