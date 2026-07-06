@@ -821,7 +821,7 @@ Entry format:
   `saveError`/`savedModules` inline messages, following the same idiom.
 
 ## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
-- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5961cf1) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** optimistic-ui
 - **What happens:** `today` (components/tracker-grid.tsx:31, initialized from
@@ -878,7 +878,7 @@ Entry format:
   lint / full suite passing.
 
 ## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
-- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5961cf1) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** optimistic-ui
 - **What happens:** In `components/food/food-log.tsx`, the two chevron date-nav
@@ -924,7 +924,7 @@ Entry format:
   / lint / full suite passing.
 
 ## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
-- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Status:** FIXED (commit 5961cf1) — ruled by user 2026-07-06
 - **Severity:** low
 - **Area:** journal
 - **What happens:** The manual "log an entry" form for any standard module
