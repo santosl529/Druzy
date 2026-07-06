@@ -100,7 +100,7 @@ export function ModuleProposalCard({ proposal }: Props) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <CheckIcon className="size-4 text-green-500 shrink-0" />
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        <p className="font-heading text-xs text-muted-foreground font-medium uppercase tracking-wide">
           Proposed tracker — review and confirm
         </p>
       </div>

@@ -94,7 +94,7 @@ export function AssistantChat() {
             <SparklesIcon className="size-8 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold mb-1">AI assistant</h1>
+            <h1 className="font-heading text-3xl font-bold tracking-tight mb-1">AI assistant</h1>
             <p className="text-muted-foreground text-sm max-w-xs">
               Describe a tracker to create, or ask me to compute something from your existing trackers.
             </p>

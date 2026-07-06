@@ -93,7 +93,7 @@ export function FormulaProposalCard({ proposal }: Props) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <FunctionSquareIcon className="size-4 text-purple-500 shrink-0" />
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        <p className="font-heading text-xs text-muted-foreground font-medium uppercase tracking-wide">
           Formula tracker — review and confirm
         </p>
       </div>

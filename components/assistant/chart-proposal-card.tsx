@@ -60,7 +60,7 @@ export function ChartProposalCard({ config, previewData, moduleOptions, defaultM
       {/* Header */}
       <div className="flex items-center gap-2">
         <BarChart2Icon className="size-4 text-indigo-500 shrink-0" />
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        <p className="font-heading text-xs text-muted-foreground font-medium uppercase tracking-wide">
           Chart preview
         </p>
         {config.title && (
@@ -112,7 +112,7 @@ export function ChartProposalCard({ config, previewData, moduleOptions, defaultM
             <span className="text-sm">Chart added!</span>
             <Link
               href={`/modules/${savedModuleId}`}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
+              className="text-sm text-accent-text hover:underline flex items-center gap-1"
             >
               View tracker <ExternalLinkIcon className="size-3" />
             </Link>

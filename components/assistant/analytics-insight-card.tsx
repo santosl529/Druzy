@@ -154,7 +154,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-md bg-muted/50 px-2 py-2">
-      <p className={`text-sm font-semibold tabular-nums ${highlight ? 'text-primary' : ''}`}>
+      <p className={`text-sm font-semibold tabular-nums ${highlight ? 'text-accent-text' : ''}`}>
         {value}
       </p>
       <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
@@ -179,7 +179,7 @@ export function AnalyticsInsightCard({ operation, result, labels }: Props) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <ActivityIcon className="size-4 text-indigo-500 shrink-0" />
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        <p className="font-heading text-xs text-muted-foreground font-medium uppercase tracking-wide">
           Analytics insight
         </p>
         <Badge variant="secondary" className="ml-auto text-xs">
