@@ -82,22 +82,28 @@ export function FoodLog({
   }, [])
 
   const handleSaved = (entry: FoodEntry) => {
-    const updated = [...entries, entry]
-    setEntries(updated)
-    recalcTotals(updated)
+    setEntries((prev) => {
+      const updated = [...prev, entry]
+      recalcTotals(updated)
+      return updated
+    })
     setAddMode(null)
   }
 
   const handleDeleted = (id: string) => {
-    const updated = entries.filter((e) => e.id !== id)
-    setEntries(updated)
-    recalcTotals(updated)
+    setEntries((prev) => {
+      const updated = prev.filter((e) => e.id !== id)
+      recalcTotals(updated)
+      return updated
+    })
   }
 
   const handleUpdated = (updated: FoodEntry) => {
-    const next = entries.map((e) => (e.id === updated.id ? updated : e))
-    setEntries(next)
-    recalcTotals(next)
+    setEntries((prev) => {
+      const next = prev.map((e) => (e.id === updated.id ? updated : e))
+      recalcTotals(next)
+      return next
+    })
   }
 
   const isToday = date === clientToday(savedTimezone)

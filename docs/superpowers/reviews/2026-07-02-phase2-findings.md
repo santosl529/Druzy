@@ -398,3 +398,159 @@ Entry format:
   module page so they can see what did land, whether to offer "retry
   remaining rows") rather than a one-line logic fix, so it's flagged for
   product judgment rather than auto-applied.
+
+## [F-12] `FoodLog`'s save/delete/update handlers derived next state from a stale closure over `entries`, racing concurrent row operations
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** optimistic-ui
+- **What happens:** `handleSaved`/`handleDeleted`/`handleUpdated`
+  (components/food/food-log.tsx, pre-fix lines 84-101) each read the
+  component-level `entries` variable captured at render time, computed
+  `updated`/`next` from it, and called `setEntries(updated)` with a plain
+  value rather than a functional updater. Each handler is passed as a prop
+  (`onSaved`/`onDeleted`/`onUpdated`) into a child (`PhotoUploader`,
+  `ManualEntry`, `EntryRow`) that invokes it only after its own server
+  action resolves inside its own `useTransition`. Because each `EntryRow`
+  has independent pending state, two concurrent operations on different
+  rows (e.g. deleting row A and editing row B in quick succession, both
+  in flight before either resolves) both close over the *same* pre-render
+  `entries` snapshot. Whichever `setEntries` call's callback fires last
+  wins outright — it computes its `updated`/`next` from the stale
+  snapshot, silently discarding the other operation's change from local
+  state (e.g. a deleted row reappears in the UI, or an edit is dropped)
+  until the next full data fetch (date navigation or page refresh). The
+  underlying Supabase writes/deletes both still succeed — this is a
+  client-side display desync, not data loss — but it shows the wrong
+  entries list until the user navigates away and back.
+- **Where:** components/food/food-log.tsx, `handleSaved`/`handleDeleted`/
+  `handleUpdated` (pre-fix lines 84-101), each computing `updated`/`next`
+  from the closed-over `entries` instead of the setter's `prev` argument.
+- **Proposed fix:** (applied) converted all three handlers to
+  `setEntries((prev) => { const updated = ...prev...; recalcTotals(updated);
+  return updated })`, deriving the new list from the setter's own `prev`
+  argument instead of the render-time closure, and calling `recalcTotals`
+  on that up-to-date value. No behavior change on the single-operation
+  happy path; eliminates the lost-update race on concurrent operations.
+  Mechanical fix per the task brief (functional-updater conversion, no
+  intended-behavior change) — no regression test added (no component-render
+  test harness in this repo; verified by tsc/lint/existing suite plus the
+  reasoning above).
+
+## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** `today` (components/tracker-grid.tsx:31, initialized from
+  `serverDate`) is only ever updated by the `useEffect` at lines 34-48, whose
+  dependency array is `[serverDate, savedTimezone]` — both of which are
+  static props that never change after the initial server render. The
+  effect runs once on mount to reconcile a client/server timezone
+  disagreement (comparing `clientToday(savedTimezone)` to `serverDate`), then
+  never re-runs. There is no `visibilitychange` listener, focus handler, or
+  interval anywhere in the file (or in `food-log.tsx`, which has the
+  identical pattern via its own mount-only effect at lines 69-82) that
+  would re-derive "today" as wall-clock time actually advances. A user who
+  opens the dashboard before midnight and leaves the tab open past it keeps
+  `today` (and therefore `doneToday` / the "Logged" checkmark state) pinned
+  to the stale day: trackers logged "today" (now yesterday) still show as
+  done, and if the user then quick-logs while the tab is stale,
+  `handleUnlogged`'s `entry_date !== today` filter (line 71) compares
+  against the wrong day, and `QuickLogDialog`/`EntryForm`'s date field
+  (defaulted via `clientToday(savedTimezone)` at mount time inside the
+  dialog, not from the parent's stale `today`) would actually default
+  correctly since it's freshly computed on dialog open — so the practical
+  blast radius is the checkmark/summary display and `handleUnlogged`'s
+  filter, not new entries getting the wrong date.
+- **Where:** components/tracker-grid.tsx:31 (`today` state), :34-48 (mount-only
+  reconciliation effect, deps never change post-mount), :71 (`handleUnlogged`'s
+  `entry_date !== today` filter uses the potentially-stale value). Same
+  mount-only pattern (not separately findable by file name in the brief, but
+  structurally identical) at components/food/food-log.tsx:69-82.
+- **Proposed fix:** add a `visibilitychange` (or `focus`) listener that
+  re-derives `clientToday(savedTimezone)` and, if it differs from `today`,
+  re-runs the same re-fetch-and-reconcile logic already in the mount effect
+  (extracted to a named function so both the mount effect and the listener
+  call it). Trade-off: this changes *when* client state resyncs with the
+  server relative to wall-clock time — a behavioral change explicitly
+  called out by the brief as requiring a DECIDE rather than a mechanical
+  fix, and the severity is low in practice since most sessions don't stay
+  open across a day boundary, but it's a real gap given the brief flags it
+  by name.
+
+## [F-14] `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** Two compounding issues in the non-edit delete path of
+  `components/entry-list.tsx`. (1) The main `EntryList` component destructures
+  `const [, startTransition] = useTransition()` (line 186), discarding the
+  pending flag entirely, so the delete button (lines 240-250) has no
+  `disabled` guard — unlike the `EditRow` save/cancel buttons in the same
+  file, which correctly wire `disabled={pending}` (lines 169, 172). A user
+  who clicks delete, dismisses the native `confirm()`, and clicks again
+  before the first `deleteEntry` call resolves can fire multiple concurrent
+  deletes of the same row (harmless — deleting an already-deleted id is a
+  no-op — but reflects the same missing-disabled pattern flagged elsewhere
+  as a mechanical fix candidate). (2) `deleteEntry`
+  (app/actions/entries.ts:94-100) has a `Promise<void>` return type and
+  never checks the Supabase `.delete()` call's error — a failed delete
+  (e.g. RLS denial, network error, revoked session) is silently discarded
+  both server-side (no error captured) and client-side (`entry-list.tsx`
+  line 246 does `startTransition(() => deleteEntry(...))` and never reads
+  a result). The row is never removed from `entries` optimistically
+  (`EntryList` relies entirely on `revalidatePath` + a server refetch to
+  reflect the deletion), so a failed delete simply leaves the row in place
+  with zero indication to the user that anything went wrong — it looks
+  identical to "nothing happened yet."
+- **Where:** components/entry-list.tsx:186 (discarded pending flag),
+  :240-250 (delete button, no `disabled`, no result handling);
+  app/actions/entries.ts:94-100 (`deleteEntry`, `Promise<void>`, error from
+  `.delete()` never captured or returned).
+- **Proposed fix:** wiring `disabled={pending}` onto the delete button alone
+  is not purely mechanical here because the transition is shared across
+  every row in the list (`[, startTransition]` at the `EntryList` level,
+  not per-row) — disabling it while any row's delete is in flight would
+  also disable *other* rows' delete (and, if reused, edit) buttons, a
+  cross-row UX change beyond "add disabled to the control that was
+  clicked." Fixing this properly means either lifting per-row pending state
+  (e.g. track the deleting id) or accepting the cross-row disable, both of
+  which are judgment calls. Separately, `deleteEntry` should return
+  `{error?: string}` (matching `updateEntry`'s shape) and the component
+  should render it — but that is squarely "what is shown on error," called
+  out by the brief as a DECIDE. Recommend: change `deleteEntry`'s signature
+  to return `{error?: string}`, track a per-row `deletingId` in
+  `EntryList` state to disable only the clicked row's buttons, and show a
+  brief inline error (mirroring `EditRow`'s existing `error` span) on
+  failure.
+
+## [F-15] Food-log's "Back to today" control and `PhotoUploader`'s file-input trigger are not gated on their own in-flight state
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** In `components/food/food-log.tsx`, the two chevron date-nav
+  buttons correctly disable on `loadingDate` (lines 113, 132), but the
+  "Back to today" text control (a raw `<button>`, lines 120-125) does not —
+  it can be clicked again while a previous `navigateDate` fetch is still in
+  flight, firing a second concurrent `fetch('/api/food/entries?date=...')`.
+  Both calls eventually call `setEntries`/`setTotals`/`setDate` with
+  whichever response resolves last (no request-id/AbortController guard),
+  so out-of-order network responses can transiently (or, if the earlier
+  request is slower, permanently until the next nav) leave the view showing
+  the wrong day's entries against the URL/date-header shown. This is a
+  read-navigation race, not a write/double-submit (no duplicate server-side
+  record is created), so it falls outside the brief's check #1 framing
+  literally, but is the same class of missing-in-flight-guard issue.
+- **Where:** components/food/food-log.tsx:120-125 (`Back to today` button,
+  no `disabled`); :52-63 (`navigateDate`, no request-ordering guard).
+- **Proposed fix:** add `disabled={loadingDate}` to the "Back to today"
+  button (mechanical on its face), but flagged as DECIDE rather than
+  auto-applied because the deeper issue — out-of-order fetch responses
+  racing regardless of button disabling (e.g. slow network + rapid
+  chevron-chevron-chevron before any single click completes, still
+  possible since disabling only blocks re-clicking the *same already-timed-out*
+  button, not a genuinely stale in-flight request finishing after a newer
+  one) — needs an `AbortController` or request-sequence check to fully
+  close, which is a behavior change beyond adding one `disabled` prop.
+  Bundling the trivial `disabled` addition without the sequencing fix would
+  give a false sense that the race is closed, so both are left for a
+  combined decision.
