@@ -165,7 +165,7 @@ export function ConsistencyGrid({ gridData, today, stageByModule }: ConsistencyG
                       />
                       {/* Tracker name — truncated, underlines on hover */}
                       <span
-                        className="text-[11px] font-medium leading-tight group-hover:underline text-foreground"
+                        className="font-heading text-[11px] font-medium leading-tight group-hover:underline text-foreground"
                         style={{
                           maxWidth: '56px',
                           display: 'block',

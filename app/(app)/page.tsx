@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
+import { GeodeIcon } from '@/components/geode-icon'
 import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import { computeOpenness } from '@/lib/openness'
 import type { CardEntry } from '@/lib/card-summary'
@@ -75,7 +76,7 @@ export default async function DashboardPage() {
     <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold mb-1">Your trackers</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight">Your trackers</h1>
           <p className="text-muted-foreground">Log and visualize anything that matters to you.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -92,7 +93,11 @@ export default async function DashboardPage() {
       </div>
 
       {typedModules.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
+        <div className="rounded-lg border border-dashed p-12 text-center flex flex-col items-center">
+          <GeodeIcon crystalType="amethyst" openness={0} className="size-16 mb-4" />
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-2">
+            Your first geode is waiting
+          </h2>
           <p className="text-muted-foreground mb-6">No trackers yet.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/assistant" className={buttonVariants()}>
