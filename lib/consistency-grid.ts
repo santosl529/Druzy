@@ -1,5 +1,5 @@
 import type { DashboardConfig, DashboardMode, GoalCondition, GoalConfig, Module, Entry } from './types'
-import type { CrystalKey } from './crystals'
+import { CRYSTAL_KEYS, type CrystalKey } from './crystals'
 import { getBinaryField } from './card'
 import { isoDate } from './date'
 
@@ -170,10 +170,18 @@ export function computeCellState(
     case 'gradient': {
       const fieldKey = config?.gradientField ?? getFirstNumericFieldKey(mod)
       if (!fieldKey) return { state: 'done', intensity: 1 }
-      const rawValue = dayEntries.reduce((sum, e) => {
-        const v = Number(e[fieldKey])
-        return isNaN(v) ? sum : sum + v
-      }, 0)
+      let rawValue = 0
+      let sawValue = false
+      for (const e of dayEntries) {
+        const v = toFiniteNumber(e[fieldKey])
+        if (v === null) continue
+        rawValue += v
+        sawValue = true
+      }
+      // No entry contributed a real numeric value for the gradient field: treat
+      // this exactly like a day with no entries at all (F-07) — no phantom 0,
+      // no new visual state.
+      if (!sawValue) return { state: 'not-done', intensity: 0 }
       if (!gradientRange || gradientRange.max <= gradientRange.min) {
         return { state: 'done', intensity: 0.5, rawValue }
       }
@@ -188,8 +196,15 @@ export function computeCellState(
       const fieldKey = config?.categoryField ?? ''
       const lastEntry = dayEntries[dayEntries.length - 1]
       const label = fieldKey ? String(lastEntry[fieldKey] ?? '') : ''
-      const crystalOverride = label && config?.categoryColors
+      const mapped = label && config?.categoryColors
         ? (config.categoryColors[label] as CrystalKey | undefined)
+        : undefined
+      // An invalid (present but not a real crystal key) mapped value is treated
+      // the same as unmapped: crystalOverride stays undefined so the renderer
+      // falls back to the module's own crystal, matching spec intent (F-09) —
+      // rather than falling through to getCrystal()'s hardcoded default.
+      const crystalOverride = mapped && (CRYSTAL_KEYS as readonly string[]).includes(mapped)
+        ? mapped
         : undefined
       return { state: 'done', intensity: 1, categoryLabel: label || undefined, crystalOverride }
     }
@@ -284,10 +299,18 @@ export function buildGridData(modules: Module[], entries: Entry[], today: string
     if (!byDate) continue
     let min = Infinity, max = -Infinity
     for (const dayEntries of byDate.values()) {
-      const total = dayEntries.reduce((sum, e) => {
-        const v = Number(e[fieldKey]); return isNaN(v) ? sum : sum + v
-      }, 0)
-      if (dayEntries.length > 0) { min = Math.min(min, total); max = Math.max(max, total) }
+      let total = 0
+      let sawValue = false
+      for (const e of dayEntries) {
+        const v = toFiniteNumber(e[fieldKey])
+        if (v === null) continue
+        total += v
+        sawValue = true
+      }
+      // Days with no finite numeric contribution are excluded from auto-fit
+      // min/max (F-07) — they don't get a real rawValue, so they shouldn't
+      // pull the range toward 0 either.
+      if (sawValue) { min = Math.min(min, total); max = Math.max(max, total) }
     }
     if (min <= max && isFinite(min) && isFinite(max)) gradientRanges.set(mod.id, { min, max })
   }

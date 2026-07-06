@@ -18,12 +18,12 @@ Entry format:
 |---|---|---|---|---|
 | F-11 | medium | import | Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded | DECIDE |
 | F-17 | medium | actions | `deleteModule` discards its delete error and still unconditionally redirects home | DECIDE |
-| F-03 | low | actions | Entry actions' entry_date fallback is UTC-today, not the user's day | DECIDE |
-| F-04 | low | formula | A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence | DECIDE |
-| F-05 | low | formula | Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself | DECIDE |
-| F-07 | low | grid | Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity) | DECIDE |
-| F-09 | low | grid | An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal | DECIDE |
-| F-10 | low | import | Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline | DECIDE |
+| F-03 | low | actions | Entry actions' entry_date fallback is UTC-today, not the user's day | FIXED |
+| F-04 | low | formula | A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence | WONTFIX |
+| F-05 | low | formula | Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself | WONTFIX |
+| F-07 | low | grid | Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity) | FIXED |
+| F-09 | low | grid | An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal | FIXED |
+| F-10 | low | import | Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline | FIXED |
 | F-13 | low | optimistic-ui | `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state | DECIDE |
 | F-14 | low | optimistic-ui | `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback | DECIDE |
 | F-15 | low | optimistic-ui | Food-log's "Back to today" control is not gated on its own in-flight state | DECIDE |
@@ -110,27 +110,8 @@ Entry format:
   `DeleteModuleButton` render the error inline (mirroring the
   `EditRow`-style error span called out in F-14).
 
-## [F-03] Entry actions' entry_date fallback is UTC-today, not the user's day
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** actions
-- **What happens:** `createEntry`/`updateEntry` fall back to
-  `new Date().toISOString().split('T')[0]` (UTC today) when the form omits
-  `entry_date`. For a user in UTC-8 logging at 20:00 local, a hypothetical
-  missing form value would attribute the entry to *tomorrow* (their local
-  next day). Defense-in-depth only: every form (entry-form, tracker-grid,
-  journal-capture, food-log) always sends `entry_date` computed via
-  `clientToday(savedTimezone)`, so the fallback never fires today.
-- **Where:** app/actions/entries.ts:23, app/actions/entries.ts:69
-- **Proposed fix:** fall back to the user's saved timezone via
-  `getUserTimezone(supabase, user.id)` + `todayInTimezone(...)`. Trade-off:
-  adds a profile read on a path that currently never executes, and slightly
-  obscures that the form is the real source of truth; leaving as-is keeps
-  the fallback simple but silently wrong-by-a-day if a future form forgets
-  the field.
-
 ## [F-04] A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence
-- **Status:** DECIDE
+- **Status:** WONTFIX (ruled 2026-07-06)
 - **Severity:** low
 - **Area:** formula
 - **What happens:** `computeFormulaSeries` (lib/formula.ts:236) builds each
@@ -186,9 +167,17 @@ Entry format:
   computed point where the defaulted input's own data was junk, which may
   be surprising or actively misleading; worth confirming this is the
   desired behavior before changing silently-relied-upon output.
+- **Ruling (2026-07-06):** WONTFIX. Keep the current drop-day semantics
+  (a date needs at least one input with a real numeric value to anchor
+  it; defaulted inputs never conjure a date into existence on their own).
+  The tension this finding raises isn't in lib/formula.ts's mechanism —
+  it's in components/formula-summary.tsx's copy overpromising ("computed
+  when every input has a logged value or a configured default"). That
+  copy alignment is deferred to Phase 3 rather than bundled into this
+  fix wave; see "Phase 3 notes" below.
 
 ## [F-05] Formula-on-formula and dangling module refs are unguarded inside lib/formula.ts itself
-- **Status:** DECIDE
+- **Status:** WONTFIX (ruled 2026-07-06)
 - **Severity:** low
 - **Area:** formula
 - **What happens:** `withFormulaEntries` (lib/formula.ts:328) and
@@ -228,134 +217,14 @@ Entry format:
   Trade-off: extra defensive code for a state the schema/actions already
   prevent; low priority unless a new formula-creation path is added later
   (e.g. bulk import) that might skip `validateFormulaInputs`.
-
-## [F-07] Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity)
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** grid
-- **What happens:** `computeCellState`'s `'gradient'` branch
-  (`lib/consistency-grid.ts`, the `rawValue` reduce) and
-  `buildGridData`'s gradient auto-fit range scan use the same
-  `Number(e[fieldKey])` / `isNaN` pattern that F-06 fixed in
-  `evaluateGoal`. `null`/boolean field values are silently coerced
-  (`Number(null)===0`, `Number(true)===1`) into the summed `rawValue`,
-  and a day with no real numeric value for the field computes `rawValue
-  = 0` — identical to a genuinely logged `0`. Unlike `evaluateGoal`,
-  gradient mode's output is a display intensity/hover value, not a
-  boolean goal-met gate, so the practical impact is softer: a day with a
-  stray `null`/boolean value (or entirely missing field, which is
-  already the common "no entry" case elsewhere) renders at the bottom of
-  the gradient range instead of being visually distinguished from a
-  real `0`. Since `computeCellState`'s dispatch already returns early
-  for `dayEntries.length === 0` (true no-entry days), this only bites
-  when an entry *exists* for the day but the configured gradient field
-  specifically holds `null`/a boolean/a non-numeric string on it (e.g. a
-  field left blank in a multi-field form, or type drift after a field's
-  type was changed).
-- **Where:** lib/consistency-grid.ts, `computeCellState` case
-  `'gradient'` (rawValue reduce), and `buildGridData`'s gradient
-  auto-fit range scan (same reduce pattern). No regression test added —
-  this is an unfixed DECIDE, not a characterized behavior change.
-- **Proposed fix:** reuse the `toFiniteNumber` helper added for F-06 in
-  both gradient-mode reduces, and track `sawValue` the same way so a
-  field with zero real numeric contributions can render as a distinct
-  "no data" state instead of `rawValue = 0`. Trade-off: gradient mode
-  currently has no "no data but entry exists" visual state — `rawValue:
-  undefined` would need a rendering decision (blank cell? floor
-  intensity? excluded from auto-fit min/max?), which is a product call
-  beyond a one-line coercion fix; deferred rather than bundled into F-06
-  to keep that fix minimal and scoped to the brief's Step 1 target.
-
-## [F-09] An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** grid
-- **What happens:** The category-mode spec says "unmapped options fall
-  back to the module's crystal," and `computeCellState` implements that
-  correctly for options genuinely absent from `categoryColors` — it
-  leaves `crystalOverride` as `undefined`, and the renderer
-  (`components/consistency-grid.tsx` `CrystalCell`) does
-  `getCrystal(cell.crystalOverride ?? crystalType)`, which falls through
-  to the module's own `crystalType`. But `categoryColors` values are
-  never validated against `CRYSTAL_KEYS` at the `computeCellState`
-  layer — it's a plain object lookup, so a *present but invalid* mapped
-  value (e.g. stale config data from a renamed/removed crystal key) is
-  passed through as `crystalOverride` unchanged. `cell.crystalOverride
-  ?? crystalType` only catches `null`/`undefined`, not an
-  invalid-but-truthy string, so `getCrystal(garbage)` is called instead
-  — and `getCrystal`'s own fallback (lib/crystals.ts:54-56,
-  already covered by an existing passing test in
-  lib/__tests__/crystals.test.ts) returns the hardcoded default
-  (`amethyst`), not the module's actual configured crystal. Net effect:
-  an unmapped option renders in the module's crystal (correct per spec);
-  an invalid-but-mapped option renders in amethyst regardless of the
-  module's crystal (spec-adjacent but not what "fall back to the
-  module's crystal" says). Currently unreachable through the UI — the
-  module-builder's category config only offers `CRYSTAL_KEYS` values via
-  a `<Select>` — this only matters for stale/hand-edited config rows.
-- **Where:** lib/consistency-grid.ts `computeCellState` case `'category'`
-  (no validation on `categoryColors[label]` lookup);
-  components/consistency-grid.tsx:39 (`getCrystal(cell.crystalOverride
-  ?? crystalType)`); lib/crystals.ts:54-56 (`getCrystal`'s hardcoded
-  fallback). Probe (characterization, no crash):
-  lib/__tests__/consistency-grid.test.ts 'category mode, categoryColors
-  maps to a crystal key not in CRYSTAL_KEYS → computeCellState passes it
-  through as-is, no crash'.
-- **Proposed fix:** either (a) validate `categoryColors` values against
-  `CRYSTAL_KEYS` in `computeCellState` and treat an invalid entry the
-  same as unmapped (`crystalOverride` stays `undefined`, falls back to
-  the module's crystal, matching spec intent exactly), or (b) change the
-  renderer's fallback to `getCrystal(cell.crystalOverride ?? crystalType,
-  crystalType)`-style two-level fallback. Trade-off: this is unreachable
-  dead-config territory today (no UI path produces an invalid key), so
-  it's low priority defense-in-depth; (a) is the more spec-faithful fix
-  and belongs in lib/consistency-grid.ts rather than the renderer.
-
-## [F-10] Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** import
-- **What happens:** `coerceImportValue`'s `'rating'` case (lib/import.ts:117-124)
-  deliberately treats an out-of-bounds rating (e.g. "7" for a 1–5 scale) as a
-  *warning*, not an *error* — it returns `{ value: n, warning: "... is
-  outside 1–max" }` and lets the raw value through unclamped. That looks
-  intentional (errors block a row; warnings were presumably meant to let it
-  through with a flag). But nothing downstream ever reads `.warning`:
-  `validateImportRows` (lib/import.ts:209-211) destructures `{ value, error }`
-  and only pushes to `errors` when `error` is set — the `warning` field is
-  silently dropped. The row ends up `status: 'ok'`, `rowsToImport` includes
-  it unchanged, and `app/actions/import.ts`'s `validateRowServer` calls
-  `coerceImportValue` again server-side but has the same blind spot (only
-  checks `error`, app/actions/import.ts:38-39).
-  Net effect: importing a CSV with a "9" in a 1–5 rating column inserts a
-  literal 9 into the entry, with no error, no preview-table warning row (the
-  wizard's `problemRows` filter is `status !== 'ok'`, so a warned-but-ok row
-  never appears there), and no indication to the user anywhere that the value
-  was out of range. Downstream chart/analytics code that assumes ratings are
-  bounded 1–max would then silently render/aggregate a value outside that
-  range.
-- **Where:** lib/import.ts:117-124 (`coerceImportValue` rating case, produces
-  `warning`); lib/import.ts:209-211 (`validateImportRows`, only reads
-  `error`, drops `warning`); app/actions/import.ts:38-39 (`validateRowServer`,
-  same pattern server-side); components/import/import-wizard.tsx:190
-  (`problemRows` only surfaces non-`ok` rows, so warned rows are invisible in
-  the preview UI). Probe (characterization):
-  lib/__tests__/import.test.ts `'coerceImportValue — rating bounds'` →
-  `'out-of-range rating is a WARNING not an error — value passes through
-  unbounded'`, and `'validateImportRows — duplicate semantics'` →
-  `'out-of-range rating warning does not block the row from ending up ok and
-  importable'`.
-- **Proposed fix:** two reasonable directions, trade-off is product intent:
-  (a) treat rating-out-of-range as a hard `error` like every other coercion
-  failure — simplest, consistent with how the rest of the function treats
-  invalid input, but forecloses any future "allow with warning" UX; or
-  (b) actually wire `warning` through — surface it in `ImportRowResult` (new
-  optional field or reuse `reason` with a distinct status), show it in the
-  wizard's preview table, and decide whether `rowsToImport` should still
-  include warned rows or require explicit opt-in via `includeDuplicates`-style
-  checkbox. (b) is more work but preserves the apparent original intent of
-  having a separate warning channel at all. Recommend (a) unless there's a
-  known use case for importing intentionally-out-of-scale ratings.
+- **Ruling (2026-07-06):** WONTFIX. Guards at all reachable entry points
+  (both formula-builder pages' `sourceModules` filters, plus
+  `validateFormulaInputs` in app/actions/formula.ts enforced across all
+  three creation/update paths) already make this state unreachable through
+  the app. Adding an internal guard inside lib/formula.ts itself for a
+  state nothing can currently produce is YAGNI — revisit only if a new
+  formula-creation path (e.g. bulk import) is added that might bypass
+  `validateFormulaInputs`.
 
 ## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
 - **Status:** DECIDE
@@ -595,6 +464,34 @@ Entry format:
   tests aren't feasible without new dependencies/config; the fix is a
   one-line convention alignment on a currently-dead fallback path.
 
+## [F-03] Entry actions' entry_date fallback is UTC-today, not the user's day
+- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** actions
+- **What happens:** `createEntry`/`updateEntry` fall back to
+  `new Date().toISOString().split('T')[0]` (UTC today) when the form omits
+  `entry_date`. For a user in UTC-8 logging at 20:00 local, a hypothetical
+  missing form value would attribute the entry to *tomorrow* (their local
+  next day). Defense-in-depth only: every form (entry-form, tracker-grid,
+  journal-capture, food-log) always sends `entry_date` computed via
+  `clientToday(savedTimezone)`, so the fallback never fires today.
+- **Where:** app/actions/entries.ts:23, app/actions/entries.ts:69
+- **Proposed fix:** fall back to the user's saved timezone via
+  `getUserTimezone(supabase, user.id)` + `todayInTimezone(...)`. Trade-off:
+  adds a profile read on a path that currently never executes, and slightly
+  obscures that the form is the real source of truth; leaving as-is keeps
+  the fallback simple but silently wrong-by-a-day if a future form forgets
+  the field.
+- **Implemented (2026-07-06):** as proposed. Both `createEntry` and
+  `updateEntry` now read `formData.get('entry_date')` first and only await
+  `getUserTimezone(supabase, user.id)` (falling back to `'UTC'` when unset)
+  when that value is empty — the `||` short-circuit keeps the fallback
+  lazy, so no extra profile read happens on the (currently universal) path
+  where the form supplies the date. No unit test possible (server action
+  with a live Supabase dependency, no action-test harness in this repo,
+  consistent with F-16/F-19's precedent) — verified by code reading plus
+  `npx tsc --noEmit` / lint / full suite passing.
+
 ## [F-06] `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field
 - **Status:** FIXED (commit 9ca609c)
 - **Severity:** medium
@@ -631,6 +528,166 @@ Entry format:
   auto-fit range scan) — see F-07, left unfixed as out of this task's
   scope (lower severity: affects a display intensity value, not a
   boolean pass/fail gate).
+
+## [F-07] Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity)
+- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** grid
+- **What happens:** `computeCellState`'s `'gradient'` branch
+  (`lib/consistency-grid.ts`, the `rawValue` reduce) and
+  `buildGridData`'s gradient auto-fit range scan use the same
+  `Number(e[fieldKey])` / `isNaN` pattern that F-06 fixed in
+  `evaluateGoal`. `null`/boolean field values are silently coerced
+  (`Number(null)===0`, `Number(true)===1`) into the summed `rawValue`,
+  and a day with no real numeric value for the field computes `rawValue
+  = 0` — identical to a genuinely logged `0`. Unlike `evaluateGoal`,
+  gradient mode's output is a display intensity/hover value, not a
+  boolean goal-met gate, so the practical impact is softer: a day with a
+  stray `null`/boolean value (or entirely missing field, which is
+  already the common "no entry" case elsewhere) renders at the bottom of
+  the gradient range instead of being visually distinguished from a
+  real `0`. Since `computeCellState`'s dispatch already returns early
+  for `dayEntries.length === 0` (true no-entry days), this only bites
+  when an entry *exists* for the day but the configured gradient field
+  specifically holds `null`/a boolean/a non-numeric string on it (e.g. a
+  field left blank in a multi-field form, or type drift after a field's
+  type was changed).
+- **Where:** lib/consistency-grid.ts, `computeCellState` case
+  `'gradient'` (rawValue reduce), and `buildGridData`'s gradient
+  auto-fit range scan (same reduce pattern). No regression test added —
+  this is an unfixed DECIDE, not a characterized behavior change.
+- **Proposed fix:** reuse the `toFiniteNumber` helper added for F-06 in
+  both gradient-mode reduces, and track `sawValue` the same way so a
+  field with zero real numeric contributions can render as a distinct
+  "no data" state instead of `rawValue = 0`. Trade-off: gradient mode
+  currently has no "no data but entry exists" visual state — `rawValue:
+  undefined` would need a rendering decision (blank cell? floor
+  intensity? excluded from auto-fit min/max?), which is a product call
+  beyond a one-line coercion fix; deferred rather than bundled into F-06
+  to keep that fix minimal and scoped to the brief's Step 1 target.
+- **Implemented (2026-07-06):** reused `toFiniteNumber` (from F-06) in both
+  the `computeCellState` gradient-mode reduce and `buildGridData`'s
+  auto-fit min/max scan, tracking `sawValue` the same way. Ruling: a day
+  whose entries have no finite numeric value for the gradient field now
+  renders exactly like a day with no entries at all (`{ state: 'not-done',
+  intensity: 0 }`, no `rawValue`) — no new visual state introduced, and
+  such days are excluded from auto-fit range computation. Regression
+  tests: lib/__tests__/consistency-grid.test.ts — non-numeric/null/boolean
+  gradient-field value renders as no-data (not phantom-zero); auto-fit
+  range unaffected by a non-numeric day; genuine `0` still counts
+  (anti-regression, mirrors F-06).
+
+## [F-09] An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal
+- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** grid
+- **What happens:** The category-mode spec says "unmapped options fall
+  back to the module's crystal," and `computeCellState` implements that
+  correctly for options genuinely absent from `categoryColors` — it
+  leaves `crystalOverride` as `undefined`, and the renderer
+  (`components/consistency-grid.tsx` `CrystalCell`) does
+  `getCrystal(cell.crystalOverride ?? crystalType)`, which falls through
+  to the module's own `crystalType`. But `categoryColors` values are
+  never validated against `CRYSTAL_KEYS` at the `computeCellState`
+  layer — it's a plain object lookup, so a *present but invalid* mapped
+  value (e.g. stale config data from a renamed/removed crystal key) is
+  passed through as `crystalOverride` unchanged. `cell.crystalOverride
+  ?? crystalType` only catches `null`/`undefined`, not an
+  invalid-but-truthy string, so `getCrystal(garbage)` is called instead
+  — and `getCrystal`'s own fallback (lib/crystals.ts:54-56,
+  already covered by an existing passing test in
+  lib/__tests__/crystals.test.ts) returns the hardcoded default
+  (`amethyst`), not the module's actual configured crystal. Net effect:
+  an unmapped option renders in the module's crystal (correct per spec);
+  an invalid-but-mapped option renders in amethyst regardless of the
+  module's crystal (spec-adjacent but not what "fall back to the
+  module's crystal" says). Currently unreachable through the UI — the
+  module-builder's category config only offers `CRYSTAL_KEYS` values via
+  a `<Select>` — this only matters for stale/hand-edited config rows.
+- **Where:** lib/consistency-grid.ts `computeCellState` case `'category'`
+  (no validation on `categoryColors[label]` lookup);
+  components/consistency-grid.tsx:39 (`getCrystal(cell.crystalOverride
+  ?? crystalType)`); lib/crystals.ts:54-56 (`getCrystal`'s hardcoded
+  fallback). Probe (characterization, no crash):
+  lib/__tests__/consistency-grid.test.ts 'category mode, categoryColors
+  maps to a crystal key not in CRYSTAL_KEYS → computeCellState passes it
+  through as-is, no crash'.
+- **Proposed fix:** either (a) validate `categoryColors` values against
+  `CRYSTAL_KEYS` in `computeCellState` and treat an invalid entry the
+  same as unmapped (`crystalOverride` stays `undefined`, falls back to
+  the module's crystal, matching spec intent exactly), or (b) change the
+  renderer's fallback to `getCrystal(cell.crystalOverride ?? crystalType,
+  crystalType)`-style two-level fallback. Trade-off: this is unreachable
+  dead-config territory today (no UI path produces an invalid key), so
+  it's low priority defense-in-depth; (a) is the more spec-faithful fix
+  and belongs in lib/consistency-grid.ts rather than the renderer.
+- **Implemented (2026-07-06):** option (a). `computeCellState`'s
+  `'category'` case now validates the mapped `categoryColors[label]`
+  value against `CRYSTAL_KEYS` (imported from `@/lib/crystals`); an
+  invalid value is treated as unmapped, so `crystalOverride` stays
+  `undefined` and the renderer falls back to the module's own crystal
+  instead of `getCrystal`'s hardcoded `amethyst` default. The existing
+  characterization test ('passes it through as-is, no crash') was renamed
+  and updated to assert the new fallback-to-unmapped behavior; a new test
+  pins that a valid `CRYSTAL_KEYS` value still passes through unchanged.
+
+## [F-10] Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline
+- **Status:** FIXED (commit <pending>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** import
+- **What happens:** `coerceImportValue`'s `'rating'` case (lib/import.ts:117-124)
+  deliberately treats an out-of-bounds rating (e.g. "7" for a 1–5 scale) as a
+  *warning*, not an *error* — it returns `{ value: n, warning: "... is
+  outside 1–max" }` and lets the raw value through unclamped. That looks
+  intentional (errors block a row; warnings were presumably meant to let it
+  through with a flag). But nothing downstream ever reads `.warning`:
+  `validateImportRows` (lib/import.ts:209-211) destructures `{ value, error }`
+  and only pushes to `errors` when `error` is set — the `warning` field is
+  silently dropped. The row ends up `status: 'ok'`, `rowsToImport` includes
+  it unchanged, and `app/actions/import.ts`'s `validateRowServer` calls
+  `coerceImportValue` again server-side but has the same blind spot (only
+  checks `error`, app/actions/import.ts:38-39).
+  Net effect: importing a CSV with a "9" in a 1–5 rating column inserts a
+  literal 9 into the entry, with no error, no preview-table warning row (the
+  wizard's `problemRows` filter is `status !== 'ok'`, so a warned-but-ok row
+  never appears there), and no indication to the user anywhere that the value
+  was out of range. Downstream chart/analytics code that assumes ratings are
+  bounded 1–max would then silently render/aggregate a value outside that
+  range.
+- **Where:** lib/import.ts:117-124 (`coerceImportValue` rating case, produces
+  `warning`); lib/import.ts:209-211 (`validateImportRows`, only reads
+  `error`, drops `warning`); app/actions/import.ts:38-39 (`validateRowServer`,
+  same pattern server-side); components/import/import-wizard.tsx:190
+  (`problemRows` only surfaces non-`ok` rows, so warned rows are invisible in
+  the preview UI). Probe (characterization):
+  lib/__tests__/import.test.ts `'coerceImportValue — rating bounds'` →
+  `'out-of-range rating is a WARNING not an error — value passes through
+  unbounded'`, and `'validateImportRows — duplicate semantics'` →
+  `'out-of-range rating warning does not block the row from ending up ok and
+  importable'`.
+- **Proposed fix:** two reasonable directions, trade-off is product intent:
+  (a) treat rating-out-of-range as a hard `error` like every other coercion
+  failure — simplest, consistent with how the rest of the function treats
+  invalid input, but forecloses any future "allow with warning" UX; or
+  (b) actually wire `warning` through — surface it in `ImportRowResult` (new
+  optional field or reuse `reason` with a distinct status), show it in the
+  wizard's preview table, and decide whether `rowsToImport` should still
+  include warned rows or require explicit opt-in via `includeDuplicates`-style
+  checkbox. (b) is more work but preserves the apparent original intent of
+  having a separate warning channel at all. Recommend (a) unless there's a
+  known use case for importing intentionally-out-of-scale ratings.
+- **Implemented (2026-07-06):** option (a). `coerceImportValue`'s
+  `'rating'` case now returns `{ value: null, error }` for an out-of-bounds
+  rating, matching every other coercion failure in the function; the row
+  is blocked with `status: 'error'` and excluded from `rowsToImport`. The
+  now-dead `warning` field was removed from `coerceImportValue`'s return
+  type (grepped: it was the sole producer, and nothing downstream ever
+  read it). `app/actions/import.ts`'s `validateRowServer` needed no
+  change — it already only inspects `error`. The two characterization
+  tests that pinned warning-passthrough
+  (lib/__tests__/import.test.ts, `coerceImportValue — rating bounds` and
+  `validateImportRows — duplicate semantics`) were renamed and updated to
+  assert the new hard-error/blocked-row behavior.
 
 ## [F-08] Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order
 - **Status:** FIXED (commit 9ca609c)
@@ -804,3 +861,14 @@ Entry format:
   catch { ... }` block. It contains no `redirect()` call, so the report's
   actual conclusion (no redirect-swallowed-by-catch pattern exists) still
   stands; only the "zero try blocks" phrasing was wrong.
+
+## Phase 3 notes
+
+- **F-04 copy alignment:** components/formula-summary.tsx:47-48 promises a
+  computed value "when every input has a logged value or a configured
+  default." The actual lib/formula.ts mechanism (kept as-is, ruled WONTFIX
+  2026-07-06) requires at least one input to have a real numeric value that
+  day to anchor the date at all — a defaulted input's default never
+  conjures a date into existence on its own (the sole-anchor case). Align
+  the copy to describe the anchor requirement accurately, rather than
+  changing the drop-day semantics.

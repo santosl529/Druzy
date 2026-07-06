@@ -100,7 +100,7 @@ export function coerceImportValue(
   raw: unknown,
   field: ModuleField,
   dateFormat: ImportDateFormat
-): { value: unknown; error?: string; warning?: string } {
+): { value: unknown; error?: string } {
   const str = raw === null || raw === undefined ? '' : String(raw).trim()
 
   if (str === '') {
@@ -119,7 +119,7 @@ export function coerceImportValue(
       if (isNaN(n)) return { value: null, error: `${field.label}: invalid rating "${str}"` }
       const max = field.options?.length ? field.options.length : 5
       if (n < 1 || n > max) {
-        return { value: n, warning: `${field.label}: ${n} is outside 1–${max}` }
+        return { value: null, error: `${field.label}: ${n} is outside 1–${max}` }
       }
       return { value: n }
     }

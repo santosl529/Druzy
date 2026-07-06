@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser, getAuthContext } from '@/lib/supabase/auth'
+import { requireUser, getAuthContext, getUserTimezone } from '@/lib/supabase/auth'
+import { todayInTimezone } from '@/lib/date'
 import type { ModuleField } from '@/lib/types'
 
 export async function createEntry(
@@ -19,8 +20,11 @@ export async function createEntry(
   }
 
   // entry_date is the day the thing happened (browser local date, always sent by the form).
-  // The fallback uses UTC — acceptable as a safety net since the form always supplies the value.
-  const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
+  // Fallback (form never omits this today) honors the user's saved day-boundary
+  // timezone rather than UTC, so a hypothetical missing value still lands on the
+  // user's actual "today" instead of potentially the wrong day (F-03).
+  const rawEntryDate = formData.get('entry_date') as string
+  const entryDate = rawEntryDate || todayInTimezone((await getUserTimezone(supabase, user.id)) ?? 'UTC')
 
   const values: Record<string, unknown> = {}
   for (const field of fields) {
@@ -66,7 +70,10 @@ export async function updateEntry(
   }
 
   // entry_date governs day attribution. Always use the value supplied by the form.
-  const entryDate = (formData.get('entry_date') as string) || new Date().toISOString().split('T')[0]
+  // Fallback (form never omits this today) honors the user's saved day-boundary
+  // timezone rather than UTC (F-03) — see createEntry above for the same rationale.
+  const rawEntryDate = formData.get('entry_date') as string
+  const entryDate = rawEntryDate || todayInTimezone((await getUserTimezone(supabase, user.id)) ?? 'UTC')
 
   const values: Record<string, unknown> = {}
   for (const field of fields) {

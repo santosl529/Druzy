@@ -157,28 +157,26 @@ function ratingField(overrides: Partial<ModuleField> = {}): ModuleField {
 }
 
 describe('coerceImportValue — rating bounds', () => {
-  it('in-range rating (default 1-5) returns ok value, no warning', () => {
+  it('in-range rating (default 1-5) returns ok value, no error', () => {
     const field = ratingField()
     expect(coerceImportValue('3', field, 'auto')).toEqual({ value: 3 })
   })
 
-  it('out-of-range rating is a WARNING not an error — value passes through unbounded', () => {
-    // lib/import.ts:117-124: out-of-bounds ratings return { value: n, warning }
-    // (not error). See F-10: validateImportRows only inspects `error`, never
-    // `warning`, so this row becomes status 'ok' and the out-of-range value is
-    // imported silently — no surfaced warning anywhere in the pipeline.
+  it('out-of-range rating is a hard ERROR — value is null, row is blocked (F-10)', () => {
+    // Ruled behavior (F-10, option a): out-of-bounds ratings are treated like
+    // every other coercion failure in this function — a hard error that blocks
+    // the row, not a warning that lets an out-of-scale value through silently.
     const field = ratingField()
     const result = coerceImportValue('7', field, 'auto')
-    expect(result.value).toBe(7)
-    expect(result.error).toBeUndefined()
-    expect(result.warning).toBe('Mood: 7 is outside 1–5')
+    expect(result).toEqual({ value: null, error: 'Mood: 7 is outside 1–5' })
   })
 
   it('rating max derives from options.length when options are present', () => {
     const field = ratingField({ options: ['a', 'b', 'c'] })
     expect(coerceImportValue('3', field, 'auto')).toEqual({ value: 3 })
     const result = coerceImportValue('4', field, 'auto')
-    expect(result.warning).toBe('Mood: 4 is outside 1–3')
+    expect(result.error).toBe('Mood: 4 is outside 1–3')
+    expect(result.value).toBeNull()
   })
 
   it('non-numeric rating errors', () => {
@@ -332,16 +330,14 @@ describe('validateImportRows — duplicate semantics', () => {
     expect(results[0].reason).toContain('Unknown field "ghost_field"')
   })
 
-  it('out-of-range rating warning does not block the row from ending up ok and importable', () => {
-    // Same F-10 gap surfaced at the validateImportRows/rowsToImport level:
-    // a rating warning never becomes a row `error`, so rowsToImport happily
-    // includes the row with the out-of-range value untouched.
+  it('out-of-range rating is now a hard error — blocks the row and is excluded from rowsToImport (F-10)', () => {
     const rField: ModuleField = { key: 'mood', label: 'Mood', type: 'rating', required: false }
     const rMapping = mappingFor(rField)
     const rows = [{ date: '2026-07-02', w: '99' }]
     const results = validateImportRows(rows, rMapping, [rField], new Set(), 'auto')
-    expect(results[0].status).toBe('ok')
+    expect(results[0].status).toBe('error')
+    expect(results[0].reason).toContain('Mood: 99 is outside 1–5')
     const toImport = rowsToImport(results)
-    expect(toImport).toEqual([{ entry_date: '2026-07-02', values: { mood: 99 } }])
+    expect(toImport).toEqual([])
   })
 })

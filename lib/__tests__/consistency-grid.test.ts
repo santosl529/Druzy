@@ -261,6 +261,44 @@ describe('computeCellState', () => {
     expect(cell.intensity).toBe(1)
   })
 
+  it('gradient mode, day has an entry but the gradient field is non-numeric ("abc") → renders as no-data (not-done, intensity 0), not phantom-zero (F-07)', () => {
+    const mod = makeMod({
+      fields: [{ key: 'score', label: 'Score', type: 'number', required: false }],
+      dashboard_config: { mode: 'gradient', gradientField: 'score' },
+    })
+    const cell = computeCellState(mod, [{ score: 'abc' }], '2026-06-28', { min: 0, max: 100 })
+    // Must match the shared "no entries" no-data rendering exactly (line ~148-150).
+    expect(cell.state).toBe('not-done')
+    expect(cell.intensity).toBe(0)
+    expect(cell.rawValue).toBeUndefined()
+  })
+
+  it('gradient mode, day has an entry but the gradient field is null/boolean → renders as no-data, not phantom-zero (F-07)', () => {
+    const mod = makeMod({
+      fields: [{ key: 'score', label: 'Score', type: 'number', required: false }],
+      dashboard_config: { mode: 'gradient', gradientField: 'score' },
+    })
+    const cellNull = computeCellState(mod, [{ score: null }], '2026-06-28', { min: 0, max: 100 })
+    expect(cellNull.state).toBe('not-done')
+    expect(cellNull.intensity).toBe(0)
+    expect(cellNull.rawValue).toBeUndefined()
+
+    const cellBool = computeCellState(mod, [{ score: true }], '2026-06-28', { min: 0, max: 100 })
+    expect(cellBool.state).toBe('not-done')
+    expect(cellBool.intensity).toBe(0)
+    expect(cellBool.rawValue).toBeUndefined()
+  })
+
+  it('gradient mode, a genuinely logged 0 still renders as real data (anti-regression, mirrors F-06 pattern)', () => {
+    const mod = makeMod({
+      fields: [{ key: 'score', label: 'Score', type: 'number', required: false }],
+      dashboard_config: { mode: 'gradient', gradientField: 'score' },
+    })
+    const cell = computeCellState(mod, [{ score: 0 }], '2026-06-28', { min: 0, max: 100 })
+    expect(cell.state).toBe('done')
+    expect(cell.rawValue).toBe(0)
+  })
+
   it('category mode, no entry → not-done (handled by shared early-return above switch)', () => {
     const mod = makeMod({
       fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift', 'Rest'] }],
@@ -362,13 +400,12 @@ describe('computeCellState', () => {
     expect(cell.categoryLabel).toBeUndefined()
   })
 
-  it('category mode, categoryColors maps to a crystal key not in CRYSTAL_KEYS → computeCellState passes it through as-is, no crash', () => {
-    // computeCellState does not validate categoryColors values against CRYSTAL_KEYS;
-    // it's a straight lookup. Runtime data (e.g. a stale config after a crystal was
-    // renamed) could hold an invalid key. The renderer (components/consistency-grid.tsx
-    // CrystalCell) is what actually guards this via lib/crystals.ts getCrystal(), which
-    // falls back to the default crystal ('amethyst') for any unrecognized key — see the
-    // getCrystal-level probe below.
+  it('category mode, categoryColors maps to a crystal key not in CRYSTAL_KEYS → computeCellState treats it as unmapped, falls back to module crystal (F-09)', () => {
+    // computeCellState now validates categoryColors values against CRYSTAL_KEYS.
+    // A present-but-invalid mapped value (e.g. stale config data from a renamed/
+    // removed crystal key) is treated the same as unmapped: crystalOverride stays
+    // undefined, so the renderer falls back to the module's own crystalType instead
+    // of getCrystal()'s hardcoded 'amethyst' default.
     const mod = makeMod({
       fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift'] }],
       dashboard_config: {
@@ -380,7 +417,20 @@ describe('computeCellState', () => {
     expect(() => computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)).not.toThrow()
     const cell = computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)
     expect(cell.state).toBe('done')
-    expect(cell.crystalOverride).toBe('not_a_real_crystal')
+    expect(cell.crystalOverride).toBeUndefined()
+  })
+
+  it('category mode, categoryColors maps to a valid CRYSTAL_KEYS value → crystalOverride passes through unchanged (F-09 anti-regression)', () => {
+    const mod = makeMod({
+      fields: [{ key: 'session_type', label: 'Session type', type: 'select', required: false, options: ['Lift'] }],
+      dashboard_config: {
+        mode: 'category',
+        categoryField: 'session_type',
+        categoryColors: { Lift: 'ruby' },
+      },
+    })
+    const cell = computeCellState(mod, [{ session_type: 'Lift' }], '2026-06-28', null)
+    expect(cell.crystalOverride).toBe('ruby')
   })
 
   it('category mode, missing categoryField in config (empty string) → done, no crash, label undefined', () => {
@@ -655,6 +705,30 @@ describe('buildGridData', () => {
     // 10 is min, 20 is max. 10→intensity 0, 20→intensity 1
     expect(cell28.intensity).toBeCloseTo(0)
     expect(cell27.intensity).toBeCloseTo(1)
+  })
+
+  it('gradient mode auto-fit range is unaffected by a day whose only entry has a non-numeric gradient value (F-07)', () => {
+    const mod = makeMod({
+      id: 'mod-1',
+      fields: [{ key: 'score', label: 'Score', type: 'number', required: false }],
+      dashboard_config: { mode: 'gradient', gradientField: 'score' },
+    })
+    const entries = [
+      makeEntry('mod-1', '2026-06-28', { score: 10 }),
+      makeEntry('mod-1', '2026-06-27', { score: 20 }),
+      // A non-numeric day: must NOT drag the auto-fit min down to 0.
+      makeEntry('mod-1', '2026-06-26', { score: 'abc' }),
+    ]
+    const grid = buildGridData([mod], entries, '2026-06-28')
+    const cell28 = grid.cells[0][0]
+    const cell27 = grid.cells[0][1]
+    const cell26 = grid.cells[0][2]
+    // Range should still be [10, 20], not [0, 20] — the non-numeric day contributes nothing.
+    expect(cell28.intensity).toBeCloseTo(0)
+    expect(cell27.intensity).toBeCloseTo(1)
+    // The non-numeric day itself renders as no-data, not a phantom 0.
+    expect(cell26.state).toBe('not-done')
+    expect(cell26.rawValue).toBeUndefined()
   })
 })
 
