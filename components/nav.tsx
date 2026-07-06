@@ -27,7 +27,7 @@ const navLinkClass = (active: boolean) =>
   cn(
     'transition-colors',
     active
-      ? 'text-foreground font-semibold'
+      ? 'text-primary font-semibold'
       : 'text-foreground/80 font-medium hover:text-foreground',
   )
 
@@ -46,7 +46,7 @@ export function Nav({ email }: { email: string }) {
         <div className="flex items-center gap-8">
           <Link
             href="/"
-            className="text-[1.05rem] font-bold tracking-tight shrink-0 text-foreground"
+            className="font-heading text-[1.05rem] font-bold tracking-tight shrink-0 text-foreground"
             onClick={() => setOpen(false)}
           >
             Druzy

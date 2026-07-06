@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
 import { ColorSchemeProvider } from '@/components/color-scheme-provider'
 import { COLOR_SCHEME_STORAGE_KEY } from '@/lib/color-scheme'
 import './globals.css'
@@ -14,6 +14,11 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+})
+
 export const metadata: Metadata = {
   title: 'Druzy',
   description: 'Log and visualize your personal life — one tracker at a time.',
@@ -25,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
