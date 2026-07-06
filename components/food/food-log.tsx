@@ -124,8 +124,9 @@ export function FoodLog({
           <h2 className="font-medium">{formatDisplayDate(date, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
           {!isToday && (
             <button
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5 disabled:opacity-50 disabled:pointer-events-none"
               onClick={() => navigateDate(clientToday(savedTimezone))}
+              disabled={loadingDate}
             >
               Back to today
             </button>

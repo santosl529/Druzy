@@ -24,11 +24,11 @@ Entry format:
 | F-07 | low | grid | Gradient mode shares evaluateGoal's phantom-zero coercion bug (unfixed, lower severity) | FIXED |
 | F-09 | low | grid | An invalid (not merely unmapped) crystalOverride falls back to a hardcoded default crystal instead of the module's own crystal | FIXED |
 | F-10 | low | import | Out-of-range rating values import silently — the `warning` from `coerceImportValue` is generated but never read anywhere in the pipeline | FIXED |
-| F-13 | low | optimistic-ui | `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state | DECIDE |
+| F-13 | low | optimistic-ui | `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state | FIXED |
 | F-14 | low | optimistic-ui | `EntryList`'s delete button has no in-flight guard — the shared transition's pending flag is discarded — and `deleteEntry` swallows write errors with no client-visible feedback | FIXED |
-| F-15 | low | optimistic-ui | Food-log's "Back to today" control is not gated on its own in-flight state | DECIDE |
+| F-15 | low | optimistic-ui | Food-log's "Back to today" control is not gated on its own in-flight state | FIXED |
 | F-18 | low | journal | `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules` | FIXED |
-| F-20 | low | journal | Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day | DECIDE |
+| F-20 | low | journal | Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day | FIXED |
 | F-01 | medium | date-tz | Future-dated entry zeroes the current streak | FIXED |
 | F-06 | medium | grid | `evaluateGoal` treated a missing/non-numeric field as a contributed 0, letting zero-satisfied conditions "phantom-pass" on days with no real data for that field | FIXED |
 | F-08 | medium | grid | Same-day category-mode tiebreak was nondeterministic, driven by unspecified DB query row order | FIXED |
@@ -37,7 +37,7 @@ Entry format:
 | F-19 | medium | journal | Binary-entry duplicate guard used `.maybeSingle()`, which errors (and was silently swallowed) when more than one entry already exists for the day — reopening the exact duplicate the guard exists to prevent | FIXED |
 | F-02 | low | date-tz | ListChart (client component) fell back to UTC instead of browser tz | FIXED |
 
-## Open decisions (DECIDE)
+## Ruled WONTFIX
 
 ## [F-04] A formula day drops only when no input has a numeric value to anchor it — defaults never conjure a date into existence
 - **Status:** WONTFIX (ruled 2026-07-06)
@@ -154,124 +154,6 @@ Entry format:
   state nothing can currently produce is YAGNI — revisit only if a new
   formula-creation path (e.g. bulk import) is added that might bypass
   `validateFormulaInputs`.
-
-## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** optimistic-ui
-- **What happens:** `today` (components/tracker-grid.tsx:31, initialized from
-  `serverDate`) is only ever updated by the `useEffect` at lines 34-48, whose
-  dependency array is `[serverDate, savedTimezone]` — both of which are
-  static props that never change after the initial server render. The
-  effect runs once on mount to reconcile a client/server timezone
-  disagreement (comparing `clientToday(savedTimezone)` to `serverDate`), then
-  never re-runs. There is no `visibilitychange` listener, focus handler, or
-  interval anywhere in the file (or in `food-log.tsx`, which has the
-  identical pattern via its own mount-only effect at lines 69-82) that
-  would re-derive "today" as wall-clock time actually advances. A user who
-  opens the dashboard before midnight and leaves the tab open past it keeps
-  `today` (and therefore `doneToday` / the "Logged" checkmark state) pinned
-  to the stale day: trackers logged "today" (now yesterday) still show as
-  done, and if the user then quick-logs while the tab is stale,
-  `handleUnlogged`'s `entry_date !== today` filter (line 71) compares
-  against the wrong day, and `QuickLogDialog`/`EntryForm`'s date field
-  (defaulted via `clientToday(savedTimezone)` at mount time inside the
-  dialog, not from the parent's stale `today`) would actually default
-  correctly since it's freshly computed on dialog open — so the practical
-  blast radius is the checkmark/summary display and `handleUnlogged`'s
-  filter, not new entries getting the wrong date.
-- **Where:** components/tracker-grid.tsx:31 (`today` state), :34-48 (mount-only
-  reconciliation effect, deps never change post-mount), :71 (`handleUnlogged`'s
-  `entry_date !== today` filter uses the potentially-stale value). Same
-  mount-only pattern (not separately findable by file name in the brief, but
-  structurally identical) at components/food/food-log.tsx:69-82.
-- **Proposed fix:** add a `visibilitychange` (or `focus`) listener that
-  re-derives `clientToday(savedTimezone)` and, if it differs from `today`,
-  re-runs the same re-fetch-and-reconcile logic already in the mount effect
-  (extracted to a named function so both the mount effect and the listener
-  call it). Trade-off: this changes *when* client state resyncs with the
-  server relative to wall-clock time — a behavioral change explicitly
-  called out by the brief as requiring a DECIDE rather than a mechanical
-  fix, and the severity is low in practice since most sessions don't stay
-  open across a day boundary, but it's a real gap given the brief flags it
-  by name.
-
-## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** optimistic-ui
-- **What happens:** In `components/food/food-log.tsx`, the two chevron date-nav
-  buttons correctly disable on `loadingDate` (lines 119, 138), but the
-  "Back to today" text control (a raw `<button>`, lines 126-131) does not —
-  it can be clicked again while a previous `navigateDate` fetch is still in
-  flight, firing a second concurrent `fetch('/api/food/entries?date=...')`.
-  Both calls eventually call `setEntries`/`setTotals`/`setDate` with
-  whichever response resolves last (no request-id/AbortController guard),
-  so out-of-order network responses can transiently (or, if the earlier
-  request is slower, permanently until the next nav) leave the view showing
-  the wrong day's entries against the URL/date-header shown. This is a
-  read-navigation race, not a write/double-submit (no duplicate server-side
-  record is created), so it falls outside the brief's check #1 framing
-  literally, but is the same class of missing-in-flight-guard issue.
-- **Where:** components/food/food-log.tsx:126-131 (`Back to today` button,
-  no `disabled`); :52-63 (`navigateDate`, no request-ordering guard).
-- **Proposed fix:** add `disabled={loadingDate}` to the "Back to today"
-  button (mechanical on its face), but flagged as DECIDE rather than
-  auto-applied because the deeper issue — out-of-order fetch responses
-  racing regardless of button disabling (e.g. slow network + rapid
-  chevron-chevron-chevron before any single click completes, still
-  possible since disabling only blocks re-clicking the *same already-timed-out*
-  button, not a genuinely stale in-flight request finishing after a newer
-  one) — needs an `AbortController` or request-sequence check to fully
-  close, which is a behavior change beyond adding one `disabled` prop.
-  Bundling the trivial `disabled` addition without the sequencing fix would
-  give a false sense that the race is closed, so both are left for a
-  combined decision.
-
-## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
-- **Status:** DECIDE
-- **Severity:** low
-- **Area:** journal
-- **What happens:** The manual "log an entry" form for any standard module
-  (`createEntry`, app/actions/entries.ts:7-49) writes
-  `values[field.key] = raw === 'on'` for boolean fields — i.e. leaving the
-  checkbox unchecked and submitting still inserts a row, with the field set
-  to `false`, not no row at all. (The one-tap grid toggle,
-  `setBinaryToday` in app/actions/entries.ts:126-168 — delete branch at
-  139-146 — behaves differently: `done=false` *deletes* the day's rows
-  rather than writing `false`, so "false" rows are reachable specifically
-  through the generic entry form, not the toggle.) If a user submits that
-  form with the box unchecked for today, then separately saves a journal
-  entry the same day with that same tracker connected as the template's
-  "journaled" marker, `createJournalEntry`'s guard
-  (app/actions/journal.ts:225-238, post F-19 fix) finds the existing
-  `false` row via `.limit(1)` and skips the write — the journal save
-  silently never upgrades that day's entry to `true`, even though
-  completing the journal is the exact signal the "mark as journaled"
-  feature is meant to record. The user sees no error; `loggedModules`
-  simply won't include that tracker's name (compounding F-18's
-  silent-omission problem).
-- **Where:** app/actions/journal.ts:225-238 — the guard's `if (existing.length
-  === 0)` treats "a row is present" as "already journaled today," without
-  checking whether that row's boolean field is actually `true`.
-- **Proposed fix:** two directions, DECIDE because both are behavior
-  changes to a data-mutation path: (a) tighten the guard to only skip when
-  an existing row already has the boolean field `=== true` (query
-  `.contains('values', { [boolField.key]: true })` or filter client-side
-  after a `.limit(5)` fetch), and otherwise call `createEntryInModule`
-  to add a corroborating `true` entry for the day — accepts that the tracker
-  could then show 2 rows for one day (mirrors the existing multi-row
-  possibility from the manual form, which the app already tolerates per
-  `getEntryState`'s `dayEntries.some(...)` check in
-  lib/consistency-grid.ts:154-157); (b) leave as-is and treat "already has
-  any entry today" as sufficient (current behavior) — simplest, but silently
-  disagrees with a user who explicitly unchecked the tracker earlier and
-  then completed the journal intending to override that. Recommend (a):
-  the grid's own `done` calculation already treats "any `true` entry that
-  day" as done, so adding a second `true` row is consistent with how the
-  feature is read elsewhere, whereas never overriding a `false` makes the
-  "mark as journaled" feature unreliable exactly when a user changes their
-  mind mid-day.
 
 ## Fixed during the hunt (audit record)
 
@@ -700,7 +582,7 @@ Entry format:
   reasoning" path for action logic without test infra.
 
 ## [F-11] Partial chunk-insert failure during bulk import is swallowed by the wizard when at least one earlier chunk succeeded
-- **Status:** FIXED (commit 0e99bc8) — ruled by user 2026-07-06
+- **Status:** FIXED (commits 0e99bc8, 03d10c5) — ruled by user 2026-07-06
 - **Severity:** medium
 - **Area:** import
 - **What happens:** `bulkImportEntries` (app/actions/import.ts:123-129) inserts
@@ -763,14 +645,18 @@ Entry format:
   is guaranteed active for the retry, and by rewording the message to match
   ("they'll be skipped as duplicates when you retry," plus a note that
   re-checking "include duplicates" would re-import them). One narrower gap
-  remains, not fixed: the mechanism assumes the first `result.inserted` rows
-  of the *retry's* payload are a prefix-for-prefix match with the rows that
-  landed on the *original* attempt. Server-side re-validation on the retry
-  (the required-field check and the fresh duplicate check in
-  `app/actions/import.ts`) can skip rows that pass differently than they did
-  the first time (e.g. a date that was a duplicate before but no longer is,
-  or vice versa), which shifts which rows occupy `rows.slice(0,
-  result.inserted)` on the retry relative to the original. Because the
+  remains, not fixed: `rows.slice(0, result.inserted)` runs on the *failing*
+  attempt's own payload at the moment that attempt's error comes back — not,
+  as an earlier draft of this note said, on some later retry's payload — and
+  the mechanism assumes that slice is a prefix-for-prefix match with the rows
+  the server actually committed from that same attempt. Chunks insert in
+  payload order, so this holds for the attempt that just failed. But
+  server-side re-validation on a *subsequent* retry (the required-field check
+  and the fresh duplicate check in `app/actions/import.ts`) can skip rows
+  that pass differently than they did on the original attempt (e.g. a date
+  that was a duplicate before but no longer is, or vice versa), which shifts
+  which rows occupy the analogous prefix on that retry relative to the
+  original. Because the
   server-side duplicate guard is active whenever `includeDuplicates` is off
   (which this fix now guarantees on the retry), this cannot cause a second
   double-insert of the same row — the blast radius is limited to
@@ -933,6 +819,175 @@ Entry format:
   populated from the result on save, and renders one destructive-text line
   per entry ("Couldn't log to {name}: {error}") alongside the existing
   `saveError`/`savedModules` inline messages, following the same idiom.
+
+## [F-13] `tracker-grid.tsx`'s "today" is reconciled only once, on mount — a tab left open across midnight keeps showing yesterday's logged state
+- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** `today` (components/tracker-grid.tsx:31, initialized from
+  `serverDate`) is only ever updated by the `useEffect` at lines 34-48, whose
+  dependency array is `[serverDate, savedTimezone]` — both of which are
+  static props that never change after the initial server render. The
+  effect runs once on mount to reconcile a client/server timezone
+  disagreement (comparing `clientToday(savedTimezone)` to `serverDate`), then
+  never re-runs. There is no `visibilitychange` listener, focus handler, or
+  interval anywhere in the file (or in `food-log.tsx`, which has the
+  identical pattern via its own mount-only effect at lines 69-82) that
+  would re-derive "today" as wall-clock time actually advances. A user who
+  opens the dashboard before midnight and leaves the tab open past it keeps
+  `today` (and therefore `doneToday` / the "Logged" checkmark state) pinned
+  to the stale day: trackers logged "today" (now yesterday) still show as
+  done, and if the user then quick-logs while the tab is stale,
+  `handleUnlogged`'s `entry_date !== today` filter (line 71) compares
+  against the wrong day, and `QuickLogDialog`/`EntryForm`'s date field
+  (defaulted via `clientToday(savedTimezone)` at mount time inside the
+  dialog, not from the parent's stale `today`) would actually default
+  correctly since it's freshly computed on dialog open — so the practical
+  blast radius is the checkmark/summary display and `handleUnlogged`'s
+  filter, not new entries getting the wrong date.
+- **Where:** components/tracker-grid.tsx:31 (`today` state), :34-48 (mount-only
+  reconciliation effect, deps never change post-mount), :71 (`handleUnlogged`'s
+  `entry_date !== today` filter uses the potentially-stale value). Same
+  mount-only pattern (not separately findable by file name in the brief, but
+  structurally identical) at components/food/food-log.tsx:69-82.
+- **Proposed fix:** add a `visibilitychange` (or `focus`) listener that
+  re-derives `clientToday(savedTimezone)` and, if it differs from `today`,
+  re-runs the same re-fetch-and-reconcile logic already in the mount effect
+  (extracted to a named function so both the mount effect and the listener
+  call it). Trade-off: this changes *when* client state resyncs with the
+  server relative to wall-clock time — a behavioral change explicitly
+  called out by the brief as requiring a DECIDE rather than a mechanical
+  fix, and the severity is low in practice since most sessions don't stay
+  open across a day boundary, but it's a real gap given the brief flags it
+  by name.
+- **Ruling (2026-07-06):** FIXED as proposed. The mount effect's reconciliation
+  logic was extracted into a named `reconcileToday(current)` closure so it can
+  run both on mount and later; a `visibilitychange` + `focus` listener (single
+  effect, both events, cleanup on unmount, no polling/interval) now calls it
+  again whenever the tab wakes, reading the latest `today` via a
+  `setToday((current) => { reconcileToday(current); return current })`
+  no-op-write trick so the listener isn't stale without adding `today` to the
+  effect's dependency array. `food-log.tsx` was deliberately left unchanged:
+  the entry's own "Proposed fix" only scopes the listener to `tracker-grid.tsx`
+  (the "Where" section's mention of `food-log.tsx`'s identical mount-only
+  pattern is descriptive context, not a fix target), and the brief instructed
+  applying the listener to `food-log.tsx` "ONLY if the entry's body names it" —
+  it doesn't. No test added: this is a browser-event-driven effect with no
+  DOM/component-render harness in this repo (consistent with prior
+  optimistic-ui fixes); verified by code reading plus `npx tsc --noEmit` /
+  lint / full suite passing.
+
+## [F-15] Food-log's "Back to today" control is not gated on its own in-flight state
+- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** optimistic-ui
+- **What happens:** In `components/food/food-log.tsx`, the two chevron date-nav
+  buttons correctly disable on `loadingDate` (lines 119, 138), but the
+  "Back to today" text control (a raw `<button>`, lines 126-131) does not —
+  it can be clicked again while a previous `navigateDate` fetch is still in
+  flight, firing a second concurrent `fetch('/api/food/entries?date=...')`.
+  Both calls eventually call `setEntries`/`setTotals`/`setDate` with
+  whichever response resolves last (no request-id/AbortController guard),
+  so out-of-order network responses can transiently (or, if the earlier
+  request is slower, permanently until the next nav) leave the view showing
+  the wrong day's entries against the URL/date-header shown. This is a
+  read-navigation race, not a write/double-submit (no duplicate server-side
+  record is created), so it falls outside the brief's check #1 framing
+  literally, but is the same class of missing-in-flight-guard issue.
+- **Where:** components/food/food-log.tsx:126-131 (`Back to today` button,
+  no `disabled`); :52-63 (`navigateDate`, no request-ordering guard).
+- **Proposed fix:** add `disabled={loadingDate}` to the "Back to today"
+  button (mechanical on its face), but flagged as DECIDE rather than
+  auto-applied because the deeper issue — out-of-order fetch responses
+  racing regardless of button disabling (e.g. slow network + rapid
+  chevron-chevron-chevron before any single click completes, still
+  possible since disabling only blocks re-clicking the *same already-timed-out*
+  button, not a genuinely stale in-flight request finishing after a newer
+  one) — needs an `AbortController` or request-sequence check to fully
+  close, which is a behavior change beyond adding one `disabled` prop.
+  Bundling the trivial `disabled` addition without the sequencing fix would
+  give a false sense that the race is closed, so both are left for a
+  combined decision.
+- **Ruling (2026-07-06):** FIXED — the trivial `disabled={loadingDate}` gate
+  only, per the brief. `components/food/food-log.tsx`'s "Back to today"
+  button now disables while `loadingDate` is true, matching the chevrons'
+  existing gating, with `disabled:opacity-50 disabled:pointer-events-none`
+  classes added (the raw `<button>` has no shadcn `Button` built-in disabled
+  styling to inherit; these two Tailwind variants mirror shadcn's own
+  disabled-state convention rather than inventing a new one). The deeper
+  out-of-order-response race flagged in the entry (an `AbortController`/
+  request-sequence fix) is explicitly out of scope — the brief's F-15 item
+  only asked for the `disabled` prop, not the sequencing fix, and bundling it
+  would have been scope creep beyond a "behavioral small." No test added: no
+  component-render harness in this repo for this class of fix (consistent
+  with F-12/F-14 precedent); verified by code reading plus `npx tsc --noEmit`
+  / lint / full suite passing.
+
+## [F-20] Binary-entry duplicate guard keys on row *existence*, not row *value* — a pre-existing `false` entry (unchecked manual log) permanently blocks the journal's "mark as journaled" write for that day
+- **Status:** FIXED (commit <sha>) — ruled by user 2026-07-06
+- **Severity:** low
+- **Area:** journal
+- **What happens:** The manual "log an entry" form for any standard module
+  (`createEntry`, app/actions/entries.ts:7-49) writes
+  `values[field.key] = raw === 'on'` for boolean fields — i.e. leaving the
+  checkbox unchecked and submitting still inserts a row, with the field set
+  to `false`, not no row at all. (The one-tap grid toggle,
+  `setBinaryToday` in app/actions/entries.ts:126-168 — delete branch at
+  139-146 — behaves differently: `done=false` *deletes* the day's rows
+  rather than writing `false`, so "false" rows are reachable specifically
+  through the generic entry form, not the toggle.) If a user submits that
+  form with the box unchecked for today, then separately saves a journal
+  entry the same day with that same tracker connected as the template's
+  "journaled" marker, `createJournalEntry`'s guard
+  (app/actions/journal.ts:225-238, post F-19 fix) finds the existing
+  `false` row via `.limit(1)` and skips the write — the journal save
+  silently never upgrades that day's entry to `true`, even though
+  completing the journal is the exact signal the "mark as journaled"
+  feature is meant to record. The user sees no error; `loggedModules`
+  simply won't include that tracker's name (compounding F-18's
+  silent-omission problem).
+- **Where:** app/actions/journal.ts:225-238 — the guard's `if (existing.length
+  === 0)` treats "a row is present" as "already journaled today," without
+  checking whether that row's boolean field is actually `true`.
+- **Proposed fix:** two directions, DECIDE because both are behavior
+  changes to a data-mutation path: (a) tighten the guard to only skip when
+  an existing row already has the boolean field `=== true` (query
+  `.contains('values', { [boolField.key]: true })` or filter client-side
+  after a `.limit(5)` fetch), and otherwise call `createEntryInModule`
+  to add a corroborating `true` entry for the day — accepts that the tracker
+  could then show 2 rows for one day (mirrors the existing multi-row
+  possibility from the manual form, which the app already tolerates per
+  `getEntryState`'s `dayEntries.some(...)` check in
+  lib/consistency-grid.ts:154-157); (b) leave as-is and treat "already has
+  any entry today" as sufficient (current behavior) — simplest, but silently
+  disagrees with a user who explicitly unchecked the tracker earlier and
+  then completed the journal intending to override that. Recommend (a):
+  the grid's own `done` calculation already treats "any `true` entry that
+  day" as done, so adding a second `true` row is consistent with how the
+  feature is read elsewhere, whereas never overriding a `false` makes the
+  "mark as journaled" feature unreliable exactly when a user changes their
+  mind mid-day.
+- **Ruling (2026-07-06):** FIXED — option (a) as recommended. The guard in
+  `createJournalEntry` (app/actions/journal.ts) now fetches up to `.limit(5)`
+  rows (id + `values`) for the day instead of `.limit(1)` (id only), and
+  skips the insert only when a client-side filter finds a row whose `values`
+  already has the boolean field `=== true`; a pre-existing `false`-only day
+  now proceeds to `createEntryInModule`, adding a corroborating `true` row
+  so the journal's completion correctly upgrades that day to journaled. This
+  mirrors the grid's own read path — `getEntryState`'s
+  `dayEntries.some((e) => e[binaryField.key] === true)` in
+  lib/consistency-grid.ts:154-157 — which already tolerates and correctly
+  reads multiple same-day rows by treating "any true" as done, so a second
+  `true` row for the day is consistent with how the feature is read
+  elsewhere. The F-19 fail-open posture is unchanged: a guard-query error
+  still yields `existing` as `null`/undefined, `alreadyTrue` still evaluates
+  false, and the code still proceeds to insert exactly as before. No schema
+  change (`.contains('values', {...})` was considered per the entry's two
+  query options but the client-side filter was chosen, per the entry's
+  "simpler direction" framing). No test added: action-level code with a live
+  Supabase dependency and no action-test harness in this repo (same
+  precedent as F-19); verified by code reading plus `npx tsc --noEmit` /
+  lint / full suite passing.
 
 ## Audit-record notes
 

@@ -233,24 +233,42 @@ export async function createJournalEntry(
         (f) => f.type === 'boolean'
       )
       if (boolField) {
-        // Check for existing entry — skip insert to avoid duplicates on same day.
-        // Uses .limit(1) rather than .maybeSingle(): entries has no unique
-        // constraint on (module_id, user_id, entry_date), so if more than one
-        // row already exists for this day (e.g. the user manually logged this
-        // tracker twice), .maybeSingle() would receive a PostgREST "multiple
-        // rows" error. That error was previously discarded by destructuring
-        // only `data`, which stayed undefined and made the guard fall through
-        // to inserting an extra duplicate row — exactly the bug this guard
-        // exists to prevent. .limit(1) never errors on row count.
+        // Check for an existing *true* entry — skip insert only when the day
+        // is already marked journaled, not merely when a row exists. The
+        // generic manual-entry form (createEntry, app/actions/entries.ts)
+        // writes `false` rows for an unchecked checkbox rather than omitting
+        // the row entirely, so a pre-existing `false` row must not block this
+        // write from upgrading the day to `true` — that upgrade is the exact
+        // signal "mark as journaled" exists to record.
+        // Uses .limit(5) rather than .maybeSingle()/.limit(1): entries has no
+        // unique constraint on (module_id, user_id, entry_date), so more than
+        // one row can already exist for this day (e.g. the user manually
+        // logged this tracker twice, once unchecked then once checked).
+        // .maybeSingle() errors on multiple rows (see F-19); .limit(1) would
+        // only see the first row and could miss a `true` row that isn't
+        // first. .limit(5) is a pragmatic cap — this mirrors the existing
+        // grid read path (getEntryState in lib/consistency-grid.ts:154-157,
+        // `dayEntries.some((e) => e[binaryField.key] === true)`), which
+        // already tolerates and correctly reads multiple same-day rows by
+        // treating "any true" as done. Filtering client-side (rather than
+        // `.contains('values', {...})`) keeps this a plain read, consistent
+        // with the rest of this guard.
         const { data: existing } = await supabase
           .from('entries')
-          .select('id')
+          .select('id, values')
           .eq('module_id', template.binary_module_id)
           .eq('entry_date', parsed.data.entry_date)
           .eq('user_id', user.id)
-          .limit(1)
+          .limit(5)
 
-        if (!existing || existing.length === 0) {
+        // Fail-open on a guard query error, unchanged from the F-19 fix:
+        // `existing` is `null`/undefined and the condition below is true,
+        // so the code proceeds to insert exactly as before.
+        const alreadyTrue = (existing ?? []).some(
+          (row) => (row.values as Record<string, unknown>)?.[boolField.key] === true
+        )
+
+        if (!alreadyTrue) {
           const binaryResult = await createEntryInModule(
             template.binary_module_id,
             parsed.data.entry_date,

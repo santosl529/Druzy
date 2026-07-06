@@ -32,18 +32,43 @@ export function TrackerGrid({ modules, initialDoneToday, entriesByModule, server
   const [, startTransition] = useTransition()
 
   useEffect(() => {
-    const clientDate = clientToday(savedTimezone)
-    // When the client and server agree, the initial state is already correct.
-    if (clientDate === serverDate) return
+    // Re-derives "today" against the current value of `today` state (not the
+    // static `serverDate` prop) so this can be called again later, after
+    // mount, when wall-clock time has actually advanced (e.g. tab left open
+    // across midnight) — see the visibilitychange/focus listener below.
+    function reconcileToday(current: string) {
+      const clientDate = clientToday(savedTimezone)
+      // Already correct — nothing to reconcile.
+      if (clientDate === current) return
 
-    // Server and client disagree on today (timezone mismatch) — re-fetch status
-    // and correct the date. Both updates run inside the transition.
-    const moduleIds = modules.map((m) => m.id)
-    startTransition(async () => {
-      const ids = await getTodayEntryStatus(moduleIds, clientDate)
-      setToday(clientDate)
-      setDoneToday(new Set(ids))
-    })
+      // Client's notion of "today" has moved on — re-fetch status and correct
+      // the date. Both updates run inside the transition.
+      const moduleIds = modules.map((m) => m.id)
+      startTransition(async () => {
+        const ids = await getTodayEntryStatus(moduleIds, clientDate)
+        setToday(clientDate)
+        setDoneToday(new Set(ids))
+      })
+    }
+
+    // Mount-time reconciliation: catches a client/server timezone disagreement
+    // on initial render.
+    reconcileToday(serverDate)
+
+    // Re-sync when the tab regains visibility or focus — catches wall-clock
+    // day rollover while the tab was left open (no polling/interval).
+    function handleWake() {
+      setToday((current) => {
+        reconcileToday(current)
+        return current
+      })
+    }
+    document.addEventListener('visibilitychange', handleWake)
+    window.addEventListener('focus', handleWake)
+    return () => {
+      document.removeEventListener('visibilitychange', handleWake)
+      window.removeEventListener('focus', handleWake)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverDate, savedTimezone])
 
