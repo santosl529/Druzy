@@ -229,9 +229,14 @@ export function ImportWizard({ moduleId, fields, existingDates }: Props) {
           // double-inserting (this is what makes the message's promise true).
           const landedDates = rows.slice(0, result.inserted).map((r) => r.entry_date)
           setConfirmedInsertedDates((prev) => [...prev, ...landedDates])
+          // Reset includeDuplicates so the duplicate check (client) and server guard
+          // are both active again on retry — otherwise a re-checked "include
+          // duplicates" would bypass both and re-insert the rows that already landed.
+          setIncludeDuplicates(false)
           setError(
             `Import stopped after ${result.inserted} of ${rows.length} rows: ${result.error}. ` +
-              `The imported rows are saved; retrying will skip them as duplicates.`
+              `The imported rows are saved; they'll be skipped as duplicates when you retry ` +
+              `(re-checking "include duplicates" would re-import them).`
           )
         } else {
           setError(result.error)

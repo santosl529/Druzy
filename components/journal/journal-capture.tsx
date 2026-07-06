@@ -471,8 +471,8 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
 
           {failedModules.length > 0 && (
             <div className="space-y-0.5">
-              {failedModules.map((f) => (
-                <p key={f.name} className="text-sm text-destructive">
+              {failedModules.map((f, i) => (
+                <p key={`${f.name}-${i}`} className="text-sm text-destructive">
                   Couldn&apos;t log to {f.name}: {f.error}
                 </p>
               ))}

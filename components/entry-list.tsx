@@ -250,10 +250,15 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
                           setDeleteError(null)
                           setDeletingId(entry.id)
                           startTransition(async () => {
-                            const result = await deleteEntry(entry.id, moduleId)
-                            setDeletingId(null)
-                            if (result?.error) {
-                              setDeleteError({ id: entry.id, message: result.error })
+                            try {
+                              const result = await deleteEntry(entry.id, moduleId)
+                              if (result?.error) {
+                                setDeleteError({ id: entry.id, message: result.error })
+                              }
+                            } catch {
+                              setDeleteError({ id: entry.id, message: 'Something went wrong. Try again.' })
+                            } finally {
+                              setDeletingId(null)
                             }
                           })
                         }}
