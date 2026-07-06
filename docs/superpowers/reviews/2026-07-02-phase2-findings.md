@@ -282,8 +282,8 @@ Entry format:
   type was changed).
 - **Where:** lib/consistency-grid.ts, `computeCellState` case
   `'gradient'` (rawValue reduce), and `buildGridData`'s gradient
-  auto-fit range scan (same reduce pattern). No regression test added —
-  this is an unfixed DECIDE, not a characterized behavior change.
+  auto-fit range scan (same reduce pattern). (Written while this was an
+  open DECIDE; regression tests were added with the 5e0a963 fix.)
 - **Proposed fix:** reuse the `toFiniteNumber` helper added for F-06 in
   both gradient-mode reduces, and track `sawValue` the same way so a
   field with zero real numeric contributions can render as a distinct
