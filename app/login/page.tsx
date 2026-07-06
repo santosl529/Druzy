@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GeodeIcon } from '@/components/geode-icon'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -18,7 +19,11 @@ export default function LoginPage() {
   const error = isLogin ? loginState?.error : signupState?.error
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+      <GeodeIcon crystalType="amethyst" openness={0.9} className="size-16 mb-2" />
+      <h1 className="font-heading text-3xl font-bold tracking-tight">Druzy</h1>
+      <p className="mb-6 text-muted-foreground">Log the shape of your days.</p>
+
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{isLogin ? 'Sign in' : 'Create account'}</CardTitle>
