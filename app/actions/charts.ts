@@ -40,14 +40,20 @@ function defaultConfig(moduleId: string, fields: ModuleField[]): ChartConfig {
   return { chartType: 'table', series: [] }
 }
 
-export async function createDefaultChart(moduleId: string, fields: ModuleField[], userId: string) {
+export async function createDefaultChart(
+  moduleId: string,
+  fields: ModuleField[],
+  userId: string
+): Promise<{ error?: string }> {
   const supabase = await createClient()
-  await supabase.from('charts').insert({
+  const { error } = await supabase.from('charts').insert({
     module_id: moduleId,
     user_id: userId,
     config: defaultConfig(moduleId, fields),
     position: 0,
   })
+  if (error) return { error: error.message }
+  return {}
 }
 
 export async function createChart(formData: FormData): Promise<{ error: string } | never> {
@@ -94,12 +100,15 @@ export async function updateChart(
   redirect(`/modules/${moduleId}`)
 }
 
-export async function deleteChart(chartId: string, moduleId: string): Promise<void> {
+export async function deleteChart(chartId: string, moduleId: string): Promise<{ error?: string }> {
   const { supabase, user } = await requireUser()
 
-  await supabase.from('charts').delete().eq('id', chartId).eq('user_id', user.id)
+  const { error } = await supabase.from('charts').delete().eq('id', chartId).eq('user_id', user.id)
+  if (error) return { error: error.message }
+
   revalidatePath(`/modules/${moduleId}`)
   revalidatePath('/dashboard')
+  return {}
 }
 
 /**
@@ -142,14 +151,18 @@ export async function addChartFromProposal(
   return { id: chart.id }
 }
 
-export async function reorderCharts(updates: { id: string; position: number }[]): Promise<void> {
+export async function reorderCharts(updates: { id: string; position: number }[]): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthContext()
-  if (!user) return
+  if (!user) return { error: 'Not authenticated.' }
 
-  await Promise.all(
+  const results = await Promise.all(
     updates.map(({ id, position }) =>
       supabase.from('charts').update({ position }).eq('id', id).eq('user_id', user.id)
     )
   )
+  const failed = results.find((r) => r.error)
+  if (failed?.error) return { error: failed.error.message }
+
   revalidatePath('/', 'layout')
+  return {}
 }

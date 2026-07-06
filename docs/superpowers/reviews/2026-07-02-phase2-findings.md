@@ -554,3 +554,120 @@ Entry format:
   Bundling the trivial `disabled` addition without the sequencing fix would
   give a false sense that the race is closed, so both are left for a
   combined decision.
+
+## [F-16] Three server actions discarded their Supabase write error entirely (no destructure at all)
+- **Status:** FIXED (commit pending — see report)
+- **Severity:** medium
+- **Area:** actions
+- **What happens:** Task 6's write-error grep
+  (`await supabase.from(...).{insert,update,delete,upsert}`) found three
+  call sites that didn't even destructure `{ error }` from the Postgrest
+  response — the error was unreachable, not just unchecked: (1)
+  `createDefaultChart` (app/actions/charts.ts, pre-fix line 45) inserts the
+  auto-generated default chart on every module/formula creation path (4
+  call sites across modules.ts and formula.ts) with a bare `await`; a
+  failed insert here means a newly created tracker silently has no chart,
+  discovered only later by the user noticing a blank charts section. (2)
+  `deleteChart` (app/actions/charts.ts, pre-fix line 100) — a failed delete
+  (RLS denial, network blip) leaves the chart in the DB but
+  `revalidatePath` still runs and the client already removed it from local
+  state (components/charts/sortable-charts.tsx `handleDelete` calls
+  `setCharts` before `startTransition`), so the chart reappears on the next
+  real refetch with zero indication anything failed — same "phantom
+  success" shape as F-14's `deleteEntry` and F-11's import-wizard gap. (3)
+  `reorderCharts` (app/actions/charts.ts, pre-fix line 151) fires N
+  concurrent `.update()` calls via `Promise.all` and awaited them with no
+  destructure; a mid-batch failure (e.g. one chart deleted concurrently in
+  another tab) leaves that chart's `position` un-persisted while
+  `revalidatePath` still runs, silently reverting just that one card's
+  order on next load with no error surfaced anywhere.
+- **Where:** app/actions/charts.ts (`createDefaultChart` pre-fix line 45,
+  `deleteChart` pre-fix line 100, `reorderCharts` pre-fix line 151).
+- **Proposed fix:** (applied) all three now capture `{ error }` (or, for
+  `reorderCharts`, check each settled result from `Promise.all`) and return
+  `{ error?: string }` instead of `void`/nothing, matching the file's
+  existing convention on `createChart`/`updateChart`/`addChartFromProposal`.
+  All current callers (`components/delete-module-button.tsx`,
+  `components/charts/sortable-charts.tsx`, and the 4
+  `createDefaultChart` call sites in modules.ts/formula.ts) already
+  fire-and-forget these calls via bare `await`/`startTransition` and
+  discard the return value, so this is a pure capture-and-return with zero
+  behavior change today — no new user-facing error state, per the brief's
+  FIX criteria. `startTransition`'s callback type requires `void |
+  Promise<VoidOrUndefinedOnly>`, so the two `sortable-charts.tsx` call
+  sites needed a `void reorderCharts(...)` / `void deleteChart(...)` wrapper
+  to keep the callback void-returning — mechanical, not a behavior change
+  (still fire-and-forget). Errors are now at least capturable by a future
+  caller; none render yet, so surfacing them in the UI remains a separate
+  DECIDE (see F-17 for the one case — `deleteModule` — where the discarded
+  error is compounded by an unconditional `redirect`).
+
+## [F-17] `deleteModule` discards its delete error and still unconditionally redirects home
+- **Status:** DECIDE
+- **Severity:** medium
+- **Area:** actions
+- **What happens:** `deleteModule` (app/actions/modules.ts, pre-fix line
+  176) called `await supabase.from('modules').delete()...` with no error
+  destructure, then unconditionally ran `revalidatePath('/')` and
+  `redirect('/')`. Unlike `deleteChart`/`deleteEntry` (F-14, F-16), which at
+  least leave the user on the same page after a silent failure, this one
+  actively navigates the user away to the dashboard on every call
+  regardless of whether the delete actually succeeded — a failed delete
+  (RLS denial, FK constraint from a dependent row, network error) looks
+  identical to a successful one from the user's perspective: the tracker
+  disappears from view (redirected home) even though it's still in the DB
+  and will reappear the next time its module list is fetched. The sole
+  caller (`components/delete-module-button.tsx`) fire-and-forgets the call
+  inside `startTransition` with no result handling, so there's currently no
+  UI path that could surface an error even if one were returned.
+- **Where:** app/actions/modules.ts, `deleteModule` (pre-fix line 176,
+  unconditional `redirect('/')` after an uninspected delete).
+- **Proposed fix:** (partially applied) captured the error and logged it
+  server-side (`console.error`) so failures are at least visible in server
+  logs, but left the `redirect('/')` unconditional — making the redirect
+  conditional on success is a genuine behavior change (what happens on
+  failure: stay on the tracker page? show a toast before redirecting?) that
+  needs a product decision, not a mechanical fix, and doing it silently
+  would risk leaving the user on a tracker page they just "deleted" with no
+  explanation either way. Recommend: change the return type to
+  `Promise<{ error?: string } | never>` (matching `createChart`'s
+  `{ error } | never` pattern), skip the redirect on error, and have
+  `DeleteModuleButton` render the error inline (mirroring the
+  `EditRow`-style error span called out in F-14).
+
+## [F-18] `createJournalEntry`'s per-tracker and binary-module writes capture their error but only ever expose success/failure as silent omission from `loggedModules`
+- **Status:** DECIDE
+- **Severity:** low
+- **Area:** journal
+- **What happens:** `createJournalEntry` (app/actions/journal.ts:192-245)
+  fires one `createEntryInModule` call per connected tracker field (loop at
+  line 194-207) and, separately, one for the template's binary
+  "journaled" marker module (lines 233-242). Both call sites correctly read
+  `result.error`/`binaryResult.error` — this is not the "never checked"
+  class of bug — but the *only* thing done with a failure is skip pushing
+  that module's name onto `loggedModules`; there is no distinction between
+  "field wasn't enabled/connected for this module" and "the write to this
+  tracker failed." The journal entry itself has already been committed by
+  this point (insert at lines 150-159, checked and returned on error
+  correctly), so a downstream per-module write failure is genuinely
+  non-fatal to the user's data — but the user has no way to tell, from the
+  UI, that they journaled "I ran 5 miles" and checked the box to log it to
+  their Running tracker, yet the tracker entry silently didn't get created
+  because of e.g. a transient DB error. The code comment at line 206
+  ("Non-fatal: journal entry already saved; log errors are surfaced via
+  loggedModules absence") documents this as intentional, but "surfaced via
+  absence" is indistinguishable from "the user didn't check that box in the
+  first place."
+- **Where:** app/actions/journal.ts:192-207 (per-field tracker loop),
+  :233-242 (binary module write) — both discard the specific error message
+  from `createEntryInModule`, keeping only a boolean bit of information
+  (present/absent in `loggedModules`).
+- **Proposed fix:** two directions, both DECIDE since either changes what
+  the client can show: (a) minimal — return a separate `failedModules:
+  string[]` (or `{name, error}[]`) alongside `loggedModules` so the caller
+  *could* show "Logged to Sleep; failed to log to Running: <reason>",
+  without forcing a UI change immediately; (b) fuller — have the journal
+  capture UI actually render the distinction. Recommend (a) as the
+  lower-risk step: it's an additive return-shape change (existing callers
+  destructuring `{ id, loggedModules }` are unaffected) that unblocks a UI
+  fix later without committing to one now.

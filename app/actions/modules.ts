@@ -173,7 +173,8 @@ export async function createModuleFromProposal(
 export async function deleteModule(id: string): Promise<void> {
   const { supabase, user } = await requireUser()
 
-  await supabase.from('modules').delete().eq('id', id).eq('user_id', user.id)
+  const { error } = await supabase.from('modules').delete().eq('id', id).eq('user_id', user.id)
+  if (error) console.error('deleteModule failed:', error.message)
   revalidatePath('/')
   redirect('/')
 }
