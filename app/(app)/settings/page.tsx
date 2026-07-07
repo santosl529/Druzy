@@ -11,8 +11,8 @@ export default async function SettingsPage() {
   return (
     <main className="max-w-2xl mx-auto w-full px-4 py-10 space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-muted-foreground text-sm mt-1">{user.email}</p>
+        <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground mt-1">{user.email}</p>
       </div>
 
       <Separator />

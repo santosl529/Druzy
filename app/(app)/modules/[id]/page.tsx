@@ -63,7 +63,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
             <Link href="/" className="hover:underline">Trackers</Link> /
           </p>
           <h1 className="font-heading text-3xl font-bold tracking-tight">{typedModule.name}</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-muted-foreground mt-1">
             {isFormula
               ? `Formula tracker — ${typedEntries.length} computed ${typedEntries.length === 1 ? 'day' : 'days'}`
               : `${typedEntries.length} ${typedEntries.length === 1 ? 'entry' : 'entries'}`}
