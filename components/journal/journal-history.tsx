@@ -60,7 +60,7 @@ function EntryRow({ entry, template, onDeleted }: EntryRowProps) {
           ) : (
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="text-sm font-medium shrink-0">{formatDisplayDate(entry.entry_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          <span className="font-heading text-sm font-medium shrink-0">{formatDisplayDate(entry.entry_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
           {!expanded && fieldSummary.length > 0 && (
             <span className="text-xs text-muted-foreground truncate">
               {fieldSummary

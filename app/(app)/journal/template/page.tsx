@@ -20,8 +20,8 @@ export default async function JournalTemplatePage() {
             ← Journal
           </a>
         </div>
-        <h1 className="text-2xl font-semibold">Extraction template</h1>
-        <p className="text-muted-foreground text-sm mt-1">
+        <h1 className="font-heading text-3xl font-bold tracking-tight">Extraction template</h1>
+        <p className="text-muted-foreground mt-1">
           Define what the AI should extract from your journal entries. Add fields for things like
           daily highlights, mood, calories, weight — anything you regularly write down.
           Number fields can be connected to an existing tracker so extracted values are automatically logged.

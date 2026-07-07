@@ -337,7 +337,6 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
             {/* Transcribe button — shown before result */}
             {!hasResult && (
               <Button
-                variant="secondary"
                 size="sm"
                 onClick={handleTranscribe}
                 disabled={transcribing || photos.length === 0}

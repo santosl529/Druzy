@@ -1,3 +1,4 @@
+import { LockIcon } from 'lucide-react'
 import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { JournalCapture } from '@/components/journal/journal-capture'
 import { JournalHistory } from '@/components/journal/journal-history'
@@ -19,8 +20,8 @@ export default async function JournalPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Journal</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <h1 className="font-heading text-3xl font-bold tracking-tight">Journal</h1>
+          <p className="text-muted-foreground mt-1">
             Transcribe handwritten entries locally — photos never leave your device.
           </p>
         </div>
@@ -33,10 +34,13 @@ export default async function JournalPage() {
       </div>
 
       {/* Privacy notice */}
-      <div className="rounded-md bg-muted/40 border px-3 py-2 text-xs text-muted-foreground">
-        <strong className="text-foreground">Privacy:</strong> Transcription runs on your local
-        Ollama model. Photos are never sent to any server or stored in the database.
-        Only the extracted text and field values are saved to your Supabase account.
+      <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <LockIcon className="h-3 w-3 mt-0.5 shrink-0" />
+        <p>
+          Transcription runs on your local Ollama model. Photos are never sent to any server or
+          stored in the database — only the extracted text and field values are saved to your
+          Supabase account.
+        </p>
       </div>
 
       {/* Capture */}
