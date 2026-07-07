@@ -45,7 +45,7 @@ export default async function JournalPage() {
 
       {/* Capture */}
       <section>
-        <h2 className="text-base font-medium mb-4">New entry</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">New entry</h2>
         <JournalCapture
           template={template}
           trackerModules={trackerModules}
@@ -56,7 +56,7 @@ export default async function JournalPage() {
       {/* History */}
       {entries.length > 0 && (
         <section>
-          <h2 className="text-base font-medium mb-4">Recent entries</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">Recent entries</h2>
           <JournalHistory entries={entries} template={template} />
         </section>
       )}

@@ -19,7 +19,7 @@ export default async function SettingsPage() {
 
       {/* Appearance */}
       <section className="space-y-4">
-        <h2 className="font-medium">Appearance</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight">Appearance</h2>
         <SettingsColorScheme />
       </section>
 
@@ -27,7 +27,7 @@ export default async function SettingsPage() {
 
       {/* Date & time */}
       <section className="space-y-4">
-        <h2 className="font-medium">Date &amp; time</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight">Date &amp; time</h2>
         <SettingsTimezone savedTimezone={savedTimezone} />
       </section>
 
@@ -35,7 +35,7 @@ export default async function SettingsPage() {
 
       {/* Data transparency */}
       <section className="space-y-3">
-        <h2 className="font-medium">Data &amp; privacy</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight">Data &amp; privacy</h2>
         <div className="text-sm text-muted-foreground space-y-2">
           <p><strong className="text-foreground">What stays on your device:</strong> Journal photos and transcription. The local model runs entirely on your machine — nothing is sent to any server.</p>
           <p><strong className="text-foreground">What goes to the cloud:</strong> Module schemas, logged entries, and charts are stored in your Supabase database. Food photos are sent to a cloud vision API for calorie estimation (this is the one accepted third-party data flow).</p>

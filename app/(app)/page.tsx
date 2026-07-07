@@ -77,7 +77,7 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="font-heading text-3xl font-bold tracking-tight">Your trackers</h1>
-          <p className="text-muted-foreground">Log and visualize anything that matters to you.</p>
+          <p className="text-muted-foreground mt-1">Log and visualize anything that matters to you.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link href="/modules/new/formula" className={buttonVariants({ variant: 'outline' })}>
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
 
       {typedModules.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center flex flex-col items-center">
-          <GeodeIcon crystalType="amethyst" openness={0} className="size-16 mb-4" />
+          <span aria-hidden="true"><GeodeIcon crystalType="amethyst" openness={0} className="size-16 mb-4" /></span>
           <h2 className="font-heading text-xl font-semibold tracking-tight mb-2">
             Your first geode is waiting
           </h2>

@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-      <GeodeIcon crystalType="amethyst" openness={0.9} className="size-16 mb-2" />
+      <span aria-hidden="true"><GeodeIcon crystalType="amethyst" openness={0.9} className="size-16 mb-2" /></span>
       <h1 className="font-heading text-3xl font-bold tracking-tight">Druzy</h1>
       <p className="mb-6 text-muted-foreground">Log the shape of your days.</p>
 

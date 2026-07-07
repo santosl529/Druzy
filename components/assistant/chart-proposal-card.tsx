@@ -112,7 +112,7 @@ export function ChartProposalCard({ config, previewData, moduleOptions, defaultM
             <span className="text-sm">Chart added!</span>
             <Link
               href={`/modules/${savedModuleId}`}
-              className="text-sm text-accent-text hover:underline flex items-center gap-1"
+              className="text-sm text-accent-text hover:underline underline-offset-4 flex items-center gap-1"
             >
               View tracker <ExternalLinkIcon className="size-3" />
             </Link>
