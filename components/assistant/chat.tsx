@@ -68,9 +68,26 @@ export function AssistantChat() {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, status } = useChat()
+  const { messages, sendMessage, status } = useChat({
+    onError: (error) => console.error('[chat] client stream error:', error),
+  })
 
   const isLoading = status === 'submitted' || status === 'streaming'
+
+  // A tool part stuck in an input-* state once its stream has settled means the
+  // model's argument stream ended incomplete: execute never ran, so there is no
+  // output and no output-error either. Without this the spinner runs forever.
+  const streamSettled = status === 'ready' || status === 'error'
+  function isStalled(messageId: string) {
+    return streamSettled || messageId !== messages[messages.length - 1]?.id
+  }
+
+  function retryLastUserMessage() {
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+    if (!lastUser) return
+    const text = lastUser.parts.filter(isTextUIPart).map((p) => p.text).join('')
+    if (text) sendMessage({ text })
+  }
 
   // Auto-scroll to newest message
   useEffect(() => {
@@ -160,9 +177,12 @@ export function AssistantChat() {
                         invocation.state === 'input-available'
                       ) {
                         return (
-                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
-                            Designing your tracker…
-                          </p>
+                          <ToolStatus
+                            key={i}
+                            label="Designing your tracker…"
+                            stalled={isStalled(message.id)}
+                            onRetry={retryLastUserMessage}
+                          />
                         )
                       }
                       if (invocation.state === 'output-available') {
@@ -188,9 +208,12 @@ export function AssistantChat() {
                         invocation.state === 'input-available'
                       ) {
                         return (
-                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
-                            Designing your formula tracker…
-                          </p>
+                          <ToolStatus
+                            key={i}
+                            label="Designing your formula tracker…"
+                            stalled={isStalled(message.id)}
+                            onRetry={retryLastUserMessage}
+                          />
                         )
                       }
                       if (invocation.state === 'output-available') {
@@ -215,9 +238,12 @@ export function AssistantChat() {
                         invocation.state === 'input-available'
                       ) {
                         return (
-                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
-                            Building your chart preview…
-                          </p>
+                          <ToolStatus
+                            key={i}
+                            label="Building your chart preview…"
+                            stalled={isStalled(message.id)}
+                            onRetry={retryLastUserMessage}
+                          />
                         )
                       }
                       if (invocation.state === 'output-available') {
@@ -250,9 +276,12 @@ export function AssistantChat() {
                         invocation.state === 'input-available'
                       ) {
                         return (
-                          <p key={i} className="text-sm text-muted-foreground italic animate-pulse">
-                            Computing…
-                          </p>
+                          <ToolStatus
+                            key={i}
+                            label="Computing…"
+                            stalled={isStalled(message.id)}
+                            onRetry={retryLastUserMessage}
+                          />
                         )
                       }
                       if (invocation.state === 'output-available') {
@@ -322,6 +351,39 @@ export function AssistantChat() {
         </Button>
       </form>
     </main>
+  )
+}
+
+// ----------------------------------------------------------------
+// Pending / stalled state for a tool call
+// ----------------------------------------------------------------
+
+function ToolStatus({
+  label,
+  stalled,
+  onRetry,
+}: {
+  label: string
+  stalled: boolean
+  onRetry: () => void
+}) {
+  if (!stalled) {
+    return <p className="text-sm text-muted-foreground italic animate-pulse">{label}</p>
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-destructive">
+        The assistant started this step but the response ended before it finished.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="text-sm underline underline-offset-4 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Try again
+      </button>
+    </div>
   )
 }
 
