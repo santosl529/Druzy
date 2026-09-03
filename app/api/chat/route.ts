@@ -80,6 +80,8 @@ Field keys: lowercase snake_case only (e.g. "hours_slept"). No spaces, hyphens, 
 Units: for number/rating fields with an obvious unit set "unit" (e.g. "lbs", "km", "min", "kcal").
 Field count: 2–5 is almost always right.
 Required: only when the tracker makes no sense without that field.
+Call this AT MOST ONCE per user request. It returns a card the user confirms; calling it
+again only stacks a duplicate card under the first one.
 
 ## Formula tracker — createFormulaModule
 Call this when the user wants a value COMPUTED from other trackers.
@@ -88,6 +90,7 @@ Call this when the user wants a value COMPUTED from other trackers.
 - inputs[].alias: short name used in the expression, e.g. "w" or "cals".
 - expression: arithmetic only — numbers, aliases, + - * / % ^ ( ) and unary minus.
 - Only reference standard trackers (not other formula trackers).
+- Call this AT MOST ONCE per user request, for the same reason as createModule.
 
 ## Chart preview — proposeChart
 Call this when the user asks to SEE, VISUALIZE, PLOT, or CHART their data.
@@ -118,6 +121,21 @@ If you're asked a general question, answer helpfully and invite a tracker or cha
 // createModule tool
 // ----------------------------------------------------------------
 
+/**
+ * Appended to every successful proposal-tool result.
+ *
+ * Proposal tools return a card the user still has to confirm, so a bare
+ * `{ success: true, proposal }` reads to the model as "nothing exists yet" and
+ * it calls the tool a second time within the step budget. proposeChart avoids
+ * this only because its result carries rendered data that reads as finished.
+ */
+const PROPOSAL_DISPLAYED_NOTE =
+  'A proposal card is now displayed to the user, who reviews and confirms it. ' +
+  'The tracker is NOT created until they confirm — that is expected and requires ' +
+  'nothing further from you. Do not call this tool again for this request. ' +
+  'Reply with one short sentence describing what you designed and why.'
+
+
 const createModuleTool = tool({
   description:
     'Propose a new standard tracker schema. Call this when the user wants to log something new.',
@@ -132,7 +150,14 @@ const createModuleTool = tool({
         error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
       }
     }
-    return { success: true as const, proposal: parsed.data }
+    return {
+      success: true as const,
+      proposal: parsed.data,
+      // The model cannot see the UI. Without an explicit "this is done" signal it
+      // reads the proposal as work-in-progress and calls the tool again on the
+      // next step, producing a second live card the user can also confirm.
+      note: PROPOSAL_DISPLAYED_NOTE,
+    }
   },
 })
 
@@ -202,6 +227,7 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
       return {
         success: true as const,
         proposal: { name, config: { inputs: parsed.data.inputs, expression: parsed.data.expression }, enrichedInputs },
+        note: PROPOSAL_DISPLAYED_NOTE,
       }
     },
   })
