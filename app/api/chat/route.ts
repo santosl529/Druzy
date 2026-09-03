@@ -565,7 +565,17 @@ export async function POST(req: Request) {
       proposeChart: makeProposedChartTool(supabase, summaries, user.id, userTz),
       queryAnalytics: makeQueryAnalyticsTool(supabase, summaries, user.id, userTz),
     },
+    // Without these the SDK swallows stream failures: the server logs nothing and
+    // the client receives a masked generic message.
+    onError: ({ error }) => {
+      console.error('[chat] stream error:', error)
+    },
   })
 
-  return result.toUIMessageStreamResponse()
+  return result.toUIMessageStreamResponse({
+    onError: (error) => {
+      console.error('[chat] ui stream error:', error)
+      return error instanceof Error ? error.message : String(error)
+    },
+  })
 }
