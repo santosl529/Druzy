@@ -57,15 +57,28 @@ const dashboardConfigSchema = z.discriminatedUnion('mode', [
   }),
 ])
 
-const moduleFieldSchema = z.object({
-  key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
-  label: z.string().min(1),
-  type: z.enum(FIELD_TYPES),
-  required: z.boolean(),
-  options: z.array(z.string()).optional(),
-  /** Optional unit for number/rating fields (e.g. "lbs", "kcal", "min"). */
-  unit: z.string().max(20).optional(),
-})
+const moduleFieldSchema = z
+  .object({
+    key: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Key must be lowercase letters, numbers, or underscores'),
+    label: z.string().min(1),
+    type: z.enum(FIELD_TYPES),
+    required: z.boolean(),
+    options: z.array(z.string()).optional(),
+    /** Optional unit for number/rating fields (e.g. "lbs", "kcal", "min"). */
+    unit: z.string().max(20).optional(),
+  })
+  .superRefine((field, ctx) => {
+    // A select with no options renders as an empty dropdown the user can never
+    // pick from, so the field is dead on arrival. Caught here rather than in the
+    // UI so every path — manual builder, edit, and AI proposal — is covered.
+    if (field.type === 'select' && !field.options?.some((o) => o.trim().length > 0)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: `Select field "${field.label}" needs at least one option`,
+      })
+    }
+  })
 
 /**
  * An AI-proposed tracker, before the user picks a crystal in the proposal card.

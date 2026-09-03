@@ -39,6 +39,26 @@ describe('createModule tool input schema', () => {
   })
 })
 
+describe('select fields the model under-specified', () => {
+  const selectNoOptions = {
+    name: 'Practice',
+    fields: [{ key: 'mood', label: 'Mood', type: 'select' }],
+  }
+
+  it('passes tool-input validation so the model can be told what went wrong', () => {
+    // Deliberately permissive: a hard failure here aborts the stream before
+    // execute runs (AI_InvalidToolInputError) and the model never learns why.
+    expect(createModuleInputSchema.safeParse(selectNoOptions).success).toBe(true)
+  })
+
+  it('is rejected by execute with a message the model can act on', () => {
+    const input = createModuleInputSchema.parse(selectNoOptions)
+    const parsed = moduleProposalSchema.safeParse(input)
+    expect(parsed.success).toBe(false)
+    expect(parsed.error!.issues[0].message).toContain('option')
+  })
+})
+
 describe('moduleProposalSchema', () => {
   it('validates a proposal before the user has picked a crystal', () => {
     const input = createModuleInputSchema.parse(modelInput)

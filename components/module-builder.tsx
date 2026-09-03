@@ -144,6 +144,17 @@ export function ModuleBuilder({ initial }: Props) {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+
+    // A select with no options saves as an unusable empty dropdown. The server
+    // rejects it too; this just reports it next to the field the user is editing.
+    const optionless = fields.find(
+      (f) => f.type === 'select' && !f.options?.some((o) => o.trim().length > 0)
+    )
+    if (optionless) {
+      setError(`Select field "${optionless.label || optionless.key}" needs at least one option.`)
+      return
+    }
+
     const fd = new FormData()
     fd.set('name', name)
     fd.set('fields', JSON.stringify(fields))
