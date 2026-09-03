@@ -67,6 +67,16 @@ const moduleFieldSchema = z.object({
   unit: z.string().max(20).optional(),
 })
 
+/**
+ * An AI-proposed tracker, before the user picks a crystal in the proposal card.
+ * Same field rules as `moduleSchema` without the presentation columns the
+ * assistant never chooses.
+ */
+export const moduleProposalSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  fields: z.array(moduleFieldSchema).min(1, 'At least one field is required'),
+})
+
 // chart_config removed from modules; charts are their own table now
 export const moduleSchema = z
   .object({

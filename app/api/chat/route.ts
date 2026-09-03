@@ -1,13 +1,13 @@
 import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai'
 import { z } from 'zod'
 import { chatModel } from '@/lib/ai/config'
-import { moduleSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/validations'
+import { moduleProposalSchema, formulaConfigSchema, chartConfigSchema } from '@/lib/validations'
+import { createModuleInputSchema } from '@/lib/ai/tool-schemas'
 import { getAuthContext, getUserTimezone } from '@/lib/supabase/auth'
 import { validateExpression } from '@/lib/formula'
 import { getMultiSeriesData, SERIES_COLORS } from '@/lib/chart-data'
 import { daysAgoInTimezone } from '@/lib/date'
 import { computeSummary, computeTrend, computeCorrelation, computeStreak } from '@/lib/analytics'
-import { FIELD_TYPES } from '@/lib/types'
 import type { Module, ModuleField, Entry, ChartConfig, DateRange } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -121,23 +121,11 @@ If you're asked a general question, answer helpfully and invite a tracker or cha
 const createModuleTool = tool({
   description:
     'Propose a new standard tracker schema. Call this when the user wants to log something new.',
-  inputSchema: z.object({
-    name: z.string().min(1).describe('Human-readable tracker name, e.g. "Sleep Tracker"'),
-    fields: z
-      .array(
-        z.object({
-          key: z.string().describe('Lowercase snake_case identifier'),
-          label: z.string().describe('Human-readable field label'),
-          type: z.enum(FIELD_TYPES).describe('Field type'),
-          required: z.boolean(),
-          options: z.array(z.string()).optional().describe('Required when type is "select"'),
-          unit: z.string().optional().describe('Unit for number/rating fields, e.g. "lbs"'),
-        })
-      )
-      .min(1),
-  }),
+  inputSchema: createModuleInputSchema,
   execute: async ({ name, fields }) => {
-    const parsed = moduleSchema.safeParse({ name, fields })
+    // moduleProposalSchema, not moduleSchema: the crystal is picked by the user
+    // in the proposal card, so a proposal has no crystal_type yet.
+    const parsed = moduleProposalSchema.safeParse({ name, fields })
     if (!parsed.success) {
       return {
         success: false as const,
