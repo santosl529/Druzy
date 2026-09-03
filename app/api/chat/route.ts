@@ -554,6 +554,11 @@ export async function POST(req: Request) {
 
   const { messages } = await req.json()
 
+  // Diagnostic: correlate concurrent requests and record how each stream ended.
+  // Remove once the incomplete-tool-call issue is closed.
+  const reqId = Math.random().toString(36).slice(2, 8)
+  console.log(`[chat ${reqId}] POST in — ${messages?.length ?? 0} message(s)`)
+
   const result = streamText({
     model: chatModel,
     system: systemPrompt,
@@ -568,13 +573,22 @@ export async function POST(req: Request) {
     // Without these the SDK swallows stream failures: the server logs nothing and
     // the client receives a masked generic message.
     onError: ({ error }) => {
-      console.error('[chat] stream error:', error)
+      console.error(`[chat ${reqId}] stream error:`, error)
+    },
+    onFinish: ({ finishReason, steps }) => {
+      const calls = steps.flatMap((s) =>
+        s.toolCalls.map((c) => c.toolName)
+      )
+      console.log(
+        `[chat ${reqId}] finish=${finishReason} steps=${steps.length} ` +
+          `toolCalls=[${calls.join(', ')}]`
+      )
     },
   })
 
   return result.toUIMessageStreamResponse({
     onError: (error) => {
-      console.error('[chat] ui stream error:', error)
+      console.error(`[chat ${reqId}] ui stream error:`, error)
       return error instanceof Error ? error.message : String(error)
     },
   })
