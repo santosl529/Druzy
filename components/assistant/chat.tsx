@@ -10,6 +10,11 @@ import { ModuleProposalCard } from '@/components/assistant/module-proposal-card'
 import { FormulaProposalCard } from '@/components/assistant/formula-proposal-card'
 import { ChartProposalCard } from '@/components/assistant/chart-proposal-card'
 import { AnalyticsInsightCard } from '@/components/assistant/analytics-insight-card'
+import { AssistantMarkdown } from '@/components/assistant/assistant-markdown'
+import {
+  sanitizeAssistantText,
+  selectAssistantParts,
+} from '@/lib/ai/chat-presentation'
 import type { ModuleField, FormulaConfig, ChartConfig } from '@/lib/types'
 import type { EnrichedInput } from '@/components/assistant/formula-proposal-card'
 import type { MultiSeriesRow, SeriesMeta } from '@/lib/chart-data'
@@ -133,32 +138,33 @@ export function AssistantChat() {
       {/* Message list */}
       {messages.length > 0 && (
         <div className="flex-1 space-y-6 pb-4 overflow-y-auto">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
-            >
+          {messages.map((message) => {
+            const visibleParts =
+              message.role === 'assistant'
+                ? selectAssistantParts(message.parts)
+                : message.parts
+
+            return (
               <div
-                className={
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm'
-                    : 'max-w-full space-y-3'
-                }
+                key={message.id}
+                className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
               >
-                {message.parts.map((part, i) => {
+                <div
+                  className={
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm'
+                      : 'max-w-full space-y-3'
+                  }
+                >
+                {visibleParts.map((part, i) => {
                   // Text part
                   if (isTextUIPart(part)) {
+                    if (message.role === 'assistant') {
+                      const text = sanitizeAssistantText(part.text)
+                      return text ? <AssistantMarkdown key={i} text={text} /> : null
+                    }
                     return (
-                      <p
-                        key={i}
-                        className={
-                          message.role === 'assistant'
-                            ? 'text-sm leading-relaxed whitespace-pre-wrap'
-                            : undefined
-                        }
-                      >
-                        {part.text}
-                      </p>
+                      <p key={i}>{part.text}</p>
                     )
                   }
 
@@ -190,7 +196,7 @@ export function AssistantChat() {
                         if (output?.success) {
                           return <ModuleProposalCard key={i} proposal={output.proposal} />
                         }
-                        // success: false → model retries; render nothing
+                        return <ToolFailure key={i} />
                       }
                       if (invocation.state === 'output-error') {
                         return (
@@ -221,6 +227,7 @@ export function AssistantChat() {
                         if (output?.success) {
                           return <FormulaProposalCard key={i} proposal={output.proposal} />
                         }
+                        return <ToolFailure key={i} />
                       }
                       if (invocation.state === 'output-error') {
                         return (
@@ -259,6 +266,7 @@ export function AssistantChat() {
                             />
                           )
                         }
+                        return <ToolFailure key={i} />
                       }
                       if (invocation.state === 'output-error') {
                         return (
@@ -296,7 +304,7 @@ export function AssistantChat() {
                             />
                           )
                         }
-                        // success: false → LLM retries; render nothing
+                        return <ToolFailure key={i} />
                       }
                       if (invocation.state === 'output-error') {
                         return (
@@ -310,9 +318,10 @@ export function AssistantChat() {
 
                   return null
                 })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           {/* Loading indicator while waiting for first token */}
           {isLoading && messages[messages.length - 1]?.role === 'user' && (
@@ -384,6 +393,14 @@ function ToolStatus({
         Try again
       </button>
     </div>
+  )
+}
+
+function ToolFailure() {
+  return (
+    <p className="text-sm text-destructive">
+      I couldn&apos;t complete that request. Please adjust it and try again.
+    </p>
   )
 }
 

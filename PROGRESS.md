@@ -142,6 +142,15 @@
 - Bumped `@tailwindcss/postcss` / `tailwindcss` to 4.3.1 — uses `module.registerHooks()` on Node 26+ instead of deprecated `module.register()` (DEP0205)
 - Proxy auth refresh failures fail open (transient Supabase network blips no longer log scary stack traces or redirect to login)
 
+### 20. Assistant output hardening
+- Assistant text now renders safe Markdown through `react-markdown`; bold, italics, lists, inline code, and links render correctly while raw HTML remains escaped
+- Structured tool messages suppress adjacent model narration so internal tool names, arguments, JSON, and completion instructions do not leak into chat
+- Added fallback sanitization for malformed textual tool calls, including XML-style wrappers, fenced payloads, and multiline JSON
+- Tool execution is limited to one non-parallel call per request (`stepCountIs(1)` plus `parallelToolCalls: false`), and duplicate tool cards are filtered defensively in the client
+- Tool validation failures now show a generic user-safe retry message instead of silently disappearing or exposing internal validation details
+- Chat streaming now passes `originalMessages` to the AI SDK response helper to preserve message reconciliation
+- Added six regression tests covering Markdown rendering, raw-HTML escaping, tool-text suppression, duplicate tool calls, and textual tool-call cleanup
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI

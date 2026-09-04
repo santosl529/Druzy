@@ -111,30 +111,17 @@ Examples: "What's my average sleep?", "Is my weight trending down?", "Do sleep a
 - For "streak", the field parameter inside seriesA is ignored — streak counts unique days with any entry on that tracker.
 - dateRange is optional; omit to use all data.
 - Do NOT use this for visualization — call proposeChart for that. Use queryAnalytics for stats/insight questions.
-- After the tool returns, narrate the result in plain language. Be concise and highlight the key number.
+- The computed result appears in an insight card; do not repeat it in text.
 
-After calling any tool, briefly explain what you designed and why.
+Tool calls are rendered as interactive UI. When calling a tool, emit only the
+structured tool call: do not announce it, narrate it, repeat its result, expose
+its name or arguments, or add text before or after it.
 If you're asked a general question, answer helpfully and invite a tracker or chart request.`
 }
 
 // ----------------------------------------------------------------
 // createModule tool
 // ----------------------------------------------------------------
-
-/**
- * Appended to every successful proposal-tool result.
- *
- * Proposal tools return a card the user still has to confirm, so a bare
- * `{ success: true, proposal }` reads to the model as "nothing exists yet" and
- * it calls the tool a second time within the step budget. proposeChart avoids
- * this only because its result carries rendered data that reads as finished.
- */
-const PROPOSAL_DISPLAYED_NOTE =
-  'A proposal card is now displayed to the user, who reviews and confirms it. ' +
-  'The tracker is NOT created until they confirm — that is expected and requires ' +
-  'nothing further from you. Do not call this tool again for this request. ' +
-  'Reply with one short sentence describing what you designed and why.'
-
 
 const createModuleTool = tool({
   description:
@@ -153,10 +140,6 @@ const createModuleTool = tool({
     return {
       success: true as const,
       proposal: parsed.data,
-      // The model cannot see the UI. Without an explicit "this is done" signal it
-      // reads the proposal as work-in-progress and calls the tool again on the
-      // next step, producing a second live card the user can also confirm.
-      note: PROPOSAL_DISPLAYED_NOTE,
     }
   },
 })
@@ -227,7 +210,6 @@ function makeCreateFormulaModuleTool(summaries: ModuleSummary[]) {
       return {
         success: true as const,
         proposal: { name, config: { inputs: parsed.data.inputs, expression: parsed.data.expression }, enrichedInputs },
-        note: PROPOSAL_DISPLAYED_NOTE,
       }
     },
   })
@@ -505,7 +487,7 @@ function makeQueryAnalyticsTool(
           )
         : []
 
-      // Build labels for the LLM to narrate with
+      // Build labels for the insight card
       const fieldAMeta = modA.allFields.find((f) => f.key === seriesA.field)
       const labels = {
         moduleA: modA.name,
@@ -577,7 +559,12 @@ export async function POST(req: Request) {
     model: chatModel,
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    stopWhen: stepCountIs(3),
+    stopWhen: stepCountIs(1),
+    providerOptions: {
+      openai: {
+        parallelToolCalls: false,
+      },
+    },
     tools: {
       createModule: createModuleTool,
       createFormulaModule: makeCreateFormulaModuleTool(summaries),
@@ -601,6 +588,7 @@ export async function POST(req: Request) {
   })
 
   return result.toUIMessageStreamResponse({
+    originalMessages: messages,
     onError: (error) => {
       console.error(`[chat ${reqId}] ui stream error:`, error)
       return error instanceof Error ? error.message : String(error)
