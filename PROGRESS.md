@@ -151,8 +151,18 @@
 - Chat streaming now passes `originalMessages` to the AI SDK response helper to preserve message reconciliation
 - Added six regression tests covering Markdown rendering, raw-HTML escaping, tool-text suppression, duplicate tool calls, and textual tool-call cleanup
 
+### 21. Performance + loading experience
+- Auth: `getClaims()` replaces `getUser()` in proxy and `getAuthContext` — JWT verified locally against the ECC (P-256) signing key, removing two Supabase Auth round trips per request. `requireUser()` now returns a minimal `AuthUser` (`{ id, email }`); revoked sessions stay valid until token expiry
+- Trackers page: loads only the last 31 days of entries (older only for `all`-window cards); lifetime counts via new `module_entry_counts()` RPC; all queries in one parallel batch. Server time ~235ms → ~62ms locally
+- Module page: all modules fetched in the first batch (one fewer round trip); History table renders 50 rows at a time with "Show more" (was ~6.9k DOM nodes / 1.27 MB HTML for 384 entries)
+- RLS: all `owner_all` policies use `(select auth.uid())` and are scoped `to authenticated`
+- Loading skeletons for trackers, module detail, and a generic fallback; trackers and module pages moved into `(home)` / `(detail)` route groups so their skeletons don't apply to nested routes
+- Boot splash: on full load, a random-crystal geode grows to the cracking stage while data loads, then bursts its shards, blooms, and fades to the page (minimum 1.5s). Registers `--openness` via `@property`; skipped for reduced motion / no JS; 10s CSS failsafe
+- Migrations: `20240111000000_module_entry_counts.sql`, `20240112000000_rls_initplan_auth_uid.sql` (both applied)
+
 ## Known issues / open items
 - `updateTheme` assistant tool not yet built (listed as not-yet-built in PRD §5.2)
 - Journal transcription accuracy on real handwriting must be tested manually with Ollama running — cannot be verified in CI
 - Do NOT use `llama3.2-vision` (mllama) with the journal feature — it crashes Ollama's llama.cpp runner on current builds. Use `qwen2.5vl` (the new default) or another native-engine vision model.
 - Vision model (`anthropic/claude-sonnet-4-5` via OpenRouter) requires `OPENROUTER_API_KEY` to be set with sufficient credits; free-tier key won't work for vision calls
+- `next dev --webpack` makes local dev page loads slow (opts out of Turbopack)
