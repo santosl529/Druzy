@@ -12,6 +12,11 @@ const SPLIT = 0.55
 const TO_SPLIT = 320
 const BLOOM = 520
 const FADE = 320
+const FADE_OVERLAP = 120
+/** The full sequence always gets at least this long, even when data is instant. */
+const MIN_TOTAL = 1500
+/** Earliest the finish may start so the whole sequence spans MIN_TOTAL. */
+const MIN_FINISH_START = MIN_TOTAL - (TO_SPLIT + BLOOM - FADE_OVERLAP + FADE)
 
 /**
  * GeodeIcon's four stone chunks (outer shape + inner shading), redrawn so they
@@ -30,9 +35,9 @@ const SHARDS: { outer: string; inner: string; innerFill: string; fly: [number, n
  * (globals.css), so it plays before hydration. Once hydrated and the page's
  * data has streamed in (no loading skeleton left in the DOM), the geode races
  * through the remaining stages, its stone shards burst out, and the overlay
- * fades to the page. The backdrop covers the page from the first paint; the
- * geode waits 200ms before appearing, and if the load finishes first the
- * backdrop just fades out without playing.
+ * fades to the page. The backdrop covers the page from the first paint, and
+ * the whole sequence always runs at least MIN_TOTAL; slower loads pulse at
+ * the cracking stage until the data arrives.
  *
  * Lives in the app layout, so it only appears on a full load (or on entering
  * the app from /login) — client navigations keep the mounted layout.
@@ -47,23 +52,26 @@ export function BootSplash() {
     let cancelled = false
     const animations: Animation[] = []
 
+    let timer: ReturnType<typeof setTimeout> | undefined
+
     function finish() {
       observer.disconnect()
       if (cancelled || !root) return
       const svg = root.querySelector<SVGSVGElement>('.boot-splash-geode')
-      const mark = root.querySelector<HTMLElement>('.boot-splash-mark')
-      if (!svg || !mark || typeof root.animate !== 'function') {
+      if (!svg || typeof root.animate !== 'function') {
         setDone(true)
         return
       }
-      // Loaded before the geode appeared: just fade the backdrop to the page.
-      if (parseFloat(getComputedStyle(mark).opacity) < 0.05) {
-        root.dataset.phase = 'finishing'
-        const quick = root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
-        animations.push(quick)
-        quick.finished.then(() => !cancelled && setDone(true)).catch(() => {})
-        return
-      }
+      // How long the CSS loading phase has run (works for a full load and for
+      // a client mount from /login alike); hold until the minimum is reached.
+      const elapsed = Number(svg.getAnimations()[0]?.currentTime ?? MIN_FINISH_START)
+      const wait = Math.max(0, MIN_FINISH_START - elapsed)
+      if (wait > 0) timer = setTimeout(() => play(root, svg), wait)
+      else play(root, svg)
+    }
+
+    function play(root: HTMLDivElement, svg: SVGSVGElement) {
+      if (cancelled) return
 
       // Continue from wherever the loading loop is, rather than restarting.
       const current = parseFloat(getComputedStyle(svg).getPropertyValue('--openness')) || 0
@@ -96,7 +104,7 @@ export function BootSplash() {
       })
       const fade = root.animate([{ opacity: 1 }, { opacity: 0 }], {
         duration: FADE,
-        delay: TO_SPLIT + BLOOM - 120,
+        delay: TO_SPLIT + BLOOM - FADE_OVERLAP,
         easing: 'ease-out',
         fill: 'forwards',
       })
@@ -115,6 +123,7 @@ export function BootSplash() {
 
     return () => {
       cancelled = true
+      clearTimeout(timer)
       observer.disconnect()
       for (const a of animations) a.cancel()
     }

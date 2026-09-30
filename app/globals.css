@@ -180,16 +180,14 @@
   initial-value: 0;
 }
 
-/* The backdrop covers the page from the first paint (so the skeleton never
-   flashes on a full load); the geode itself only appears after 200ms, so fast
-   loads never see it. A failsafe fades everything out after 10s in case the
-   client script never takes over. */
+/* The backdrop covers the page from the first paint, so the skeleton never
+   flashes on a full load. A failsafe fades everything out after 10s in case
+   the client script never takes over. */
 .boot-splash {
   animation: boot-splash-failsafe 300ms ease-in 10s forwards;
 }
 .boot-splash-mark {
-  opacity: 0;
-  animation: boot-splash-in 200ms ease-out 200ms forwards;
+  animation: boot-splash-in 150ms ease-out both;
 }
 
 /* While loading: grow toward the cracking stage, then pulse there. It stays
@@ -197,8 +195,8 @@
 .boot-splash-geode {
   transform-origin: center;
   animation:
-    boot-splash-grow 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) 200ms both,
-    boot-splash-pulse 1.6s ease-in-out 2.6s infinite alternate;
+    boot-splash-grow 700ms cubic-bezier(0.2, 0.6, 0.3, 1) both,
+    boot-splash-pulse 1.6s ease-in-out 700ms infinite alternate;
 }
 
 /* The client script drives the finish (bloom, burst, fade) itself. */
@@ -214,6 +212,7 @@
 }
 
 @keyframes boot-splash-in {
+  from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes boot-splash-failsafe {
