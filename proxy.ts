@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
@@ -23,12 +24,15 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refresh the session — must call getUser, not getSession (which is unreliable server-side)
+  // Refresh the session and verify it. getClaims (not getSession, which trusts
+  // the cookie unverified) checks the JWT signature locally against the
+  // project's asymmetric signing key — no Auth round trip unless it refreshes.
   let user = null
   let authCheckFailed = false
   try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
+    const { data, error } = await supabase.auth.getClaims()
+    if (isAuthRetryableFetchError(error)) throw error
+    user = data?.claims.sub ? data.claims : null
   } catch (error) {
     // Transient network blips during token refresh (AuthRetryableFetchError, status 0)
     // should not log the user out — let the request through with existing cookies.

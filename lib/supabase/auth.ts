@@ -1,24 +1,25 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
-import type { SupabaseClient, User } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from './server'
+import { userFromClaims, type AuthUser } from './claims'
 
 /**
  * Auth context without a redirect — for API routes that answer 401 themselves.
- * React-cached so a layout and its page share one Supabase auth round trip.
+ * getClaims verifies the access token locally against the project's
+ * asymmetric signing key (JWKS cached in-process), so this costs no Auth
+ * round trip. React-cached so a layout and its page share one check.
  */
 export const getAuthContext = cache(
-  async (): Promise<{ supabase: SupabaseClient; user: User | null }> => {
+  async (): Promise<{ supabase: SupabaseClient; user: AuthUser | null }> => {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return { supabase, user }
+    const { data } = await supabase.auth.getClaims()
+    return { supabase, user: userFromClaims(data?.claims) }
   },
 )
 
 /** Auth for pages and server actions: redirects to /login when signed out. */
-export async function requireUser(): Promise<{ supabase: SupabaseClient; user: User }> {
+export async function requireUser(): Promise<{ supabase: SupabaseClient; user: AuthUser }> {
   const { supabase, user } = await getAuthContext()
   if (!user) redirect('/login')
   return { supabase, user }
