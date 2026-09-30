@@ -182,11 +182,18 @@ function EditRow({ entry, fields, moduleId, onCancel }: EditRowProps) {
 // Main component
 // ----------------------------------------------------------------
 
+/**
+ * Rows rendered initially and added per "Show more". Long histories otherwise
+ * render thousands of DOM nodes (two icon buttons per row) on every page load.
+ */
+const PAGE_SIZE = 50
+
 export function EntryList({ moduleId, fields, entries, readOnly = false }: Props) {
   const [, startTransition] = useTransition()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   if (entries.length === 0) {
     return (
@@ -211,7 +218,7 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
           </TableRow>
         </TableHeader>
         <TableBody>
-          {entries.map((entry) =>
+          {entries.slice(0, visibleCount).map((entry) =>
             !readOnly && editingId === entry.id ? (
               <EditRow
                 key={entry.id}
@@ -276,6 +283,16 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
           )}
         </TableBody>
       </Table>
+      {entries.length > visibleCount && (
+        <div className="flex items-center justify-center gap-3 border-t p-2">
+          <span className="text-xs text-muted-foreground">
+            Showing {visibleCount} of {entries.length}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+            Show more
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
