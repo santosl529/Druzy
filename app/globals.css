@@ -168,3 +168,67 @@
     font-family: var(--font-heading);
   }
 }
+
+/* ----------------------------------------------------------------
+   Boot splash — the geode that plays while the app first opens
+   (components/boot-splash.tsx). Registering --openness lets it be
+   animated; GeodeIcon derives every stage from it.
+   ---------------------------------------------------------------- */
+@property --openness {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+/* The backdrop covers the page from the first paint (so the skeleton never
+   flashes on a full load); the geode itself only appears after 200ms, so fast
+   loads never see it. A failsafe fades everything out after 10s in case the
+   client script never takes over. */
+.boot-splash {
+  animation: boot-splash-failsafe 300ms ease-in 10s forwards;
+}
+.boot-splash-mark {
+  opacity: 0;
+  animation: boot-splash-in 200ms ease-out 200ms forwards;
+}
+
+/* While loading: grow toward the cracking stage, then pulse there. It stays
+   below the 0.55 split so the burst is saved for when the data is ready. */
+.boot-splash-geode {
+  transform-origin: center;
+  animation:
+    boot-splash-grow 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) 200ms both,
+    boot-splash-pulse 1.6s ease-in-out 2.6s infinite alternate;
+}
+
+/* The client script drives the finish (bloom, burst, fade) itself. */
+.boot-splash[data-phase='finishing'] {
+  animation: none;
+}
+.boot-splash[data-phase='finishing'] .boot-splash-mark {
+  opacity: 1;
+  animation: none;
+}
+.boot-splash[data-phase='finishing'] .boot-splash-geode {
+  animation: none;
+}
+
+@keyframes boot-splash-in {
+  to { opacity: 1; }
+}
+@keyframes boot-splash-failsafe {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}
+@keyframes boot-splash-grow {
+  from { --openness: 0; }
+  to { --openness: 0.5; }
+}
+@keyframes boot-splash-pulse {
+  from { --openness: 0.5; }
+  to { --openness: 0.42; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash { display: none; }
+}

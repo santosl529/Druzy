@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator'
 /** Module detail skeleton — header, log form, a chart, and history rows. */
 export default function ModuleLoading() {
   return (
-    <main className="max-w-4xl mx-auto w-full px-4 py-10 space-y-8" aria-busy="true">
+    <main className="max-w-4xl mx-auto w-full px-4 py-10 space-y-8" aria-busy="true" data-app-loading="">
       <span className="sr-only" role="status">Loading tracker…</span>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

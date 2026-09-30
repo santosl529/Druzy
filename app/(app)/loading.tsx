@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function AppLoading() {
   return (
-    <main className="max-w-2xl mx-auto w-full px-4 py-10 space-y-8" aria-busy="true">
+    <main className="max-w-2xl mx-auto w-full px-4 py-10 space-y-8" aria-busy="true" data-app-loading="">
       <span className="sr-only" role="status">Loading…</span>
       <div>
         <Skeleton className="h-9 w-48" />

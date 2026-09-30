@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 /** Trackers page skeleton — mirrors the header and the 1/2/3-column card grid. */
 export default function TrackersLoading() {
   return (
-    <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10" aria-busy="true">
+    <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10" aria-busy="true" data-app-loading="">
       <span className="sr-only" role="status">Loading trackers…</span>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
