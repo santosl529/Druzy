@@ -16,15 +16,18 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { supabase, user } = await requireUser()
 
-  const [{ data: module }, { data: charts }, savedTimezone] = await Promise.all([
-    supabase.from('modules').select('*').eq('id', id).eq('user_id', user.id).single(),
+  // All of the user's modules (a handful) load up front so chart and formula
+  // source modules can be picked out without another round trip.
+  const [{ data: modules }, { data: charts }, savedTimezone] = await Promise.all([
+    supabase.from('modules').select('*').eq('user_id', user.id),
     supabase.from('charts').select('*').eq('module_id', id).eq('user_id', user.id).order('position'),
     getUserTimezone(supabase, user.id),
   ])
 
-  if (!module) notFound()
+  const allModules = (modules ?? []) as Module[]
+  const typedModule = allModules.find((m) => m.id === id)
+  if (!typedModule) notFound()
 
-  const typedModule = module as Module
   const typedCharts = (charts ?? []) as Chart[]
   const isFormula = typedModule.kind === 'formula'
 
@@ -33,9 +36,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
   const neededIds = new Set<string>([id])
   for (const c of typedCharts) for (const s of c.config.series) neededIds.add(s.moduleId)
 
-  const { data: srcModules } = await supabase
-    .from('modules').select('*').eq('user_id', user.id).in('id', [...neededIds])
-  const sourceModules = (srcModules ?? []) as Module[]
+  const sourceModules = allModules.filter((m) => neededIds.has(m.id))
 
   // Formula modules additionally need their input modules' entries.
   const entryIds = new Set(neededIds)
