@@ -31,7 +31,7 @@ const SHARDS: { outer: string; inner: string; innerFill: string; fly: [number, n
 ]
 
 /**
- * Full-screen geode shown while the app opens. The waiting phase is pure CSS
+ * Full-screen geode (in the given crystal) shown while the app opens. The waiting phase is pure CSS
  * (globals.css), so it plays before hydration. Once hydrated and the page's
  * data has streamed in (no loading skeleton left in the DOM), the geode races
  * through the remaining stages, its stone shards burst out, and the overlay
@@ -42,7 +42,7 @@ const SHARDS: { outer: string; inner: string; innerFill: string; fly: [number, n
  * Lives in the app layout, so it only appears on a full load (or on entering
  * the app from /login) — client navigations keep the mounted layout.
  */
-export function BootSplash() {
+export function BootSplash({ crystalType }: { crystalType: string }) {
   const [done, setDone] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -139,7 +139,7 @@ export function BootSplash() {
     >
       <div className="boot-splash-mark flex flex-col items-center gap-6">
         <div className="relative size-28 sm:size-36">
-          <GeodeIcon crystalType="amethyst" openness={0} className="boot-splash-geode size-full" />
+          <GeodeIcon crystalType={crystalType} openness={0} className="boot-splash-geode size-full" />
           {/* Burst shards: invisible until the finish animation takes over. */}
           <svg viewBox="0 0 64 64" className="absolute inset-0 size-full overflow-visible pointer-events-none">
             {SHARDS.map((s, i) => (
