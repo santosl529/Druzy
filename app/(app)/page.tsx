@@ -17,48 +17,44 @@ export default async function DashboardPage() {
   // card's today/week windows if the client's "today" differs from the server's.
   const fetchSince = daysAgoInTimezone(30, 'UTC')
 
-  const [{ data: modules }, savedTimezone, { data: recentEntries }] = await Promise.all([
-    supabase.from('modules').select('*').eq('user_id', user.id).order('name', { ascending: true }),
-    getUserTimezone(supabase, user.id),
-    supabase
-      .from('entries')
-      .select('module_id, entry_date, values, created_at')
-      .eq('user_id', user.id)
-      .gte('entry_date', fetchSince),
-  ])
+  // Lifetime per-module counts (for openness) are aggregated in Postgres by
+  // module_entry_counts(), so they load alongside everything else.
+  const [{ data: modules }, savedTimezone, { data: recentEntries }, { data: counts }] =
+    await Promise.all([
+      supabase.from('modules').select('*').eq('user_id', user.id).order('name', { ascending: true }),
+      getUserTimezone(supabase, user.id),
+      supabase
+        .from('entries')
+        .select('module_id, entry_date, values, created_at')
+        .eq('user_id', user.id)
+        .gte('entry_date', fetchSince),
+      supabase.rpc('module_entry_counts'),
+    ])
 
   const typedModules = (modules ?? []) as Module[]
   const today = todayInTimezone(savedTimezone || 'UTC')
   const since = daysAgoInTimezone(29, savedTimezone || 'UTC') // inclusive 30-day window
 
+  const totalByModule = new Map<string, number>(
+    ((counts ?? []) as { module_id: string; entry_count: number }[]).map((c) => [
+      c.module_id,
+      Number(c.entry_count),
+    ]),
+  )
+
   // Older entries are only loaded for modules whose card summarizes the `all`
-  // window. Openness only needs lifetime counts, fetched as head-only counts
-  // (no rows transferred); formula modules are always fully open, so skip them.
+  // window — the one case that still costs a second round trip.
   const allTimeIds = typedModules.filter(needsAllTimeEntries).map((m) => m.id)
-  const countedModules = typedModules.filter((m) => m.kind !== 'formula')
-  const [{ data: olderEntries }, counts] = await Promise.all([
+  const { data: olderEntries } =
     allTimeIds.length > 0
-      ? supabase
+      ? await supabase
           .from('entries')
           .select('module_id, entry_date, values, created_at')
           .eq('user_id', user.id)
           .in('module_id', allTimeIds)
           .lt('entry_date', fetchSince)
-      : Promise.resolve({ data: [] }),
-    Promise.all(
-      countedModules.map((m) =>
-        supabase
-          .from('entries')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('module_id', m.id),
-      ),
-    ),
-  ])
+      : { data: [] }
 
-  const totalByModule = new Map<string, number>(
-    countedModules.map((m, i) => [m.id, counts[i].count ?? 0]),
-  )
   const allEntries = [...(recentEntries ?? []), ...(olderEntries ?? [])]
 
   const nowMs = Date.parse(today + 'T00:00:00Z')
