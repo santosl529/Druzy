@@ -104,6 +104,15 @@ export function resolveCardItems(mod: Module): CardSummaryItem[] {
   return [{ field: mod.fields[0]?.key ?? '', mode: 'count', timeWindow: 'today' }]
 }
 
+/**
+ * True when any of the module's effective card items summarizes the `all`
+ * window — the only case the dashboard must load entries beyond its recent
+ * window for.
+ */
+export function needsAllTimeEntries(mod: Module): boolean {
+  return resolveCardItems(mod).some((item) => item.timeWindow === 'all')
+}
+
 /** Inclusive start date of a `week` window: today and the 6 prior days. */
 function weekStart(today: string): string {
   const d = new Date(today + 'T00:00:00Z')

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeCardSummaries, resolveCardItems } from '../card-summary'
+import { computeCardSummaries, resolveCardItems, needsAllTimeEntries } from '../card-summary'
 import type { Module, ModuleField, Entry, CardConfig, CardSummaryItem } from '../types'
 
 const TODAY = '2024-06-25'
@@ -203,5 +203,36 @@ describe('resolveCardItems — defaults when unconfigured', () => {
   it('drops stale items and falls back to default when none remain valid', () => {
     const mod = makeModule([num('calories', 'kcal')], { items: [{ field: 'deleted', mode: 'avg', timeWindow: 'week' }] })
     expect(resolveCardItems(mod)).toEqual([{ field: 'calories', mode: 'sum', timeWindow: 'today' }])
+  })
+})
+
+describe('needsAllTimeEntries', () => {
+  it('is false for the auto-derived default (today window)', () => {
+    expect(needsAllTimeEntries(makeModule([num('calories', 'kcal')]))).toBe(false)
+  })
+
+  it('is false when every configured item uses a bounded window', () => {
+    const mod = makeModule([num('calories', 'kcal')], {
+      items: [
+        { field: 'calories', mode: 'sum', timeWindow: 'today' },
+        { field: 'calories', mode: 'avg', timeWindow: 'week' },
+      ],
+    })
+    expect(needsAllTimeEntries(mod)).toBe(false)
+  })
+
+  it('is true when any valid item uses the all window', () => {
+    const mod = makeModule([num('calories', 'kcal')], {
+      items: [
+        { field: 'calories', mode: 'sum', timeWindow: 'today' },
+        { field: 'calories', mode: 'max', timeWindow: 'all' },
+      ],
+    })
+    expect(needsAllTimeEntries(mod)).toBe(true)
+  })
+
+  it('ignores stale all-window items whose field was deleted', () => {
+    const mod = makeModule([num('calories', 'kcal')], { items: [{ field: 'deleted', mode: 'max', timeWindow: 'all' }] })
+    expect(needsAllTimeEntries(mod)).toBe(false)
   })
 })

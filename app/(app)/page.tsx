@@ -5,45 +5,67 @@ import { TrackerGrid } from '@/components/tracker-grid'
 import { GeodeIcon } from '@/components/geode-icon'
 import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import { computeOpenness } from '@/lib/openness'
-import type { CardEntry } from '@/lib/card-summary'
+import { needsAllTimeEntries, type CardEntry } from '@/lib/card-summary'
 import type { Module } from '@/lib/types'
 
 export default async function DashboardPage() {
   const { supabase, user } = await requireUser()
 
-  const { data: modules } = await supabase
-    .from('modules')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('name', { ascending: true })
+  // Recent entries are fetched from a UTC-based date one day wider than the
+  // 30-day openness window, so this query needn't wait on the saved timezone:
+  // any timezone's date is within a day of UTC's. That margin also covers the
+  // card's today/week windows if the client's "today" differs from the server's.
+  const fetchSince = daysAgoInTimezone(30, 'UTC')
+
+  const [{ data: modules }, savedTimezone, { data: recentEntries }] = await Promise.all([
+    supabase.from('modules').select('*').eq('user_id', user.id).order('name', { ascending: true }),
+    getUserTimezone(supabase, user.id),
+    supabase
+      .from('entries')
+      .select('module_id, entry_date, values, created_at')
+      .eq('user_id', user.id)
+      .gte('entry_date', fetchSince),
+  ])
 
   const typedModules = (modules ?? []) as Module[]
-
-  const savedTimezone = await getUserTimezone(supabase, user.id)
   const today = todayInTimezone(savedTimezone || 'UTC')
-
-  const moduleIds = typedModules.map((m) => m.id)
   const since = daysAgoInTimezone(29, savedTimezone || 'UTC') // inclusive 30-day window
 
-  // One query: every entry for this user. We need values + created_at (beyond
-  // module_id/entry_date) so each card can compute its summary. At this scale
-  // (tens of users, a handful of trackers) this is a cheap indexed read.
-  const { data: allEntries } =
-    moduleIds.length > 0
-      ? await supabase
+  // Older entries are only loaded for modules whose card summarizes the `all`
+  // window. Openness only needs lifetime counts, fetched as head-only counts
+  // (no rows transferred); formula modules are always fully open, so skip them.
+  const allTimeIds = typedModules.filter(needsAllTimeEntries).map((m) => m.id)
+  const countedModules = typedModules.filter((m) => m.kind !== 'formula')
+  const [{ data: olderEntries }, counts] = await Promise.all([
+    allTimeIds.length > 0
+      ? supabase
           .from('entries')
           .select('module_id, entry_date, values, created_at')
           .eq('user_id', user.id)
-          .in('module_id', moduleIds)
-      : { data: [] }
+          .in('module_id', allTimeIds)
+          .lt('entry_date', fetchSince)
+      : Promise.resolve({ data: [] }),
+    Promise.all(
+      countedModules.map((m) =>
+        supabase
+          .from('entries')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('module_id', m.id),
+      ),
+    ),
+  ])
+
+  const totalByModule = new Map<string, number>(
+    countedModules.map((m, i) => [m.id, counts[i].count ?? 0]),
+  )
+  const allEntries = [...(recentEntries ?? []), ...(olderEntries ?? [])]
 
   const nowMs = Date.parse(today + 'T00:00:00Z')
   const recentDaysByModule = new Map<string, Set<string>>()
-  const totalByModule = new Map<string, number>()
   // Per-module entries (summary-relevant columns only) for the card summaries.
   const entriesByModule: Record<string, CardEntry[]> = {}
-  for (const e of allEntries ?? []) {
-    totalByModule.set(e.module_id, (totalByModule.get(e.module_id) ?? 0) + 1)
+  for (const e of allEntries) {
     if (e.entry_date >= since) {
       const set = recentDaysByModule.get(e.module_id) ?? new Set<string>()
       set.add(e.entry_date)
@@ -69,7 +91,7 @@ export default async function DashboardPage() {
   }
 
   const doneToday = new Set(
-    (allEntries ?? []).filter((e) => e.entry_date === today).map((e) => e.module_id),
+    allEntries.filter((e) => e.entry_date === today).map((e) => e.module_id),
   )
 
   return (
