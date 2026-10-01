@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/table'
 import { deleteEntry, updateEntry } from '@/app/actions/entries'
 import { formatFieldValue as formatValue } from '@/lib/format-entry'
+import { formatDisplayDate } from '@/lib/date'
+import { cn } from '@/lib/utils'
 import type { Entry, ModuleField } from '@/lib/types'
 
 interface Props {
@@ -30,6 +32,10 @@ interface Props {
   entries: Entry[]
   /** Hides edit/delete actions — used for computed (formula) values. */
   readOnly?: boolean
+  /** Renders the list as a titled card (module detail page). */
+  title?: string
+  /** Today (YYYY-MM-DD); older dates render muted. */
+  today?: string
 }
 
 // ----------------------------------------------------------------
@@ -179,33 +185,46 @@ function EditRow({ entry, fields, moduleId, onCancel }: EditRowProps) {
  */
 const PAGE_SIZE = 50
 
-export function EntryList({ moduleId, fields, entries, readOnly = false }: Props) {
+export function EntryList({ moduleId, fields, entries, readOnly = false, title, today }: Props) {
   const [, startTransition] = useTransition()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  const header = title && (
+    <div className="flex items-center justify-between px-[22px] py-4">
+      <h2 className="font-heading text-[0.95rem] font-semibold">{title}</h2>
+      <span className="text-xs text-muted-foreground">
+        {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+      </span>
+    </div>
+  )
+
   if (entries.length === 0) {
-    return (
+    const empty = (
       <p className="text-sm text-muted-foreground text-center py-8">
         {readOnly
           ? 'No computed values yet — log data in the source trackers.'
           : 'No entries yet. Log your first one above.'}
       </p>
     )
+    return title ? <section className="rounded-2xl border bg-card">{header}{empty}</section> : empty
   }
 
   return (
-    <div className="rounded-lg border overflow-x-auto">
+    <section className={cn('border bg-card overflow-hidden', title ? 'rounded-2xl' : 'rounded-lg')}>
+      {header}
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
+        <TableHeader className={cn(title && 'border-t')}>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableHead className="pl-[22px] text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Date</TableHead>
             {fields.map((f) => (
-              <TableHead key={f.key}>{f.label}</TableHead>
+              <TableHead key={f.key} className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                {f.label}
+              </TableHead>
             ))}
-            {!readOnly && <TableHead className="w-16" />}
+            {!readOnly && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -220,15 +239,17 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
               />
             ) : (
               <TableRow key={entry.id}>
-                <TableCell className="text-muted-foreground">{entry.entry_date}</TableCell>
+                <TableCell className={cn('pl-[22px] py-3', today && entry.entry_date !== today && 'text-muted-foreground')}>
+                  {formatDisplayDate(entry.entry_date, { month: 'short', day: 'numeric', year: entry.entry_date.slice(0, 4) === (today ?? '').slice(0, 4) ? undefined : 'numeric' })}
+                </TableCell>
                 {fields.map((f) => (
-                  <TableCell key={f.key}>
+                  <TableCell key={f.key} className="py-3 tabular-nums">
                     {formatValue((entry.values as Record<string, unknown>)[f.key], f)}
                   </TableCell>
                 ))}
                 {!readOnly && (
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1 pr-2">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -284,6 +305,6 @@ export function EntryList({ moduleId, fields, entries, readOnly = false }: Props
           </Button>
         </div>
       )}
-    </div>
+    </section>
   )
 }

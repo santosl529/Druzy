@@ -84,7 +84,7 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
     <div className="overflow-x-auto">
       <div className="inline-flex flex-col gap-0.5 min-w-0">
         {/* Month labels */}
-        <div className="flex" style={{ marginLeft: 24 }}>
+        <div className="flex" style={{ marginLeft: 34 }}>
           {Array.from({ length: grid.length }, (_, i) => {
             const label = monthLabels.find((m) => m.col === i)
             return (
@@ -106,7 +106,7 @@ export function CalendarHeatmap({ data, months = 5, timezone }: Props) {
             {DAYS.map((d, i) => (
               <div
                 key={i}
-                style={{ height: CELL, width: 18, flexShrink: 0 }}
+                style={{ height: CELL, width: 28, flexShrink: 0 }}
                 className="text-[10px] text-muted-foreground flex items-center justify-end pr-1"
               >
                 {d}

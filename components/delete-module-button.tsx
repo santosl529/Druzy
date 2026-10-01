@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Trash2 } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { deleteModule, getModuleDeleteWarnings } from '@/app/actions/modules'
 import { cn } from '@/lib/utils'
 
-export function DeleteModuleButton({ id }: { id: string }) {
+/** `compact` renders an icon-only button (module detail header). */
+export function DeleteModuleButton({ id, compact = false }: { id: string; compact?: boolean }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -40,12 +42,14 @@ export function DeleteModuleButton({ id }: { id: string }) {
       <button
         onClick={handleClick}
         disabled={pending}
+        aria-label={compact ? 'Delete tracker' : undefined}
+        title={compact ? 'Delete tracker' : undefined}
         className={cn(
-          buttonVariants({ variant: 'outline' }),
+          buttonVariants({ variant: 'outline', size: compact ? 'icon-lg' : 'default' }),
           'text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5'
         )}
       >
-        {pending ? 'Deleting…' : 'Delete tracker'}
+        {compact ? <Trash2 /> : pending ? 'Deleting…' : 'Delete tracker'}
       </button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

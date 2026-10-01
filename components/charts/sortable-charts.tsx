@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import {
   SortableContext,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
   arrayMove,
 } from '@dnd-kit/sortable'
@@ -50,9 +50,9 @@ function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, so
     ?? chart.config.chartType
 
   return (
-    <div ref={setNodeRef} style={style} className="rounded-lg border bg-card">
+    <div ref={setNodeRef} style={style} className="rounded-2xl border bg-card min-w-0">
       {/* Card header */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b">
+      <div className="flex items-center gap-2 pl-3 pr-3 pt-4 pb-1">
         <button
           {...attributes}
           {...listeners}
@@ -61,7 +61,7 @@ function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, so
         >
           <GripVerticalIcon className="size-4" />
         </button>
-        <span className="flex-1 text-sm font-medium">{title}</span>
+        <span className="flex-1 font-heading text-[0.95rem] font-semibold truncate">{title}</span>
         <span className="text-xs text-muted-foreground mr-1">{chart.config.chartType}</span>
         <Link
           href={`/modules/${moduleId}/charts/${chart.id}/edit`}
@@ -78,7 +78,7 @@ function SortableChartCard({ chart, moduleId, entries, fields, sourceModules, so
       </div>
 
       {/* Chart body */}
-      <div className="p-4">
+      <div className="px-[22px] pt-2 pb-5">
         <ModuleChart
           chart={chart}
           entries={entries}
@@ -137,8 +137,8 @@ export function SortableChartsList({
 
   return (
     <DndContext id={`charts-${moduleId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={charts.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-4">
+      <SortableContext items={charts.map((c) => c.id)} strategy={rectSortingStrategy}>
+        <div className={cn('grid gap-5', charts.length > 1 && 'lg:grid-cols-2')}>
           {charts.map((chart) => (
             <SortableChartCard
               key={chart.id}
