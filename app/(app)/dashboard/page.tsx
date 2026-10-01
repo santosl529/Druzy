@@ -4,8 +4,9 @@ import type { ModuleStage } from '@/components/consistency-grid'
 import { buildGridData } from '@/lib/consistency-grid'
 import { withFormulaEntries } from '@/lib/formula'
 import { computeOpenness } from '@/lib/openness'
-import { daysUntilNextStage } from '@/lib/stages'
+import { daysUntilNextStage, formatStageLine } from '@/lib/stages'
 import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
+import { summarizeEntry } from '@/lib/format-entry'
 import type { Module, Entry } from '@/lib/types'
 
 export default async function DashboardPage() {
@@ -70,26 +71,45 @@ export default async function DashboardPage() {
       isFormula,
       today,
     })
-    stageByModule[m.id] = {
-      openness,
-      nextStageName: next?.name ?? null,
-      daysToNext: next?.days ?? null,
-    }
+    stageByModule[m.id] = { openness, line: formatStageLine(openness, next) }
+  }
+
+  // One-line summaries of each day's entries for the hover tooltip and day
+  // panel, limited to the widest window the timeline shows (90 days).
+  const windowStart = daysAgoInTimezone(89, savedTimezone ?? 'UTC')
+  const moduleById = new Map(typedModules.map((m) => [m.id, m]))
+  const dayEntries: Record<string, Record<string, string[]>> = {}
+  for (const e of allEntries) {
+    if (e.entry_date < windowStart) continue
+    const m = moduleById.get(e.module_id)
+    if (!m) continue
+    const values = (e.values ?? {}) as Record<string, unknown>
+    const text =
+      m.kind === 'formula'
+        ? `Value ${Number(values.value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+        : summarizeEntry(m.fields, values)
+    if (!text) continue
+    ;((dayEntries[m.id] ??= {})[e.entry_date] ??= []).push(text)
   }
 
   return (
     <main className="max-w-6xl mx-auto w-full px-4 py-10">
-      <h1 className="font-heading text-3xl font-bold tracking-tight">Dashboard</h1>
-      <p className="text-muted-foreground mt-1 mb-8">
-        Consistency across all trackers over time.
-      </p>
-
       {typedModules.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          No trackers yet. Create one to see your consistency grid.
-        </div>
+        <>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Consistency</h1>
+          <p className="text-sm text-muted-foreground mt-1.5 mb-8">All trackers in one view.</p>
+          <div className="rounded-2xl border border-dashed p-12 text-center text-muted-foreground">
+            No trackers yet. Create one to see your consistency timeline.
+          </div>
+        </>
       ) : (
-        <ConsistencyGrid gridData={gridData} today={today} stageByModule={stageByModule} />
+        <ConsistencyGrid
+          gridData={gridData}
+          today={today}
+          stageByModule={stageByModule}
+          dayEntries={dayEntries}
+          savedTimezone={savedTimezone}
+        />
       )}
     </main>
   )

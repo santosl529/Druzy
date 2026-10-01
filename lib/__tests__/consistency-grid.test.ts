@@ -230,6 +230,20 @@ describe('computeCellState', () => {
     })
     const cell = computeCellState(mod, [{ cal: 100 }], '2026-06-28', null)
     expect(cell.state).toBe('not-done')
+    expect(cell.goalMissed).toBe(true)
+  })
+
+  it('goal mode, nothing logged → not-done without goalMissed', () => {
+    const mod = makeMod({
+      fields: [{ key: 'cal', label: 'Cal', type: 'number', required: false }],
+      dashboard_config: {
+        mode: 'goal',
+        goal: { conditions: [{ field: 'cal', op: 'gte', value: 150 }], combine: 'all' },
+      },
+    })
+    const cell = computeCellState(mod, [], '2026-06-28', null)
+    expect(cell.state).toBe('not-done')
+    expect(cell.goalMissed).toBeUndefined()
   })
 
   it('gradient mode, returns intensity proportional to value', () => {

@@ -19,6 +19,8 @@ export interface GridCell {
   crystalOverride?: CrystalKey
   /** Category mode: the raw option value logged that day, for hover/aria. */
   categoryLabel?: string
+  /** Goal mode: something was logged that day but the goal wasn't met. */
+  goalMissed?: true
 }
 
 export interface GridData {
@@ -164,7 +166,7 @@ export function computeCellState(
     case 'goal': {
       if (!config?.goal) return { state: 'not-done', intensity: 0 }
       const done = evaluateGoal(config.goal, dayEntries)
-      return { state: done ? 'done' : 'not-done', intensity: done ? 1 : 0 }
+      return done ? { state: 'done', intensity: 1 } : { state: 'not-done', intensity: 0, goalMissed: true }
     }
 
     case 'gradient': {

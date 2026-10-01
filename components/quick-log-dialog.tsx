@@ -20,8 +20,10 @@ import type { Module } from '@/lib/types'
 interface Props {
   mod: Module
   openness: number
-  /** This module's entries, for the "after this entry" preview. */
-  entries: CardEntry[]
+  /** This module's entries, for the "after this entry" preview (omit to hide it). */
+  entries?: CardEntry[]
+  /** Pre-selected entry date; defaults to today. */
+  initialDate?: string
   /** Today (YYYY-MM-DD) in the user's day-boundary timezone. */
   today: string
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
@@ -40,19 +42,19 @@ const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 
  * second write path. The date defaults to today (day-boundary aware) and is
  * editable for late logging. Tinted with the tracker's crystal.
  */
-export function QuickLogDialog({ mod, openness, entries, today, savedTimezone, onLogged, children }: Props) {
+export function QuickLogDialog({ mod, openness, entries, initialDate, today, savedTimezone, onLogged, children }: Props) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<EntryDraft>({})
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(initialDate ?? today)
 
-  const preview = computeLogPreview(mod.fields, entries, date, draft)
+  const preview = entries ? computeLogPreview(mod.fields, entries, date, draft) : []
   const dayLabel = date === today ? 'today' : `on ${formatDisplayDate(date, { month: 'short', day: 'numeric' })}`
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next) {
       setDraft({})
-      setDate(today)
+      setDate(initialDate ?? today)
     }
   }
 
@@ -74,7 +76,9 @@ export function QuickLogDialog({ mod, openness, entries, today, savedTimezone, o
               Log to {mod.name}
             </DialogTitle>
             <DialogDescription className="text-[0.8rem]">
-              Defaults to today. Pick an earlier day to log late.
+              {initialDate && initialDate !== today
+                ? `Dated ${formatDisplayDate(initialDate, { month: 'short', day: 'numeric' })}. Pick another day if needed.`
+                : 'Defaults to today. Pick an earlier day to log late.'}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -82,6 +86,7 @@ export function QuickLogDialog({ mod, openness, entries, today, savedTimezone, o
           moduleId={mod.id}
           fields={mod.fields}
           savedTimezone={savedTimezone}
+          initialDate={initialDate}
           submitLabel="Log entry"
           onCancel={() => setOpen(false)}
           onDraftChange={(d, entryDate) => {

@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { deleteEntry, updateEntry } from '@/app/actions/entries'
+import { formatFieldValue as formatValue } from '@/lib/format-entry'
 import type { Entry, ModuleField } from '@/lib/types'
 
 interface Props {
@@ -29,16 +30,6 @@ interface Props {
   entries: Entry[]
   /** Hides edit/delete actions — used for computed (formula) values. */
   readOnly?: boolean
-}
-
-function formatValue(value: unknown, field: ModuleField): string {
-  if (value === null || value === undefined) return '—'
-  if (field.type === 'boolean') return value ? 'Yes' : 'No'
-  const str = String(value)
-  if ((field.type === 'number' || field.type === 'rating') && field.unit) {
-    return `${str} ${field.unit}`
-  }
-  return str
 }
 
 // ----------------------------------------------------------------

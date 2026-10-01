@@ -49,6 +49,8 @@ interface Props {
   onDraftChange?: (draft: EntryDraft, entryDate: string) => void
   /** Rendered between the fields and the actions (grid) or under the bar. */
   preview?: React.ReactNode
+  /** Pre-selected entry date (YYYY-MM-DD); defaults to today. */
+  initialDate?: string
 }
 
 // Inputs pick up the surrounding accent (--chip-accent) on focus, so the
@@ -67,12 +69,13 @@ export function EntryForm({
   onCancel,
   onDraftChange,
   preview,
+  initialDate,
 }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selectValues, setSelectValues] = useState<Record<string, string>>({})
   const [today] = useState(() => clientToday(savedTimezone))
-  const [entryDate, setEntryDate] = useState(today)
+  const [entryDate, setEntryDate] = useState(initialDate ?? today)
   const formRef = useRef<HTMLFormElement>(null)
   const isBar = layout === 'bar'
 
