@@ -13,4 +13,4 @@ export const chatModel = openrouter('openrouter/free')
 // Vision-capable model used for food photo calorie estimation.
 // Google AI Studio (Gemini) — reads GOOGLE_GENERATIVE_AI_API_KEY (server-only).
 // Swap the model string to any id on ai.google.dev/gemini-api/docs/models.
-export const visionModel = google('gemini-3.8-flash')
+export const visionModel = google('gemini-3.7-flash')
