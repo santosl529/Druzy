@@ -50,6 +50,9 @@ export async function POST(req: Request) {
     const { object } = await generateObject({
       model: visionModel,
       schema: macroSchema,
+      // Gemini 3 thinks at a high level by default, which made calls take ~45s.
+      // Low is plenty for a macro estimate. Ignored by non-Google providers.
+      providerOptions: { google: { thinkingConfig: { thinkingLevel: 'low' } } },
       messages: [
         {
           role: 'user',
