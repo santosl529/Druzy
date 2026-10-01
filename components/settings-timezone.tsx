@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useSyncExternalStore, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -50,43 +49,60 @@ export function SettingsTimezone({ savedTimezone }: Props) {
     })
   }
 
+  // "Now" in the selected zone, re-read each minute; null during SSR.
+  const nowMinute = useSyncExternalStore(subscribeMinute, () => Math.floor(Date.now() / 60_000), () => null)
+  const nowLine = nowMinute === null ? null : describeNow(new Date(nowMinute * 60_000), selected)
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="text-sm font-medium">Day boundary timezone</h2>
-        <p className="text-sm text-muted-foreground">
-          Controls which calendar day a new entry belongs to when you log it.
-          An entry logged at 11:55 pm will be attributed to that day in this
-          timezone — even if it&apos;s already the next day in UTC.
-          Per-tracker overrides can be added later; this sets the default for all trackers.
-        </p>
-        {!savedTimezone && (
-          <p className="text-xs text-amber-600 mt-1">
-            Not yet saved. Defaulting to your browser timezone ({browserTz}).
-          </p>
-        )}
+    <div className="flex flex-col gap-3.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Select
+          items={timezones.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }))}
+          value={selected}
+          onValueChange={(v) => { setSelected(v ?? selected); setSaved(false) }}
+        >
+          <SelectTrigger id="timezone" aria-label="Timezone" className="h-[42px]! w-full max-w-[380px] bg-background dark:bg-background">
+            <SelectValue placeholder="Select timezone…" />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {timezones.map((tz) => (
+              <SelectItem key={tz} value={tz}>{tz.replace(/_/g, ' ')}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button className="h-[42px] px-4" onClick={handleSave} disabled={pending || saved || selected === savedTimezone}>
+          {pending ? 'Saving…' : saved || selected === savedTimezone ? 'Saved' : 'Save'}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {savedTimezone
+            ? selected === browserTz ? 'Matches your browser' : `Your browser is on ${browserTz.replace(/_/g, ' ')}`
+            : 'Not saved yet · detected from your browser'}
+        </span>
       </div>
 
-      <div className="flex items-end gap-3">
-        <div className="flex-1 max-w-xs space-y-1.5">
-          <Label htmlFor="timezone">Timezone</Label>
-          <Select value={selected} onValueChange={(v) => { setSelected(v ?? selected); setSaved(false) }}>
-            <SelectTrigger id="timezone" className="w-full">
-              <SelectValue placeholder="Select timezone…" />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {timezones.map((tz) => (
-                <SelectItem key={tz} value={tz}>{tz}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {nowLine && (
+        <div className="rounded-[10px] border bg-muted/40 px-3.5 py-2.5 text-[0.8rem] text-foreground/80">
+          It&apos;s {nowLine.when}, so anything logged now counts for{' '}
+          <b className="text-foreground font-semibold">{nowLine.day}</b>.
         </div>
-        <Button onClick={handleSave} disabled={pending || saved}>
-          {pending ? 'Saving…' : saved ? 'Saved' : 'Save'}
-        </Button>
-      </div>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )
+}
+
+function subscribeMinute(onChange: () => void) {
+  const id = setInterval(onChange, 15_000)
+  return () => clearInterval(id)
+}
+
+function describeNow(now: Date, timeZone: string): { when: string; day: string } | null {
+  try {
+    const when = now.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const day = now.toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' })
+    return { when: when.replace(/, (\d+:\d+)/, ' at $1'), day }
+  } catch {
+    return null
+  }
 }

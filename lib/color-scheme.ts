@@ -26,6 +26,17 @@ export function setStoredColorScheme(scheme: ColorScheme) {
   notifyColorSchemeListeners()
 }
 
+/** Forget the explicit choice and follow the system preference again. */
+export function clearStoredColorScheme() {
+  try {
+    localStorage.removeItem(COLOR_SCHEME_STORAGE_KEY)
+  } catch {
+    // localStorage unavailable — nothing stored to clear
+  }
+  applyColorScheme(null)
+  notifyColorSchemeListeners()
+}
+
 export function getEffectiveColorScheme(): ColorScheme {
   const stored = getStoredColorScheme()
   if (stored) return stored
