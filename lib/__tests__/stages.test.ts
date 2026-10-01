@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getStageIndex, daysUntilNextStage, STAGES } from '../stages'
+import { getStageIndex, daysUntilNextStage, formatStageLine, STAGES } from '../stages'
 
 describe('getStageIndex', () => {
   it('openness 0 → Dormant (0)', () => {
@@ -86,5 +86,17 @@ describe('daysUntilNextStage', () => {
     })
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Breaking')
+  })
+})
+
+describe('formatStageLine', () => {
+  it('names the current stage and the days to the next', () => {
+    expect(formatStageLine(0.45, { name: 'Breaking', days: 6 })).toBe('Cracking · 6d to Breaking')
+  })
+  it('final stage reads as fully open', () => {
+    expect(formatStageLine(0.9, null)).toBe('Bloomed · fully open')
+  })
+  it('an unreachable next stage drops the day count', () => {
+    expect(formatStageLine(0.1, { name: 'Stirring', days: null })).toBe('Dormant · Stirring not soon')
   })
 })

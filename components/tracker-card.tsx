@@ -3,12 +3,12 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Check } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GeodeIcon } from '@/components/geode-icon'
 import { QuickLogDialog } from '@/components/quick-log-dialog'
 import { geodeVars } from '@/lib/geode-style'
 import { getBinaryField } from '@/lib/card'
+import { STAGES } from '@/lib/stages'
 import { computeCardSummaries, type CardEntry } from '@/lib/card-summary'
 import { cn } from '@/lib/utils'
 import { setBinaryToday } from '@/app/actions/entries'
@@ -16,6 +16,9 @@ import type { Module } from '@/lib/types'
 
 /** A successful log, carrying the parsed values so the card can update optimistically. */
 export type LoggedEntry = { values: Record<string, unknown>; entryDate: string }
+
+/** The geode's current stage (0–4) and its one-line caption, e.g. "Cracking · 6d to Breaking". */
+export type CardStage = { index: number; line: string }
 
 interface TrackerCardProps {
   mod: Module
@@ -25,6 +28,7 @@ interface TrackerCardProps {
   /** Today's date (YYYY-MM-DD) resolved in the user's day-boundary timezone. */
   today: string
   openness: number
+  stage?: CardStage
   /** Day-boundary timezone from Settings (null = fall back to browser tz). */
   savedTimezone: string | null
   /** Mark this tracker as logged today (optimistic), carrying the logged values. */
@@ -39,6 +43,7 @@ export function TrackerCard({
   entries,
   today,
   openness,
+  stage,
   savedTimezone,
   onLogged,
   onUnlogged,
@@ -64,9 +69,18 @@ export function TrackerCard({
     })
   }
 
+  const logButtonClass = cn(
+    'w-full h-9 transition-all duration-200',
+    hasEntryToday
+      ? 'border-0 text-white'
+      : 'bg-black/5 hover:bg-black/10 border border-black/10 text-foreground dark:bg-white/[0.08] dark:hover:bg-white/[0.12] dark:border-white/[0.14]',
+  )
+  const logButtonStyle = hasEntryToday ? { backgroundColor: 'var(--crystal-primary)' } : undefined
+  const logButtonLabel = hasEntryToday ? <><Check className="size-3.5" />Logged</> : 'Log'
+
   return (
-    <Card
-      className="h-full flex flex-col transition-shadow hover:shadow-md [--card-spacing:1.2rem]"
+    <div
+      className="relative h-full min-h-[212px] rounded-2xl border bg-card text-card-foreground p-5 flex flex-col gap-4 transition-shadow"
       style={{
         ...geodeVars(mod.crystal_type, openness),
         borderColor:
@@ -75,25 +89,29 @@ export function TrackerCard({
           '0 0 24px color-mix(in srgb, var(--crystal-glow) calc(var(--openness) * 45%), transparent)',
       }}
     >
-      <CardHeader className="flex flex-row items-start gap-3.5">
-        {/* Icon floats freely — no background container, premium seamless feel */}
+      <div className="flex items-start gap-3.5">
         <GeodeIcon crystalType={mod.crystal_type} openness={openness} className="size-12 shrink-0 -ml-0.5" />
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-[1.2rem] flex items-center gap-2.5">
+          <h2 className="font-heading text-[1.2rem] font-semibold leading-tight flex items-center gap-2.5">
             <Link href={`/modules/${mod.id}`} className="truncate hover:underline">
               {mod.name}
             </Link>
             {isFormula && (
-              <span className="text-xs font-medium uppercase tracking-wide rounded-full bg-muted px-2.5 py-0.5 text-muted-foreground shrink-0">
+              <span className="font-sans text-[0.7rem] font-medium uppercase tracking-wide rounded-full bg-muted px-2 py-0.5 text-muted-foreground shrink-0">
                 Formula
               </span>
             )}
-          </CardTitle>
-          <CardDescription className="text-[1.05rem]">
+          </h2>
+          <p className="text-sm text-muted-foreground">
             {isFormula
               ? 'Computed from other trackers'
               : `${mod.fields.length} ${mod.fields.length === 1 ? 'field' : 'fields'}`}
-          </CardDescription>
+          </p>
+          {stage && (
+            <p className="crystal-ink text-xs font-medium mt-0.5 truncate">
+              {stage.line}
+            </p>
+          )}
         </div>
 
         {/* Secondary affordance: open the full tracker page. */}
@@ -104,22 +122,34 @@ export function TrackerCard({
         >
           <ChevronRight className="size-5" />
         </Link>
-      </CardHeader>
+      </div>
 
-      {/* Summary chips fill the body; the logging action is pinned to the bottom
-          so every card (binary or not) shares the same vertical rhythm. Formula
+      {/* Stage bar: one segment per geode stage, lit up to the current one. */}
+      {stage && (
+        <div className="flex gap-[3px] -mt-1" aria-hidden="true">
+          {STAGES.map((s, i) => (
+            <div
+              key={s.name}
+              className="flex-1 h-[3px] rounded-full"
+              style={{ background: i <= stage.index ? 'var(--crystal-primary)' : 'var(--border)' }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Summary values fill the body; the logging action is pinned to the
+          bottom so every card shares the same vertical rhythm. Formula
           trackers can't be logged. */}
       {!isFormula && (
-        <CardContent className="flex flex-1 flex-col gap-4">
+        <>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             {summaries.map((s, i) => (
               <div key={i} className="min-w-0">
                 <div
                   className={cn(
                     'font-semibold tabular-nums leading-tight truncate',
-                    s.empty ? 'text-base text-muted-foreground' : 'text-xl',
+                    s.empty ? 'text-base text-muted-foreground' : 'crystal-ink text-xl',
                   )}
-                  style={s.empty ? undefined : { color: 'var(--crystal-primary)' }}
                 >
                   {s.text}
                 </div>
@@ -130,53 +160,26 @@ export function TrackerCard({
 
           <div className="mt-auto">
             {binaryField ? (
-              <Button
-                className={cn(
-                  'w-full transition-all duration-200',
-                  hasEntryToday
-                    ? 'border-0'
-                    : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/15 dark:text-white backdrop-blur-sm',
-                )}
-                onClick={handleToggle}
-                disabled={isPending}
-                style={
-                  hasEntryToday
-                    ? { backgroundColor: 'var(--crystal-primary)', color: 'white' }
-                    : undefined
-                }
-              >
-                {hasEntryToday ? (
-                  <><Check className="size-3.5 mr-1.5" />Logged</>
-                ) : 'Log'}
+              <Button className={logButtonClass} onClick={handleToggle} disabled={isPending} style={logButtonStyle}>
+                {logButtonLabel}
               </Button>
             ) : (
               <QuickLogDialog
                 mod={mod}
+                openness={openness}
+                entries={entries}
+                today={today}
                 savedTimezone={savedTimezone}
                 onLogged={(logged) => onLogged(mod.id, logged)}
               >
-                <Button
-                  className={cn(
-                    'w-full transition-all duration-200',
-                    hasEntryToday
-                      ? 'border-0'
-                      : 'bg-black/5 hover:bg-black/10 border border-black/10 text-black dark:bg-white/10 dark:hover:bg-white/15 dark:border-white/15 dark:text-white backdrop-blur-sm',
-                  )}
-                  style={
-                    hasEntryToday
-                      ? { backgroundColor: 'var(--crystal-primary)', color: 'white' }
-                      : undefined
-                  }
-                >
-                  {hasEntryToday ? (
-                    <><Check className="size-3.5 mr-1.5" />Logged</>
-                  ) : 'Log'}
+                <Button className={logButtonClass} style={logButtonStyle}>
+                  {logButtonLabel}
                 </Button>
               </QuickLogDialog>
             )}
           </div>
-        </CardContent>
+        </>
       )}
-    </Card>
+    </div>
   )
 }

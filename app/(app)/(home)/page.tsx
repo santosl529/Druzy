@@ -1,12 +1,15 @@
 import Link from 'next/link'
+import { Sparkles } from 'lucide-react'
 import { requireUser, getUserTimezone } from '@/lib/supabase/auth'
 import { buttonVariants } from '@/components/ui/button'
 import { TrackerGrid } from '@/components/tracker-grid'
 import { GeodeIcon } from '@/components/geode-icon'
 import { todayInTimezone, daysAgoInTimezone } from '@/lib/date'
 import { computeOpenness } from '@/lib/openness'
+import { daysUntilNextStage, formatStageLine, getStageIndex } from '@/lib/stages'
 import { needsAllTimeEntries, type CardEntry } from '@/lib/card-summary'
 import type { Module } from '@/lib/types'
+import type { CardStage } from '@/components/tracker-card'
 
 export default async function DashboardPage() {
   const { supabase, user } = await requireUser()
@@ -75,67 +78,73 @@ export default async function DashboardPage() {
   }
 
   const opennessByModule: Record<string, number> = {}
+  const stageByModule: Record<string, CardStage> = {}
   for (const m of typedModules) {
     const createdMs = Date.parse(m.created_at)
     const daysSinceCreated = Math.max(0, Math.round((nowMs - createdMs) / 86400000))
-    opennessByModule[m.id] = computeOpenness({
-      recentDays: recentDaysByModule.get(m.id)?.size ?? 0,
-      totalEntries: totalByModule.get(m.id) ?? 0,
+    const isFormula = m.kind === 'formula'
+    const recentDates = recentDaysByModule.get(m.id) ?? new Set<string>()
+    const totalEntries = totalByModule.get(m.id) ?? 0
+    const openness = computeOpenness({
+      recentDays: recentDates.size,
+      totalEntries,
       daysSinceCreated,
-      isFormula: m.kind === 'formula',
+      isFormula,
     })
+    opennessByModule[m.id] = openness
+    const next = daysUntilNextStage({
+      loggedDates: [...recentDates],
+      totalEntries,
+      daysSinceCreated,
+      isFormula,
+      today,
+    })
+    stageByModule[m.id] = { index: getStageIndex(openness), line: formatStageLine(openness, next) }
   }
 
   const doneToday = new Set(
     allEntries.filter((e) => e.entry_date === today).map((e) => e.module_id),
   )
 
-  return (
-    <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-        <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Your trackers</h1>
-          <p className="text-muted-foreground mt-1">Log and visualize anything that matters to you.</p>
+  if (typedModules.length === 0) {
+    return (
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10">
+        <div className="mb-8">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Trackers</h1>
+          <p className="text-sm text-muted-foreground mt-1.5">Log and visualize anything that matters to you.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Link href="/modules/new/formula" className={buttonVariants({ variant: 'outline' })}>
-            Formula tracker
-          </Link>
-          <Link href="/modules/new" className={buttonVariants({ variant: 'outline' })}>
-            Build manually
-          </Link>
-          <Link href="/assistant" className={buttonVariants()}>
-            AI assistant
-          </Link>
-        </div>
-      </div>
-
-      {typedModules.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center flex flex-col items-center">
+        <div className="rounded-2xl border border-dashed p-12 text-center flex flex-col items-center">
           <span aria-hidden="true"><GeodeIcon crystalType="amethyst" openness={0} className="size-16 mb-4" /></span>
           <h2 className="font-heading text-xl font-semibold tracking-tight mb-2">
             Your first geode is waiting
           </h2>
-          <p className="text-muted-foreground mb-6">No trackers yet.</p>
+          <p className="text-muted-foreground mb-6 max-w-sm text-pretty">
+            Describe a tracker in a sentence and the assistant drafts the fields.
+          </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/assistant" className={buttonVariants()}>
-              Create with AI assistant
+              <Sparkles /> Describe a tracker
             </Link>
             <Link href="/modules/new" className={buttonVariants({ variant: 'outline' })}>
               Build manually
             </Link>
           </div>
         </div>
-      ) : (
-        <TrackerGrid
-          modules={typedModules}
-          initialDoneToday={[...doneToday]}
-          entriesByModule={entriesByModule}
-          serverDate={today}
-          savedTimezone={savedTimezone}
-          opennessByModule={opennessByModule}
-        />
-      )}
+      </main>
+    )
+  }
+
+  return (
+    <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10">
+      <TrackerGrid
+        modules={typedModules}
+        initialDoneToday={[...doneToday]}
+        entriesByModule={entriesByModule}
+        serverDate={today}
+        savedTimezone={savedTimezone}
+        opennessByModule={opennessByModule}
+        stageByModule={stageByModule}
+      />
     </main>
   )
 }

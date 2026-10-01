@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { TrackerCard, type LoggedEntry } from '@/components/tracker-card'
+import Link from 'next/link'
+import { Sparkles } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
+import { TrackerCard, type CardStage, type LoggedEntry } from '@/components/tracker-card'
 import { getTodayEntryStatus } from '@/app/actions/entries'
-import { clientToday } from '@/lib/date'
+import { clientToday, formatDisplayDate } from '@/lib/date'
 import type { CardEntry } from '@/lib/card-summary'
 import type { Module } from '@/lib/types'
 
@@ -19,9 +22,11 @@ interface TrackerGridProps {
   savedTimezone: string | null
   // Openness value [0,1] per module id, computed server-side.
   opennessByModule: Record<string, number>
+  // Current geode stage + caption per module id, computed server-side.
+  stageByModule: Record<string, CardStage>
 }
 
-export function TrackerGrid({ modules, initialDoneToday, entriesByModule, serverDate, savedTimezone, opennessByModule }: TrackerGridProps) {
+export function TrackerGrid({ modules, initialDoneToday, entriesByModule, serverDate, savedTimezone, opennessByModule, stageByModule }: TrackerGridProps) {
   const [doneToday, setDoneToday] = useState(new Set(initialDoneToday))
   // Entries are held in state so quick-logs update the card summaries optimistically.
   const [entries, setEntries] = useState(entriesByModule)
@@ -97,21 +102,65 @@ export function TrackerGrid({ modules, initialDoneToday, entriesByModule, server
     }))
   }
 
+  // Formula trackers can't be logged, so they don't count toward the daily tally.
+  const loggable = modules.filter((m) => m.kind !== 'formula')
+  const loggedCount = loggable.filter((m) => doneToday.has(m.id)).length
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[1.2rem]">
-      {modules.map((mod) => (
-        <TrackerCard
-          key={mod.id}
-          mod={mod}
-          hasEntryToday={doneToday.has(mod.id)}
-          entries={entries[mod.id] ?? []}
-          today={today}
-          openness={opennessByModule[mod.id] ?? 0}
-          savedTimezone={savedTimezone}
-          onLogged={handleLogged}
-          onUnlogged={handleUnlogged}
-        />
-      ))}
-    </div>
+    <>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">
+        <div>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Trackers</h1>
+          <p className="text-sm text-muted-foreground mt-1.5">
+            {formatDisplayDate(today, { weekday: 'long', month: 'long', day: 'numeric' })}
+            {' · '}
+            {loggedCount} of {loggable.length} logged today
+          </p>
+        </div>
+        <div className="flex gap-2.5 flex-wrap">
+          <Link href="/modules/new" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
+            Build manually
+          </Link>
+          <Link href="/assistant" className={buttonVariants({ size: 'lg' })}>
+            <Sparkles /> Describe a tracker
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {modules.map((mod) => (
+          <TrackerCard
+            key={mod.id}
+            mod={mod}
+            hasEntryToday={doneToday.has(mod.id)}
+            entries={entries[mod.id] ?? []}
+            today={today}
+            openness={opennessByModule[mod.id] ?? 0}
+            stage={stageByModule[mod.id]}
+            savedTimezone={savedTimezone}
+            onLogged={handleLogged}
+            onUnlogged={handleUnlogged}
+          />
+        ))}
+
+        <div className="rounded-2xl border border-dashed border-foreground/15 p-5 flex flex-col justify-center gap-2.5 min-h-[212px]">
+          <h2 className="font-heading text-[1.05rem] font-semibold">New tracker</h2>
+          <p className="text-sm text-muted-foreground text-pretty">
+            Describe it in a sentence (&ldquo;track my saxophone practice&rdquo;) and the assistant drafts the fields.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Link href="/assistant" className={buttonVariants({ size: 'sm' })}>
+              <Sparkles /> Describe
+            </Link>
+            <Link href="/modules/new" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              Build manually
+            </Link>
+            <Link href="/modules/new/formula" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+              Formula
+            </Link>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }

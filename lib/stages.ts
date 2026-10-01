@@ -118,3 +118,14 @@ export function daysUntilNextStage(input: NextStageInput): NextStage | null {
   }
   return { name: next.name, days: null }
 }
+
+/**
+ * One-line stage caption for a tracker, e.g. "Cracking · 6d to Breaking" or
+ * "Bloomed · fully open". `next` is the result of daysUntilNextStage.
+ */
+export function formatStageLine(openness: number, next: NextStage | null): string {
+  const current = STAGES[getStageIndex(openness)].name
+  if (!next) return `${current} · fully open`
+  if (next.days === null) return `${current} · ${next.name} not soon`
+  return `${current} · ${next.days}d to ${next.name}`
+}
