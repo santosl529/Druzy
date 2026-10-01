@@ -143,7 +143,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ i
         <section
           className="rounded-2xl border bg-card px-[22px] py-5"
           style={{
-            borderColor: 'color-mix(in oklch, var(--border), var(--crystal-primary) 55%)',
+            borderColor: 'color-mix(in srgb, var(--border), var(--crystal-primary) 55%)',
             boxShadow: '0 0 28px color-mix(in srgb, var(--crystal-glow) 10%, transparent)',
           }}
         >

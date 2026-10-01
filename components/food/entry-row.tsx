@@ -7,6 +7,7 @@ import { deleteFoodEntry, updateFoodEntry } from '@/app/actions/food'
 import type { FoodEntry } from '@/lib/types'
 import type { MacroValues } from '@/components/food/shared'
 import { MacroFields } from '@/components/food/macro-fields'
+import { cn } from '@/lib/utils'
 
 // ----------------------------------------------------------------
 // Entry row (inline edit)
@@ -61,16 +62,17 @@ export function EntryRow({ entry, onDeleted, onUpdated }: EntryRowProps) {
   }
 
   const macro = (val: number | null, unit: string) =>
-    val != null ? `${Math.round(val * 10) / 10}${unit}` : '—'
+    val != null ? `${(Math.round(val * 10) / 10).toLocaleString('en-US')} ${unit}` : '—'
+  const time = new Date(entry.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
   if (editing) {
     return (
-      <div className="space-y-3 py-3 border-b last:border-0">
-        <MacroFields values={macros} onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))} />
+      <div className="flex flex-col gap-3 px-[22px] py-3 border-t">
+        <MacroFields values={macros} onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))} idPrefix={`edit-${entry.id}-`} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button size="sm" onClick={handleSaveEdit} disabled={isPending}>
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+            {isPending && <Loader2 className="animate-spin" />}
             Save
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
@@ -81,31 +83,49 @@ export function EntryRow({ entry, onDeleted, onUpdated }: EntryRowProps) {
     )
   }
 
+  const isPhoto = entry.source === 'photo'
   return (
-    <div className="flex items-center justify-between py-2.5 border-b last:border-0">
-      <div className="flex items-center gap-4 text-sm">
-        <span className="font-medium tabular-nums">{macro(entry.calories, ' kcal')}</span>
-        <span className="text-muted-foreground tabular-nums">P {macro(entry.protein_g, 'g')}</span>
-        <span className="text-muted-foreground tabular-nums">F {macro(entry.fat_g, 'g')}</span>
-        <span className="text-muted-foreground tabular-nums">C {macro(entry.carbs_g, 'g')}</span>
-        {entry.source === 'photo' && (
-          <span className="text-xs text-muted-foreground/60 hidden sm:inline">photo</span>
+    <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] sm:grid-cols-[44px_72px_76px_repeat(4,minmax(0,1fr))_64px] items-center gap-x-3 gap-y-1 px-[22px] py-2.5 border-t text-sm tabular-nums">
+      <span
+        aria-hidden="true"
+        className={cn(
+          'row-span-2 sm:row-span-1 size-11 rounded-lg border flex items-center justify-center font-heading text-[0.8rem] font-semibold text-muted-foreground',
+          isPhoto ? 'bg-[repeating-linear-gradient(135deg,var(--muted)_0_6px,color-mix(in_oklch,var(--muted)_60%,var(--card))_6px_12px)]' : 'bg-muted/50',
         )}
-      </div>
-      <div className="flex items-center gap-1">
-        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)}>
-          <PenLine className="h-3.5 w-3.5" />
+      >
+        {isPhoto ? '' : 'M'}
+      </span>
+      <span className="text-muted-foreground hidden sm:block">{time}</span>
+      <span
+        className={cn(
+          'hidden sm:inline-flex justify-self-start rounded-full px-2.5 py-0.5 text-xs',
+          isPhoto ? 'bg-[color-mix(in_oklch,var(--crystal-glow)_14%,transparent)] crystal-ink' : 'bg-muted text-foreground/80',
+        )}
+      >
+        {isPhoto ? 'Photo' : 'Manual'}
+      </span>
+      <span className="font-medium">{macro(entry.calories, 'kcal')}</span>
+      <span className="hidden sm:block">{macro(entry.protein_g, 'g')} P</span>
+      <span className="hidden sm:block">{macro(entry.fat_g, 'g')} F</span>
+      <span className="hidden sm:block">{macro(entry.carbs_g, 'g')} C</span>
+      <div className="flex items-center justify-end gap-0.5 row-span-2 sm:row-span-1">
+        <Button size="icon-sm" variant="ghost" className="text-muted-foreground" onClick={() => setEditing(true)} aria-label="Edit entry">
+          <PenLine />
         </Button>
         <Button
-          size="icon"
+          size="icon-sm"
           variant="ghost"
-          className="h-7 w-7 text-destructive hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive"
           onClick={handleDelete}
           disabled={isPending}
+          aria-label="Delete entry"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 />
         </Button>
       </div>
+      <span className="sm:hidden text-xs text-muted-foreground">
+        {time} · {macro(entry.protein_g, 'g')} P · {macro(entry.fat_g, 'g')} F · {macro(entry.carbs_g, 'g')} C
+      </span>
     </div>
   )
 }

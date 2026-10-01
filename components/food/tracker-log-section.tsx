@@ -1,9 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { useEffect, useState } from 'react'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -13,85 +11,66 @@ import {
 } from '@/components/ui/select'
 import type { TrackerModule } from '@/lib/types'
 import type { MacroValues, TrackerSelection } from '@/components/food/shared'
-import { autoMatchField } from '@/components/food/shared'
+import { autoMatchField, macroForField } from '@/components/food/shared'
 
 // ----------------------------------------------------------------
-// "Also log to tracker" collapsible section
+// "Also log to a tracker" section
 // ----------------------------------------------------------------
 
 interface TrackerLogSectionProps {
   macros: MacroValues
   modules: TrackerModule[]
-  /** Called whenever the selection changes; null = section closed / no module selected. */
+  /** Called whenever the selection changes; null = unchecked / no module selected. */
   onChange: (selection: TrackerSelection | null) => void
 }
 
+/**
+ * Optional second write: the same macros into one of the user's trackers.
+ * Each numeric field is matched to a macro by name and follows the macro as
+ * it's edited, until the user types over that field's value here.
+ */
 export function TrackerLogSection({ macros, modules, onChange }: TrackerLogSectionProps) {
-  const [open, setOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState<string>('')
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
+  const [enabled, setEnabled] = useState(false)
+  // Default to the first tracker whose fields match a macro (e.g. "Nutrition").
+  const [selectedId, setSelectedId] = useState<string>(
+    () =>
+      modules.find((m) => m.numericFields.some((f) => macroForField(f.key, f.label)))?.id ??
+      modules[0]?.id ??
+      '',
+  )
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
 
   const selectedModule = modules.find((m) => m.id === selectedId) ?? null
-
-  const handleToggle = () => {
-    const next = !open
-    setOpen(next)
-    if (!next) {
-      setSelectedId('')
-      setFieldValues({})
-      onChange(null)
-    }
+  const fieldValues: Record<string, string> = {}
+  for (const f of selectedModule?.numericFields ?? []) {
+    fieldValues[f.key] = overrides[f.key] ?? autoMatchField(f.key, f.label, macros)
   }
+  const fieldValuesKey = JSON.stringify(fieldValues)
 
-  const handleModuleChange = (moduleId: string) => {
-    const mod = modules.find((m) => m.id === moduleId)
-    setSelectedId(moduleId)
-    if (!mod) {
-      setFieldValues({})
-      onChange(null)
-      return
-    }
-    const initial: Record<string, string> = {}
-    for (const f of mod.numericFields) {
-      initial[f.key] = autoMatchField(f.key, f.label, macros)
-    }
-    setFieldValues(initial)
-    onChange({ moduleId: mod.id, fieldValues: initial })
-  }
-
-  const handleFieldChange = (key: string, value: string) => {
-    const next = { ...fieldValues, [key]: value }
-    setFieldValues(next)
-    if (selectedModule) {
-      onChange({ moduleId: selectedModule.id, fieldValues: next })
-    }
-  }
+  useEffect(() => {
+    onChange(enabled && selectedModule ? { moduleId: selectedModule.id, fieldValues: JSON.parse(fieldValuesKey) } : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, selectedModule?.id, fieldValuesKey])
 
   if (modules.length === 0) return null
 
   return (
-    <div className="border rounded-md">
-      <button
-        type="button"
-        className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors rounded-md"
-        onClick={handleToggle}
-      >
-        <span className="text-muted-foreground">
-          {open && selectedModule
-            ? `Also logging to "${selectedModule.name}"`
-            : 'Also log to a tracker (optional)'}
-        </span>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
-      </button>
-
-      {open && (
-        <div className="px-3 pb-3 space-y-3 border-t pt-3">
-          <Select value={selectedId} onValueChange={(v) => handleModuleChange(v ?? '')}>
-            <SelectTrigger className="h-8 text-sm">
+    <div className="rounded-[10px] border bg-muted/40 px-3.5 py-3 flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5 text-[0.8rem]">
+        <label className="flex items-center gap-2.5 font-medium cursor-pointer">
+          <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
+          Also log to a tracker
+        </label>
+        {enabled && (
+          <Select
+            items={modules.map((m) => ({ value: m.id, label: m.name }))}
+            value={selectedId}
+            onValueChange={(v) => {
+              setSelectedId(v ?? '')
+              setOverrides({})
+            }}
+          >
+            <SelectTrigger size="sm" className="ml-auto h-7 text-[0.8rem] min-w-36">
               <SelectValue placeholder="Select a tracker…" />
             </SelectTrigger>
             <SelectContent>
@@ -102,35 +81,32 @@ export function TrackerLogSection({ macros, modules, onChange }: TrackerLogSecti
               ))}
             </SelectContent>
           </Select>
+        )}
+      </div>
 
-          {selectedModule && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Values are pre-filled from your food entry — adjust if needed.
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {selectedModule.numericFields.map((f) => (
-                  <div key={f.key} className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      {f.label}
-                      {f.unit && (
-                        <span className="text-muted-foreground/60"> ({f.unit})</span>
-                      )}
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      placeholder="0"
-                      value={fieldValues[f.key] ?? ''}
-                      onChange={(e) => handleFieldChange(f.key, e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      {enabled && selectedModule && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-foreground/80">
+          {selectedModule.numericFields.map((f) => (
+            <label
+              key={f.key}
+              className="flex items-center gap-1 rounded-md border bg-background pl-2 pr-1 py-0.5 focus-within:border-ring"
+            >
+              {f.label} ←
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.1"
+                placeholder="—"
+                aria-label={`${f.label} value for ${selectedModule.name}`}
+                value={fieldValues[f.key]}
+                onChange={(e) => setOverrides((o) => ({ ...o, [f.key]: e.target.value }))}
+                className="w-14 bg-transparent tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              {f.unit && <span className="text-muted-foreground">{f.unit}</span>}
+            </label>
+          ))}
+          <span className="text-muted-foreground py-0.5">matched by field name</span>
         </div>
       )}
     </div>

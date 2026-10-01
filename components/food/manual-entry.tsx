@@ -77,19 +77,29 @@ export function ManualEntry({ date, trackerModules, onSaved }: ManualEntryProps)
     })
   }
 
+  const hasValues = Object.values(macros).some((v) => v !== '')
+
   return (
-    <div className="space-y-4">
-      <MacroFields values={macros} onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))} />
+    <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-3.5 sm:flex-row sm:items-end">
+        <MacroFields
+          values={macros}
+          onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))}
+          size="lg"
+          idPrefix="manual-"
+          className="flex-1"
+        />
+        <Button onClick={handleSave} disabled={isPending || !hasValues} className="h-[52px] rounded-[10px] px-6 text-[0.95rem]">
+          {isPending && <Loader2 className="animate-spin" />}
+          Save entry
+        </Button>
+      </div>
       <TrackerLogSection
         macros={macros}
         modules={trackerModules}
         onChange={setTrackerSelection}
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button onClick={handleSave} disabled={isPending} size="sm">
-        {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-        Add entry
-      </Button>
     </div>
   )
 }

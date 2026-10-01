@@ -19,6 +19,16 @@ export interface TrackerSelection {
 // Helpers
 // ----------------------------------------------------------------
 
+/** Which food macro a module field corresponds to, by its key and label (null = none). */
+export function macroForField(key: string, label: string): keyof MacroValues | null {
+  const needle = `${key} ${label}`.toLowerCase()
+  if (/calor|kcal/.test(needle)) return 'calories'
+  if (/protein|prot/.test(needle)) return 'protein_g'
+  if (/\bfat\b|lipid/.test(needle)) return 'fat_g'
+  if (/carb/.test(needle)) return 'carbs_g'
+  return null
+}
+
 /**
  * Smart-match a module field to one of the four food macros.
  * Returns the matching macro value string, or '' if no match.
@@ -28,10 +38,6 @@ export function autoMatchField(
   label: string,
   macros: MacroValues
 ): string {
-  const needle = `${key} ${label}`.toLowerCase()
-  if (/calor|kcal/.test(needle)) return macros.calories
-  if (/protein|prot/.test(needle)) return macros.protein_g
-  if (/\bfat\b|lipid/.test(needle)) return macros.fat_g
-  if (/carb/.test(needle)) return macros.carbs_g
-  return ''
+  const macro = macroForField(key, label)
+  return macro ? macros[macro] : ''
 }

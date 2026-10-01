@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useTransition, useCallback } from 'react'
-import { Camera, Loader2, X } from 'lucide-react'
+import { Camera, Loader2, RotateCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -149,9 +149,13 @@ export function PhotoUploader({ date, trackerModules, onSaved }: PhotoUploaderPr
     setTrackerSelection(null)
   }
 
-  if (!preview) {
-    return (
-      <div>
+  const hasValues = Object.values(macros).some((v) => v !== '')
+  const setMacro = (k: string, v: string) => setMacros((p) => ({ ...p, [k]: v }))
+
+  return (
+    <div className="grid gap-6 md:grid-cols-[340px_minmax(0,1fr)]">
+      {/* Photo + context */}
+      <div className="flex flex-col gap-3">
         <input
           ref={inputRef}
           type="file"
@@ -160,132 +164,103 @@ export function PhotoUploader({ date, trackerModules, onSaved }: PhotoUploaderPr
           onChange={(e) => {
             const file = e.target.files?.[0]
             if (file) handleFileChange(file)
+            e.target.value = ''
           }}
         />
+        {preview ? (
+          <div className="relative h-[220px] rounded-xl border overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Food photo" className="size-full object-cover" />
+            <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2.5 pt-6">
+              <Button size="xs" variant="secondary" onClick={() => inputRef.current?.click()}>
+                Replace
+              </Button>
+              <Button size="icon-xs" variant="secondary" onClick={handleDiscard} aria-label="Remove photo">
+                <X />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="h-[220px] rounded-xl border border-dashed flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors bg-[repeating-linear-gradient(135deg,transparent_0_10px,color-mix(in_oklch,var(--muted)_50%,transparent)_10px_20px)]"
+          >
+            <Camera className="size-6" />
+            Take or upload a food photo
+          </button>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="photo-context" className="text-xs font-normal text-muted-foreground">
+            Context (optional)
+          </Label>
+          <Input
+            id="photo-context"
+            placeholder='e.g. "about 150 g salmon, 12-inch bowl"'
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            disabled={analyzing}
+            className="h-10 bg-background dark:bg-background"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !analyzing && imageBase64) handleAnalyze()
+            }}
+          />
+        </div>
+
         <Button
           variant="outline"
-          className="w-full h-24 border-dashed flex-col gap-2"
-          onClick={() => inputRef.current?.click()}
-        >
-          <Camera className="h-6 w-6 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Take or upload a food photo</span>
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="relative w-full max-w-xs">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview} alt="Food photo" className="rounded-lg w-full object-cover max-h-48" />
-        <Button
-          size="icon"
-          variant="secondary"
-          className="absolute top-2 right-2 h-7 w-7"
-          onClick={handleDiscard}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Context input + Analyze button — shown before estimates */}
-      <div className="space-y-2">
-        <Label htmlFor="photo-context" className="text-xs text-muted-foreground">
-          Context <span className="text-muted-foreground/60">(optional)</span>
-        </Label>
-        <Input
-          id="photo-context"
-          placeholder='e.g. "22 grams of salmon" or "plate is 12 inches wide"'
-          value={context}
-          onChange={(e) => setContext(e.target.value)}
-          disabled={analyzing}
-          className="h-9 text-sm"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !analyzing && imageBase64) handleAnalyze()
-          }}
-        />
-      </div>
-
-      {!estimate && !analyzeError && (
-        <Button
-          variant="secondary"
-          size="sm"
+          className="h-[38px]"
           onClick={handleAnalyze}
           disabled={analyzing || !imageBase64}
-          className="gap-1.5"
         >
           {analyzing ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</>
+            <><Loader2 className="animate-spin" /> Estimating…</>
+          ) : estimate || analyzeError ? (
+            <><RotateCw /> Estimate again</>
           ) : (
             'Estimate calories'
           )}
         </Button>
-      )}
+      </div>
 
-      {analyzeError && (
-        <div className="space-y-2">
-          <p className="text-sm text-amber-600 bg-amber-50 rounded-md px-3 py-2">{analyzeError}</p>
-          <Button variant="secondary" size="sm" onClick={handleAnalyze} disabled={analyzing} className="gap-1.5">
-            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Try again
-          </Button>
+      {/* Estimate review */}
+      <div className="flex flex-col gap-3.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-sm font-medium">Estimate</span>
+          {estimate ? (
+            <span className="text-xs font-medium rounded-full px-2.5 py-0.5 bg-[color-mix(in_oklch,var(--crystal-glow)_14%,transparent)] crystal-ink">
+              ≈ approximate, edit before saving
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {preview ? 'Press Estimate calories, or type the values yourself.' : 'Add a photo to get an estimate.'}
+            </span>
+          )}
         </div>
-      )}
 
-      {estimate && (
-        <>
-          {estimate.notes && (
-            <p className="text-sm text-muted-foreground italic">{estimate.notes}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            AI estimates — review and adjust before saving.
-          </p>
-          <MacroFields
-            values={macros}
-            onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))}
-            disabled={analyzing}
-          />
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleAnalyze}
-              disabled={analyzing}
-              className="text-muted-foreground text-xs h-7 px-2"
-            >
-              {analyzing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-              Re-analyze
-            </Button>
-          </div>
-        </>
-      )}
+        <MacroFields values={macros} onChange={setMacro} disabled={analyzing} size="lg" idPrefix="photo-" />
 
-      {(estimate || analyzeError) && (
-        <>
-          {!estimate && (
-            <MacroFields
-              values={macros}
-              onChange={(k, v) => setMacros((p) => ({ ...p, [k]: v }))}
-            />
-          )}
-          <TrackerLogSection
-            macros={macros}
-            modules={trackerModules}
-            onChange={setTrackerSelection}
-          />
-          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={analyzing || isPending} size="sm">
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              Save entry
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleDiscard}>
+        {estimate?.notes && <p className="text-[0.8rem] text-muted-foreground leading-relaxed">Model note: {estimate.notes}</p>}
+        {analyzeError && (
+          <p className="text-sm rounded-md px-3 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-300">{analyzeError}</p>
+        )}
+
+        <TrackerLogSection macros={macros} modules={trackerModules} onChange={setTrackerSelection} />
+
+        {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+        <div className="mt-auto flex justify-end gap-2.5">
+          {(preview || hasValues) && (
+            <Button variant="ghost" className="h-9" onClick={handleDiscard}>
               Discard
             </Button>
-          </div>
-        </>
-      )}
+          )}
+          <Button className="h-9 px-4" onClick={handleSave} disabled={analyzing || isPending || !hasValues}>
+            {isPending && <Loader2 className="animate-spin" />}
+            Save entry
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
