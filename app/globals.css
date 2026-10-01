@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-space-grotesk), var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -167,6 +167,17 @@
   h1, h2, h3 {
     font-family: var(--font-heading);
   }
+}
+
+/* ----------------------------------------------------------------
+   Crystal ink — text tinted with a tracker's crystal. The deep primary
+   reads on limestone; on obsidian the lighter glow tone does. Needs
+   --crystal-primary / --crystal-glow in scope (see lib/geode-style.ts).
+   ---------------------------------------------------------------- */
+.crystal-ink { color: var(--crystal-primary); }
+.dark .crystal-ink { color: var(--crystal-glow); }
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .crystal-ink { color: var(--crystal-glow); }
 }
 
 /* ----------------------------------------------------------------
