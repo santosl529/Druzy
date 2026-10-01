@@ -1,22 +1,15 @@
 'use client'
 
 import { useState, useRef, useTransition, useCallback, useMemo, useEffect } from 'react'
-import {
-  Camera,
-  X,
-  Loader2,
-  PlusIcon,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react'
+import { Camera, X, Loader2, ChevronDown, ChevronUp, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Separator } from '@/components/ui/separator'
 import { createJournalEntry } from '@/app/actions/journal'
 import { transcribeJournal, OllamaError } from '@/lib/ollama'
-import { clientToday } from '@/lib/date'
+import { clientToday, formatDisplayDate } from '@/lib/date'
+import { cn } from '@/lib/utils'
 import type { JournalField, JournalTemplate, TrackerModule } from '@/lib/types'
 
 // ----------------------------------------------------------------
@@ -30,15 +23,17 @@ interface FieldEditorProps {
 }
 
 function FieldEditor({ field, value, onChange }: FieldEditorProps) {
+  const inputClass = 'bg-background dark:bg-background'
   if (field.type === 'number') {
     return (
       <Input
+        id={`journal-${field.key}`}
         type="number"
         step="0.1"
         placeholder="0"
         value={value != null ? String(value) : ''}
         onChange={(e) => onChange(field.key, e.target.value !== '' ? Number(e.target.value) : null)}
-        className="h-8 w-36 text-sm"
+        className={cn(inputClass, 'h-11 font-heading text-lg md:text-lg font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none')}
       />
     )
   }
@@ -46,40 +41,40 @@ function FieldEditor({ field, value, onChange }: FieldEditorProps) {
   if (field.type === 'list') {
     const items = Array.isArray(value) ? (value as string[]) : []
     return (
-      <div className="space-y-2">
+      <div className="flex flex-col gap-1.5">
         {items.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <Input
+          <div key={idx} className="flex items-center gap-2.5 rounded-lg border bg-background pl-2.5 pr-1 focus-within:border-ring">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rotate-45" style={{ background: 'var(--crystal-primary)' }} />
+            <input
               value={item}
               onChange={(e) => {
                 const next = [...items]
                 next[idx] = e.target.value
                 onChange(field.key, next)
               }}
-              className="h-8 text-sm flex-1"
+              className="flex-1 min-w-0 bg-transparent py-2 text-sm outline-none"
               placeholder={`Item ${idx + 1}`}
+              aria-label={`${field.label} item ${idx + 1}`}
             />
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground"
               onClick={() => onChange(field.key, items.filter((_, i) => i !== idx))}
+              aria-label="Remove item"
             >
-              <X className="h-3.5 w-3.5" />
+              <X />
             </Button>
           </div>
         ))}
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-7 text-xs"
+          className="self-start text-[0.8rem] font-medium text-accent-text hover:underline"
           onClick={() => onChange(field.key, [...items, ''])}
         >
-          <PlusIcon className="h-3 w-3" />
-          Add item
-        </Button>
+          + Add item
+        </button>
       </div>
     )
   }
@@ -87,9 +82,10 @@ function FieldEditor({ field, value, onChange }: FieldEditorProps) {
   // text
   return (
     <Input
+      id={`journal-${field.key}`}
       value={typeof value === 'string' ? value : ''}
       onChange={(e) => onChange(field.key, e.target.value)}
-      className="h-8 text-sm"
+      className={cn(inputClass, 'h-10')}
       placeholder="—"
     />
   )
@@ -121,6 +117,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
   const [extracted, setExtracted] = useState<Record<string, unknown>>({})
   const [hasResult, setHasResult] = useState(false)
   const [showTranscription, setShowTranscription] = useState(false)
+  const [tookSeconds, setTookSeconds] = useState<number | null>(null)
 
   // ── Tracker enable toggles ──────────────────────────────────────
   const mappedModuleIds = Array.from(
@@ -154,6 +151,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
     if (photos.length === 0) return
     setTranscribeError(null)
     setTranscribing(true)
+    const started = performance.now()
     try {
       const result = await transcribeJournal({
         images: photos.map((p) => p.base64),
@@ -162,6 +160,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
       setTranscription(result.transcription)
       setExtracted(result.extracted)
       setHasResult(true)
+      setTookSeconds(Math.round((performance.now() - started) / 1000))
     } catch (err) {
       if (err instanceof OllamaError) {
         setTranscribeError(err.message)
@@ -178,7 +177,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
   // ── No template state ───────────────────────────────────────────
   if (!template || template.fields.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center space-y-3">
+      <div className="rounded-2xl border border-dashed p-8 text-center space-y-3">
         <p className="text-sm text-muted-foreground">
           No extraction template configured yet.
         </p>
@@ -247,6 +246,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
       setTranscription('')
       setExtracted({})
       setHasResult(false)
+      setTookSeconds(null)
       setDate(clientToday(savedTimezone))
       setEnabledModuleIds(new Set(mappedModuleIds))
       onSaved?.()
@@ -260,6 +260,7 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
     setExtracted({})
     setHasResult(false)
     setTranscribeError(null)
+    setTookSeconds(null)
     setSaveError(null)
     setSavedModules(null)
     setFailedModules([])
@@ -267,152 +268,167 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
   }
 
   // ── Render ──────────────────────────────────────────────────────
+  const filledCount = fields.filter((f) => {
+    const v = extracted[f.key]
+    return v !== null && v !== undefined && v !== '' && (!Array.isArray(v) || v.some((x) => x !== ''))
+  }).length
+  const trackerLogs = new Set(
+    fields
+      .filter((f) => f.type === 'number' && f.targetModuleId && enabledModuleIds.has(f.targetModuleId) && extracted[f.key] != null)
+      .map((f) => f.targetModuleId!),
+  ).size
+  const canSave = filledCount > 0 || transcription.trim() !== ''
+  const today = clientToday(savedTimezone)
+  const numberFields = fields.filter((f) => f.type === 'number')
+  const otherFields = fields.filter((f) => f.type !== 'number')
+
   return (
-    <div className="space-y-5">
-      {/* Date */}
-      <div className="flex items-center gap-3">
-        <Label htmlFor="journal-date" className="text-sm shrink-0">Entry date</Label>
-        <Input
-          id="journal-date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="h-8 w-40 text-sm"
-        />
-      </div>
+    <div className="flex flex-col gap-3">
+      {savedModules !== null && (
+        <p className="rounded-xl border bg-card px-4 py-2.5 text-sm">
+          Saved.
+          {savedModules.length > 0 ? ` Also logged to ${savedModules.join(', ')}.` : ''}
+        </p>
+      )}
+      {failedModules.map((f, i) => (
+        <p key={`${f.name}-${i}`} className="text-sm text-destructive">
+          Couldn&apos;t log to {f.name}: {f.error}
+        </p>
+      ))}
 
-      {/* Photo picker */}
-      <div className="space-y-3">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => e.target.files && handleFilesSelected(e.target.files)}
-        />
+      <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+        {/* Pages */}
+        <section className="rounded-2xl border bg-card p-[18px] flex flex-col gap-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-heading text-base font-semibold">Pages</h2>
+            <label className="relative rounded-full border px-2.5 py-0.5 text-xs text-foreground/80 cursor-pointer hover:bg-muted/60">
+              {date === today ? 'Today' : formatDisplayDate(date, { month: 'short', day: 'numeric' })} ▾
+              <input
+                id="journal-date"
+                type="date"
+                aria-label="Entry date"
+                value={date}
+                max={today}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </label>
+          </div>
 
-        {photos.length === 0 ? (
-          <Button
-            variant="outline"
-            className="w-full h-24 border-dashed flex-col gap-2"
-            onClick={() => inputRef.current?.click()}
-          >
-            <Camera className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              Add journal page photo(s)
-            </span>
-          </Button>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) handleFilesSelected(e.target.files)
+              e.target.value = ''
+            }}
+          />
+
+          {photos.length > 0 && (
+            <div className="grid grid-cols-2 gap-2.5">
               {photos.map((p, idx) => (
-                <div key={idx} className="relative">
+                <div key={idx} className="relative h-[200px] rounded-[10px] border overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.preview}
-                    alt={`Page ${idx + 1}`}
-                    className="h-24 w-24 object-cover rounded-md border"
-                  />
+                  <img src={p.preview} alt={`Page ${idx + 1}`} className="size-full object-cover" />
+                  <span className="absolute left-2 bottom-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[11px] text-white">
+                    page {idx + 1}
+                  </span>
                   <Button
                     type="button"
-                    size="icon"
+                    size="icon-xs"
                     variant="secondary"
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5"
+                    className="absolute top-1.5 right-1.5"
                     onClick={() => removePhoto(idx)}
+                    aria-label={`Remove page ${idx + 1}`}
                   >
-                    <X className="h-3 w-3" />
+                    <X />
                   </Button>
                 </div>
               ))}
-              <button
-                type="button"
-                className="h-24 w-24 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-                onClick={() => inputRef.current?.click()}
-              >
-                <PlusIcon className="h-5 w-5" />
-              </button>
             </div>
+          )}
 
-            {/* Transcribe button — shown before result */}
-            {!hasResult && (
-              <Button
-                size="sm"
-                onClick={handleTranscribe}
-                disabled={transcribing || photos.length === 0}
-                className="gap-1.5"
-              >
-                {transcribing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Transcribing…
-                  </>
-                ) : (
-                  'Transcribe'
-                )}
-              </Button>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className={cn(
+              'rounded-[10px] border border-dashed border-foreground/20 text-[0.8rem] font-medium text-accent-text hover:bg-muted/40 transition-colors',
+              photos.length === 0 ? 'h-[200px] flex flex-col items-center justify-center gap-2' : 'py-2.5',
             )}
-          </div>
-        )}
-      </div>
+          >
+            {photos.length === 0 && <Camera className="size-6 text-muted-foreground" />}
+            {photos.length === 0 ? 'Add a photo of a journal page' : '+ Add page'}
+          </button>
 
-      {/* Error */}
-      {transcribeError && (
-        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
-          <p className="text-sm text-amber-700 font-medium">Transcription failed</p>
-          <p className="text-xs text-amber-600">{transcribeError}</p>
-          <p className="text-xs text-amber-600">
-            You can still fill in the fields manually below.
+          <Button
+            variant="outline"
+            className="h-[38px]"
+            onClick={handleTranscribe}
+            disabled={transcribing || photos.length === 0}
+          >
+            {transcribing ? (
+              <><Loader2 className="animate-spin" /> Transcribing…</>
+            ) : hasResult ? (
+              <><RotateCw /> Transcribe again</>
+            ) : (
+              'Transcribe'
+            )}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {tookSeconds !== null ? `Transcribed in ${tookSeconds} s · ` : ''}
+            Photos stay in this browser tab and are never uploaded.
           </p>
-        </div>
-      )}
+          {transcribeError && (
+            <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+              <p className="font-medium">Transcription failed</p>
+              <p>{transcribeError}</p>
+              <p>You can still fill in the fields by hand.</p>
+            </div>
+          )}
+        </section>
 
-      {/* Review section */}
-      {hasResult && (
-        <div className="space-y-5">
-          <Separator />
-
-          {/* Full transcription — collapsible */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 text-sm font-medium hover:text-muted-foreground transition-colors"
-              onClick={() => setShowTranscription((v) => !v)}
-            >
-              {showTranscription ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-              Full transcription
-            </button>
-            {showTranscription && (
-              <textarea
-                className="w-full text-sm font-mono bg-muted/40 rounded-md p-3 min-h-32 resize-y border-0 outline-none focus:ring-1 focus:ring-ring"
-                value={transcription}
-                onChange={(e) => setTranscription(e.target.value)}
-                placeholder="(transcription will appear here)"
-              />
-            )}
+        {/* Review */}
+        <section
+          className="rounded-2xl border bg-card px-[22px] py-5 flex flex-col gap-4"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--border), var(--crystal-primary) 45%)',
+            boxShadow: '0 0 28px color-mix(in srgb, var(--crystal-glow) 8%, transparent)',
+          }}
+        >
+          <div className="flex flex-wrap items-baseline gap-2.5">
+            <h2 className="font-heading text-base font-semibold">Review</h2>
+            <span className="text-xs text-muted-foreground">
+              {fields.length} {fields.length === 1 ? 'field' : 'fields'} from your template ·{' '}
+              {hasResult ? 'edit anything' : 'transcribe a page or type them in'}
+            </span>
           </div>
 
-          {/* Extracted fields */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium">Extracted fields</h3>
-            {fields.map((field) => {
-              const moduleForField = trackerModules.find(
-                (m) => m.id === field.targetModuleId
-              )
-              const trackerFieldLabel = moduleForField?.numericFields.find(
-                (f) => f.key === field.targetFieldKey
-              )?.label
+          {otherFields.map((field) => (
+            <div key={field.key} className="flex flex-col gap-1.5">
+              <Label htmlFor={`journal-${field.key}`} className="text-xs font-normal text-muted-foreground">
+                {field.label} · {field.type}
+              </Label>
+              <FieldEditor field={field} value={extracted[field.key]} onChange={handleExtractedChange} />
+            </div>
+          ))}
 
-              return (
-                <div key={field.key} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-sm">{field.label}</Label>
-                    {field.type === 'number' && field.targetModuleId && moduleForField && (
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          {numberFields.length > 0 && (
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              {numberFields.map((field) => {
+                const moduleForField = trackerModules.find((m) => m.id === field.targetModuleId)
+                const trackerFieldLabel = moduleForField?.numericFields.find((f) => f.key === field.targetFieldKey)?.label
+                const v = extracted[field.key]
+                return (
+                  <div key={field.key} className="flex flex-col gap-1.5">
+                    <Label htmlFor={`journal-${field.key}`} className="text-xs font-normal text-muted-foreground">
+                      {field.label} · number
+                    </Label>
+                    <FieldEditor field={field} value={v} onChange={handleExtractedChange} />
+                    {field.targetModuleId && moduleForField ? (
+                      <label className="flex items-center gap-2 text-[0.8rem] mt-0.5 cursor-pointer select-none">
                         <Checkbox
                           checked={enabledModuleIds.has(field.targetModuleId)}
                           onCheckedChange={(checked) => {
@@ -424,71 +440,62 @@ export function JournalCapture({ template, trackerModules, onSaved, savedTimezon
                             })
                           }}
                         />
-                        <span className="text-xs text-muted-foreground">
-                          Log to {moduleForField.name}
-                          {trackerFieldLabel ? ` → ${trackerFieldLabel}` : ''}
+                        <span>
+                          Also log{v != null ? ` ${v}` : ''} to{' '}
+                          <span className="font-medium">
+                            {moduleForField.name}
+                            {trackerFieldLabel ? ` · ${trackerFieldLabel}` : ''}
+                          </span>
                         </span>
                       </label>
+                    ) : (
+                      <span className="text-xs text-muted-foreground mt-0.5">Not linked to a tracker</span>
                     )}
                   </div>
-                  <FieldEditor
-                    field={field}
-                    value={extracted[field.key]}
-                    onChange={handleExtractedChange}
-                  />
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Re-transcribe */}
-          {photos.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleTranscribe}
-              disabled={transcribing}
-              className="text-xs text-muted-foreground h-7 px-2"
-            >
-              {transcribing ? (
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-              ) : null}
-              Re-transcribe
-            </Button>
-          )}
-
-          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-
-          {savedModules !== null && (
-            <p className="text-sm text-green-600">
-              Saved.
-              {savedModules.length > 0
-                ? ` Also logged to: ${savedModules.join(', ')}.`
-                : ''}
-            </p>
-          )}
-
-          {failedModules.length > 0 && (
-            <div className="space-y-0.5">
-              {failedModules.map((f, i) => (
-                <p key={`${f.name}-${i}`} className="text-sm text-destructive">
-                  Couldn&apos;t log to {f.name}: {f.error}
-                </p>
-              ))}
+                )
+              })}
             </div>
           )}
 
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={isPending} size="sm">
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              Save entry
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleDiscard}>
+          <div className="rounded-[10px] border overflow-hidden">
+            <button
+              type="button"
+              aria-expanded={showTranscription}
+              onClick={() => setShowTranscription((v) => !v)}
+              className="w-full flex items-center justify-between bg-muted/40 px-3.5 py-2.5 text-[0.8rem] font-medium"
+            >
+              Full transcription
+              {showTranscription ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+            </button>
+            {showTranscription && (
+              <textarea
+                className="block w-full border-t bg-transparent px-3.5 py-3 font-mono text-[0.8rem] leading-relaxed text-foreground/85 min-h-32 resize-y outline-none"
+                value={transcription}
+                onChange={(e) => setTranscription(e.target.value)}
+                placeholder="(the transcription appears here)"
+                aria-label="Full transcription"
+              />
+            )}
+          </div>
+
+          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="mr-auto text-xs text-muted-foreground">
+              Saves {transcription.trim() ? 'the text and ' : ''}
+              {filledCount} {filledCount === 1 ? 'field' : 'fields'}
+              {trackerLogs > 0 ? `, and logs ${trackerLogs} tracker ${trackerLogs === 1 ? 'entry' : 'entries'}` : ''}
+            </span>
+            <Button variant="ghost" className="h-9" onClick={handleDiscard} disabled={isPending}>
               Discard
             </Button>
+            <Button className="h-9 px-4" onClick={handleSave} disabled={isPending || !canSave}>
+              {isPending && <Loader2 className="animate-spin" />}
+              Save entry
+            </Button>
           </div>
-        </div>
-      )}
+        </section>
+      </div>
     </div>
   )
 }

@@ -126,6 +126,34 @@ export class OllamaError extends Error {
 }
 
 // ----------------------------------------------------------------
+// Connection status
+// ----------------------------------------------------------------
+
+export type OllamaStatus =
+  | { state: 'connected'; model: string }
+  | { state: 'model-missing'; model: string }
+  | { state: 'unreachable'; model: string }
+
+/**
+ * Checks (from the browser) whether local Ollama answers and has the journal
+ * model pulled. Lists installed models only; no image or text is sent.
+ */
+export async function checkOllama(signal?: AbortSignal): Promise<OllamaStatus> {
+  const { baseUrl, model } = getOllamaConfig()
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, { signal })
+    if (!res.ok) return { state: 'unreachable', model }
+    const data = (await res.json()) as { models?: { name?: string }[] }
+    // Installed names carry a tag ("qwen2.5vl:latest"); the config may omit it.
+    const installed = (data.models ?? []).map((m) => m.name ?? '')
+    const has = installed.some((n) => n === model || n.split(':')[0] === model)
+    return { state: has ? 'connected' : 'model-missing', model }
+  } catch {
+    return { state: 'unreachable', model }
+  }
+}
+
+// ----------------------------------------------------------------
 // Main transcription function
 // ----------------------------------------------------------------
 

@@ -1,16 +1,25 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Trash2Icon, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { deleteJournalEntry } from '@/app/actions/journal'
 import { formatDisplayDate } from '@/lib/date'
 import type { JournalEntry, JournalTemplate } from '@/lib/types'
 
-function renderFieldValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (Array.isArray(value)) return value.length === 0 ? '—' : value.join(', ')
-  return String(value)
+/** One-line digest, e.g. '3 good things · “Long walk” · Hours slept 7.5'. */
+function summarize(fields: JournalTemplate['fields'], extracted: Record<string, unknown>): string {
+  const parts: string[] = []
+  for (const f of fields) {
+    const v = extracted[f.key]
+    if (v === null || v === undefined || v === '') continue
+    if (Array.isArray(v)) {
+      const n = v.filter((x) => x !== '').length
+      if (n) parts.push(`${n} ${f.label.toLowerCase()}`)
+    } else if (f.type === 'text') parts.push(`“${String(v)}”`)
+    else parts.push(`${f.label} ${String(v)}`)
+  }
+  return parts.join(' · ')
 }
 
 interface EntryRowProps {
@@ -27,14 +36,6 @@ function EntryRow({ entry, template, onDeleted }: EntryRowProps) {
   const fields = template?.fields ?? []
   const extracted = entry.extracted as Record<string, unknown>
 
-  // Collect non-empty field values for the summary line.
-  const fieldSummary = fields
-    .filter((f) => {
-      const v = extracted[f.key]
-      return v !== null && v !== undefined && v !== '' && (!Array.isArray(v) || v.length > 0)
-    })
-    .slice(0, 4)
-
   function handleDelete() {
     if (!confirmDelete) {
       setConfirmDelete(true)
@@ -46,68 +47,53 @@ function EntryRow({ entry, template, onDeleted }: EntryRowProps) {
     })
   }
 
-  return (
-    <div className="rounded-lg border">
-      {/* Row header */}
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <button
-          type="button"
-          className="flex-1 flex items-center gap-3 text-left min-w-0"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-          )}
-          <span className="font-heading text-sm font-medium shrink-0">{formatDisplayDate(entry.entry_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-          {!expanded && fieldSummary.length > 0 && (
-            <span className="text-xs text-muted-foreground truncate">
-              {fieldSummary
-                .map((f) => `${f.label}: ${renderFieldValue(extracted[f.key])}`)
-                .join(' · ')}
-            </span>
-          )}
-        </button>
+  const summary = summarize(fields, extracted)
 
-        {confirmDelete ? (
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-destructive">Delete?</span>
+  return (
+    <div className="border-t">
+      <div className="grid grid-cols-[72px_minmax(0,1fr)_auto] sm:grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-4 px-[22px] py-3 text-sm">
+        <span className="text-muted-foreground">
+          {formatDisplayDate(entry.entry_date, { month: 'short', day: 'numeric' })}
+        </span>
+        <span className="truncate">{summary || <span className="text-muted-foreground">Transcription only</span>}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            className="text-[0.8rem] text-accent-text hover:underline px-1"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? 'Hide' : 'View'}
+          </button>
+          {confirmDelete ? (
+            <>
+              <span className="text-xs text-destructive ml-1">Delete?</span>
+              <Button size="sm" variant="destructive" className="h-6 text-xs px-2" onClick={handleDelete} disabled={isPending}>
+                Yes
+              </Button>
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setConfirmDelete(false)}>
+                No
+              </Button>
+            </>
+          ) : (
             <Button
-              size="sm"
-              variant="destructive"
-              className="h-6 text-xs px-2"
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
               onClick={handleDelete}
               disabled={isPending}
+              aria-label="Delete entry"
             >
-              Yes
+              <Trash2Icon />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-xs px-2"
-              onClick={() => setConfirmDelete(false)}
-            >
-              No
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0 text-muted-foreground"
-            onClick={handleDelete}
-            disabled={isPending}
-          >
-            <Trash2Icon className="h-3.5 w-3.5" />
-          </Button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="px-3 pb-4 pt-1 space-y-4 border-t">
+        <div className="px-[22px] pb-4 pt-1 space-y-4">
           {/* Extracted fields */}
           {fields.length > 0 && (
             <div className="space-y-2">
@@ -167,7 +153,13 @@ export function JournalHistory({ entries, template }: JournalHistoryProps) {
   const [list, setList] = useState<JournalEntry[]>(entries)
 
   return (
-    <div className="space-y-2">
+    <section className="rounded-2xl border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-[22px] py-4">
+        <h2 className="font-heading text-[0.95rem] font-semibold">Recent entries</h2>
+        <span className="text-xs text-muted-foreground">
+          {list.length} {list.length === 1 ? 'entry' : 'entries'}
+        </span>
+      </div>
       {list.map((entry) => (
         <EntryRow
           key={entry.id}
@@ -176,6 +168,6 @@ export function JournalHistory({ entries, template }: JournalHistoryProps) {
           onDeleted={(id) => setList((prev) => prev.filter((e) => e.id !== id))}
         />
       ))}
-    </div>
+    </section>
   )
 }
