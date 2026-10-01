@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { GeodeIcon } from '@/components/geode-icon'
+import { getCrystal } from '@/lib/crystals'
 
 /** Loading skeletons carry this attribute; the splash finishes once none remain. */
 const LOADING_SELECTOR = '[data-app-loading]'
@@ -42,7 +43,7 @@ const SHARDS: { outer: string; inner: string; innerFill: string; fly: [number, n
  * Lives in the app layout, so it only appears on a full load (or on entering
  * the app from /login) — client navigations keep the mounted layout.
  */
-export function BootSplash({ crystalType }: { crystalType: string }) {
+export function BootSplash({ crystalType, shardCrystals = [] }: { crystalType: string; shardCrystals?: string[] }) {
   const [done, setDone] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -76,6 +77,8 @@ export function BootSplash({ crystalType }: { crystalType: string }) {
       // Continue from wherever the loading loop is, rather than restarting.
       const current = parseFloat(getComputedStyle(svg).getPropertyValue('--openness')) || 0
       root.dataset.phase = 'finishing'
+      const caption = root.querySelector<HTMLElement>('[data-splash-caption]')
+      if (caption) caption.textContent = 'Ready'
       const splitAt = TO_SPLIT / (TO_SPLIT + BLOOM)
       // Remaining stages up to the split, then bloom; the geode swells as it opens.
       const bloom = svg.animate(
@@ -160,6 +163,27 @@ export function BootSplash({ crystalType }: { crystalType: string }) {
           </svg>
         </div>
         <span className="font-heading text-2xl font-bold tracking-tight text-foreground/80">Druzy</span>
+        {/* One shard per tracker, lighting in turn while the page loads; all
+            light at once when the data is ready (see globals.css). */}
+        {shardCrystals.length > 0 && (
+          <div className="flex flex-col items-center gap-2.5">
+            <div className="flex gap-3">
+              {shardCrystals.map((key, i) => {
+                const c = getCrystal(key)
+                return (
+                  <span
+                    key={i}
+                    className="boot-splash-shard size-[9px] rotate-45 rounded-[2px]"
+                    style={{ '--i': i, '--shard': c.primary, '--shard-glow': c.glow } as React.CSSProperties}
+                  />
+                )
+              })}
+            </div>
+            <span data-splash-caption="" className="text-[0.8rem] text-muted-foreground">
+              Opening your trackers…
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

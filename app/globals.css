@@ -222,6 +222,19 @@
   animation: none;
 }
 
+/* Tracker shards: light one after another while loading, all at once on finish. */
+.boot-splash-shard {
+  background: var(--border);
+  animation: boot-splash-shard-lit 300ms ease-out calc(200ms + var(--i) * 260ms) forwards;
+}
+.boot-splash[data-phase='finishing'] .boot-splash-shard {
+  animation-delay: 0ms;
+  animation-duration: 150ms;
+}
+@keyframes boot-splash-shard-lit {
+  to { background: var(--shard); box-shadow: 0 0 8px var(--shard-glow); }
+}
+
 @keyframes boot-splash-in {
   from { opacity: 0; }
   to { opacity: 1; }
