@@ -35,6 +35,8 @@ interface ConsistencyGridProps {
 
 type CountMode = 'logged' | 'goal'
 const WINDOWS = [30, 60, 90] as const
+/** Day tooltip width (px). */
+const TOOLTIP_WIDTH = 320
 type WindowDays = (typeof WINDOWS)[number]
 
 /** Whether a cell counts as done under the chosen counting rule. */
@@ -102,8 +104,8 @@ export function ConsistencyGrid({ gridData, today, stageByModule, dayEntries, sa
 
   const [windowDays, setWindowDays] = useState<WindowDays>(90)
   const [countMode, setCountMode] = useState<CountMode>('logged')
-  // Hovered day: index into `cols` plus the tooltip's x position in the card.
-  const [hover, setHover] = useState<{ col: number; x: number; width: number } | null>(null)
+  // Hovered day: index into `cols` plus where its tooltip sits in the card.
+  const [hover, setHover] = useState<{ col: number; left: number } | null>(null)
   // Day opened in the side panel (index into `cols`).
   const [selected, setSelected] = useState<number | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -150,11 +152,21 @@ export function ConsistencyGrid({ gridData, today, stageByModule, dayEntries, sa
   const gridCols = { gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }
   const gap = cols.length > 60 ? '2px' : '3px'
 
+  // The tooltip sits beside the hovered tick, covering half of the next day's
+  // tick so that half stays visible (and hoverable) in the gap. It flips to
+  // the left of the tick when there's no room on the right.
   function onCellEnter(ci: number, e: React.MouseEvent<HTMLElement>) {
-    const card = cardRef.current?.getBoundingClientRect()
+    const el = cardRef.current
+    if (!el) return
+    const card = el.getBoundingClientRect()
     const cell = e.currentTarget.getBoundingClientRect()
-    if (!card) return
-    setHover({ col: ci, x: cell.left + cell.width / 2 - card.left, width: card.width })
+    const offset = parseFloat(gap) + cell.width / 2
+    const cellLeft = cell.left - card.left + el.scrollLeft
+    const cellRight = cellLeft + cell.width
+    const visibleRight = el.scrollLeft + el.clientWidth
+    let left = cellRight + offset
+    if (left + TOOLTIP_WIDTH > visibleRight - 8) left = cellLeft - offset - TOOLTIP_WIDTH
+    setHover({ col: ci, left: Math.max(el.scrollLeft + 8, left) })
   }
 
   useEffect(() => {
@@ -326,8 +338,7 @@ export function ConsistencyGrid({ gridData, today, stageByModule, dayEntries, sa
         {hover && selected === null && (
           <DayTooltip
             date={cols[hover.col]}
-            x={hover.x}
-            cardWidth={hover.width}
+            left={hover.left}
             rows={dayRows(hover.col)}
             mode={countMode}
           />
@@ -413,25 +424,21 @@ type DayRow = {
 
 function DayTooltip({
   date,
-  x,
-  cardWidth,
+  left,
   rows,
   mode,
 }: {
   date: string
-  x: number
-  cardWidth: number
+  left: number
   rows: DayRow[]
   mode: CountMode
 }) {
   const active = rows.filter((r) => r.cell.state !== 'inactive')
   const done = active.filter((r) => r.done).length
-  // Keep the 320px tooltip inside the card.
-  const left = Math.min(Math.max(x - 160, 8), Math.max(8, cardWidth - 328))
   return (
     <div
-      className="pointer-events-none absolute top-2 z-10 w-80 rounded-xl border border-foreground/15 bg-popover/95 backdrop-blur px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,.45)] flex flex-col gap-2.5 text-[0.8rem]"
-      style={{ left }}
+      className="pointer-events-none absolute top-2 z-10 w-[var(--tooltip-w)] rounded-xl border border-foreground/15 bg-popover/95 backdrop-blur px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,.45)] flex flex-col gap-2.5 text-[0.8rem]"
+      style={{ left, '--tooltip-w': `${TOOLTIP_WIDTH}px` } as React.CSSProperties}
     >
       <div className="flex items-center justify-between gap-3">
         <div>
