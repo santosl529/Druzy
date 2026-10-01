@@ -89,7 +89,7 @@ export function FormulaProposalCard({ proposal }: Props) {
   }
 
   return (
-    <div className="rounded-lg border bg-card shadow-sm w-full max-w-xl space-y-4 p-4">
+    <div className="rounded-2xl border bg-card w-full space-y-4 px-[22px] py-5">
       {/* Header */}
       <div className="flex items-center gap-2">
         <FunctionSquareIcon className="size-4 text-purple-500 shrink-0" />

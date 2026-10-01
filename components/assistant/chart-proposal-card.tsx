@@ -56,7 +56,7 @@ export function ChartProposalCard({ config, previewData, moduleOptions, defaultM
   const isEmpty = previewData.rows.length === 0
 
   return (
-    <div className="rounded-lg border bg-card shadow-sm w-full max-w-2xl space-y-4 p-4">
+    <div className="rounded-2xl border bg-card w-full space-y-4 px-[22px] py-5">
       {/* Header */}
       <div className="flex items-center gap-2">
         <BarChart2Icon className="size-4 text-indigo-500 shrink-0" />
