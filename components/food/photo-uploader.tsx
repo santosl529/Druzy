@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createFoodEntry, createEntryInModule } from '@/app/actions/food'
+import { shrinkImageToBase64 } from '@/lib/image-resize'
 import type { FoodEntry, MacroEstimate, TrackerModule } from '@/lib/types'
 import type { MacroValues, TrackerSelection } from '@/components/food/shared'
 import { MacroFields } from '@/components/food/macro-fields'
@@ -43,13 +44,20 @@ export function PhotoUploader({ date, trackerModules, onSaved }: PhotoUploaderPr
     const url = URL.createObjectURL(file)
     setPreview(url)
 
-    // Decode to base64 and store for later — analysis only runs when user clicks "Analyze"
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string
-      setImageBase64(dataUrl.split(',')[1])
-    }
-    reader.readAsDataURL(file)
+    // Shrink and encode now; analysis only runs when the user asks for it.
+    // Full-size phone photos exceed Vercel's request body limit. If the
+    // browser can't decode the format, send the original instead.
+    setImageBase64(null)
+    shrinkImageToBase64(file)
+      .then(setImageBase64)
+      .catch(() => {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string
+          setImageBase64(dataUrl.split(',')[1])
+        }
+        reader.readAsDataURL(file)
+      })
   }, [])
 
   const handleAnalyze = useCallback(async () => {
@@ -63,7 +71,13 @@ export function PhotoUploader({ date, trackerModules, onSaved }: PhotoUploaderPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageBase64, context: context.trim() || undefined }),
       })
-      const data = await res.json()
+      // Platform errors (e.g. 413 body too large) come back as plain text.
+      const data = await res.json().catch(() => ({
+        error:
+          res.status === 413
+            ? 'That photo is too large to upload. Try a smaller one, or enter macros manually.'
+            : `Analysis failed (${res.status}). You can enter macros manually.`,
+      }))
       if (!res.ok || data.error) {
         setAnalyzeError(data.error ?? 'Analysis failed. You can enter macros manually.')
       } else {
