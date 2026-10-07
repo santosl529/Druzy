@@ -30,7 +30,7 @@ interface TrackerLogSectionProps {
  * it's edited, until the user types over that field's value here.
  */
 export function TrackerLogSection({ macros, modules, onChange }: TrackerLogSectionProps) {
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState(true)
   // Default to the first tracker whose fields match a macro (e.g. "Nutrition").
   const [selectedId, setSelectedId] = useState<string>(
     () =>
